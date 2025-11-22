@@ -1,0 +1,23 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /identity
+
+spring:
+  datasource:
+    url: "jdbc:postgresql://pg-3e26c205-hcmut-bkument.k.aivencloud.com:18737/defaultdb"
+    driverClassName: "org.postgresql.Driver"
+    username: avnadmin
+    password: AVNS_kUcqwIUEmx324F4MUN1
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+jwt:
+  signerKey: "5016f0096d30f88524edc817d00b36406e26788c87ea9c97d57c4b7758b5f033"
+  valid-duration: 3600           #seconds -> 1 hour
+  refreshable-duration: 86400   #seconds -> 1 day
+
+swagger:
+  host-url: http://localhost:8080/identity
