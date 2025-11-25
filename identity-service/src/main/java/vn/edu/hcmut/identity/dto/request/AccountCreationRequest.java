@@ -17,4 +17,5 @@ public class AccountCreationRequest {
     String password;
 
     UserRole role;
+
 }

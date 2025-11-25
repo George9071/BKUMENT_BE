@@ -1,4 +1,4 @@
-package vn.edu.hcmut.profile.dto.request;
+package vn.edu.hcmut.identity.dto.request;
 
 import java.time.LocalDate;
 import lombok.*;

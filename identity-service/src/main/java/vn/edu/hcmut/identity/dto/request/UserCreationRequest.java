@@ -1,18 +1,20 @@
-package vn.edu.hcmut.profile.dto.request;
+package vn.edu.hcmut.identity.dto.request;
 
-import java.time.LocalDate;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.time.LocalDate;
+
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class ProfileCreationRequest {
-    String accountId;
+public class UserCreationRequest {
+    AccountCreationRequest account;
     String firstName;
     String lastName;
     LocalDate dob;
     String university;
+
 }

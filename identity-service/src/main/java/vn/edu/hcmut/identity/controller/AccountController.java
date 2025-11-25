@@ -10,6 +10,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.hcmut.identity.dto.request.AccountCreationRequest;
 import vn.edu.hcmut.identity.dto.request.AccountUpdateRequest;
+import vn.edu.hcmut.identity.dto.request.UserCreationRequest;
 import vn.edu.hcmut.identity.dto.response.APIResponse;
 import vn.edu.hcmut.identity.dto.response.AccountResponse;
 import vn.edu.hcmut.identity.mapper.AccountMapper;
@@ -27,14 +28,17 @@ public class AccountController {
     AccountService accountService;
     AccountMapper accountMapper;
 
+    @PostMapping("/users")
+    APIResponse<AccountResponse> createUser(@RequestBody @Valid UserCreationRequest request){
+        APIResponse<AccountResponse> response = new APIResponse<>();
+        response.setResult(accountService.createUser(request));
+        return response;
+    }
+
     @PostMapping
     APIResponse<AccountResponse> createAccount(@RequestBody @Valid AccountCreationRequest request){
-        log.info("Controller: create account");
-
         APIResponse<AccountResponse> apiResponse = new APIResponse<>();
-
-        apiResponse.setResult(accountMapper.toAccountResponse(accountService.createAccount(request)));
-
+        apiResponse.setResult(accountService.createAccount(request));
         return apiResponse;
     }
 

@@ -11,16 +11,11 @@ import vn.edu.hcmut.profile.service.ProfileService;
 @RestController
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class ProfileController {
+public class InternalProfileController {
     ProfileService profileService;
 
-//    @PostMapping("/")
-//    ProfileResponse createProfile(@RequestBody ProfileCreationRequest request) {
-//        return profileService.createProfile(request);
-//    }
-
-    @GetMapping("/users/{profileId}")
-    ProfileResponse getProfile(@PathVariable String profileId) {
-        return profileService.getProfile(profileId);
+    @PostMapping("/internal/users")
+    ProfileResponse createProfile(@RequestBody ProfileCreationRequest request) {
+        return profileService.createProfile(request);
     }
 }

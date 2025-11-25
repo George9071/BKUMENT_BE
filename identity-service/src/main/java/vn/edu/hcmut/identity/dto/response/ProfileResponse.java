@@ -1,4 +1,4 @@
-package vn.edu.hcmut.profile.dto.request;
+package vn.edu.hcmut.identity.dto.response;
 
 import java.time.LocalDate;
 import lombok.*;
@@ -9,7 +9,8 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class ProfileCreationRequest {
+public class ProfileResponse {
+    String id;
     String accountId;
     String firstName;
     String lastName;

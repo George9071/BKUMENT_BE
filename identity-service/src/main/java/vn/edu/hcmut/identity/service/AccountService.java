@@ -8,12 +8,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.hcmut.identity.dto.request.AccountCreationRequest;
 import vn.edu.hcmut.identity.dto.request.AccountUpdateRequest;
+import vn.edu.hcmut.identity.dto.request.UserCreationRequest;
 import vn.edu.hcmut.identity.dto.response.AccountResponse;
 import vn.edu.hcmut.identity.entity.Account;
 import vn.edu.hcmut.identity.exception.AppException;
 import vn.edu.hcmut.identity.exception.ErrorCode;
 import vn.edu.hcmut.identity.mapper.AccountMapper;
+import vn.edu.hcmut.identity.mapper.ProfileMapper;
 import vn.edu.hcmut.identity.repository.AccountRepository;
+import vn.edu.hcmut.identity.repository.httpclient.ProfileClient;
 
 import java.util.List;
 
@@ -25,17 +28,39 @@ public class AccountService {
     AccountRepository accountRepository;
     AccountMapper accountMapper;
     PasswordEncoder passwordEncoder;
+    ProfileClient profileClient;
+    ProfileMapper profileMapper;
+
 
     @Transactional
-    public Account createAccount(AccountCreationRequest request) {
+    public AccountResponse createUser(UserCreationRequest request) {
+        if (accountRepository.existsByUsername(request.getAccount().getUsername()))
+            throw new AppException(ErrorCode.ACCOUNT_EXISTED);
+
+        Account account = accountMapper.toAccount(request.getAccount());
+        account.setRole(request.getAccount().getRole());
+        account.setPassword(passwordEncoder.encode(request.getAccount().getPassword()));
+        account = accountRepository.save(account);
+
+        var profile = profileMapper.toProfileCreationRequest(request);
+        profile.setAccountId(account.getId());
+        profileClient.createProfile(profile);
+
+        return accountMapper.toAccountResponse(account);
+    }
+
+
+    @Transactional
+    public AccountResponse createAccount(AccountCreationRequest request) {
         if (accountRepository.existsByUsername(request.getUsername()))
             throw new AppException(ErrorCode.ACCOUNT_EXISTED);
 
         Account account = accountMapper.toAccount(request);
         account.setRole(request.getRole());
         account.setPassword(passwordEncoder.encode(request.getPassword()));
+        account = accountRepository.save(account);
 
-        return accountRepository.save(account);
+        return accountMapper.toAccountResponse(account);
     }
 
     @Transactional

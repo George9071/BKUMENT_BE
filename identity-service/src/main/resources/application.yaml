@@ -21,3 +21,7 @@ jwt:
 
 swagger:
   host-url: http://localhost:8080/identity
+
+app:
+  services:
+    profile: http://localhost:8081/profile
