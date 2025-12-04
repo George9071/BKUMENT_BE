@@ -1,6 +1,7 @@
 package vn.edu.hcmut.profile.service;
 
 import org.springframework.stereotype.Service;
+
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -19,7 +20,6 @@ public class ProfileService {
     ProfileRepository profileRepository;
     ProfileMapper profileMapper;
 
-
     public ProfileResponse createProfile(ProfileCreationRequest request) {
         Profile profile = profileMapper.toProfile(request);
         profile = profileRepository.save(profile);
@@ -28,8 +28,7 @@ public class ProfileService {
     }
 
     public ProfileResponse getProfile(String id) {
-        Profile profile = profileRepository.findById(id)
-                        .orElseThrow(() -> new RuntimeException("Profile not found"));
+        Profile profile = profileRepository.findById(id).orElseThrow(() -> new RuntimeException("Profile not found"));
 
         return profileMapper.toProfileResponse(profile);
     }
