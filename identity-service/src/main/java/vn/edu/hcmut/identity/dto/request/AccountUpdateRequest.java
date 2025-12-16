@@ -1,6 +1,7 @@
 package vn.edu.hcmut.identity.dto.request;
 
 import jakarta.validation.constraints.Size;
+
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,6 +17,7 @@ import lombok.experimental.FieldDefaults;
 public class AccountUpdateRequest {
     @Size(min = 6, message = "USERNAME_INVALID")
     String username;
+
     @Size(min = 8, message = "PASSWORD_INVALID")
     String password;
 }

@@ -11,20 +11,15 @@ spring:
     gateway:
       routes:
         - id: identity_service
-          uri: http://localhost:8080
+          uri: https://spring-boot-app-latest-lv2o.onrender.com
           predicates:
             - Path=${app.api-prefix}/identity/**
           filters:
             - StripPrefix=2
-        - id: profile_service
-          uri: http://localhost:8081
-          predicates:
-            - Path=${app.api-prefix}/profile/users/*
-          filters:
-            - StripPrefix=2
-        - id: resource_service
-          uri: http://localhost:8082
-          predicates:
-            - Path=${app.api-prefix}/resource/**
-          filters:
-            - StripPrefix=2
+      
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"

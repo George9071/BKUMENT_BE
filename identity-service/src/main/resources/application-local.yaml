@@ -5,14 +5,19 @@ server:
 
 spring:
   datasource:
-    url: "jdbc:postgresql://pg-3e26c205-hcmut-bkument.k.aivencloud.com:18737/defaultdb?sslmode=require"
-    driverClassName: "org.postgresql.Driver"
-    username: avnadmin
-    password: AVNS_kUcqwIUEmx324F4MUN1
+    url: "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+    driverClassName: "org.h2.Driver"
+    username: sa
+    password: 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
     show-sql: true
+    database-platform: org.hibernate.dialect.H2Dialect
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
 
 jwt:
   signerKey: "5016f0096d30f88524edc817d00b36406e26788c87ea9c97d57c4b7758b5f033"
