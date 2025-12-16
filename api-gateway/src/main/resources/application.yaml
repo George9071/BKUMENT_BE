@@ -7,19 +7,20 @@ app:
 spring:
   application:
     name: api-gateway
+
   cloud:
     gateway:
       routes:
         - id: identity_service
-          uri: https://spring-boot-app-latest-lv2o.onrender.com
+          uri: ${IDENTITY_SERVICE_URL:https://bkment-identity-service-latest.onrender.com}
           predicates:
             - Path=${app.api-prefix}/identity/**
           filters:
             - StripPrefix=2
-      
+
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOrigins: "*"
-            allowedMethods: "*"
-            allowedHeaders: "*"
+            allowedOrigins: ${CORS_ALLOWED_ORIGINS:*}
+            allowedMethods: ${CORS_ALLOWED_METHODS:*}
+            allowedHeaders: ${CORS_ALLOWED_HEADERS:*}
