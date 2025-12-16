@@ -1,19 +1,27 @@
 package vn.edu.hcmut.identity.service;
 
+import java.text.ParseException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Date;
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
 import com.nimbusds.jose.*;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
 import vn.edu.hcmut.identity.dto.request.AuthenticationRequest;
 import vn.edu.hcmut.identity.dto.request.IntrospectRequest;
 import vn.edu.hcmut.identity.dto.request.LogoutRequest;
@@ -26,12 +34,6 @@ import vn.edu.hcmut.identity.exception.AppException;
 import vn.edu.hcmut.identity.exception.ErrorCode;
 import vn.edu.hcmut.identity.repository.AccountRepository;
 import vn.edu.hcmut.identity.repository.InvalidatedTokenRepository;
-
-import java.text.ParseException;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.Date;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -59,8 +61,7 @@ public class AuthenticationService {
      * @param request contains the token to introspect
      * @return {@link IntrospectResponse} indicating whether the token is valid
      */
-    public IntrospectResponse introspect(IntrospectRequest request)
-            throws JOSEException, ParseException {
+    public IntrospectResponse introspect(IntrospectRequest request) throws JOSEException, ParseException {
         var token = request.getToken();
         boolean isValid = true;
 
@@ -70,9 +71,7 @@ public class AuthenticationService {
             isValid = false;
         }
 
-        return IntrospectResponse.builder()
-                .valid(isValid)
-                .build();
+        return IntrospectResponse.builder().valid(isValid).build();
     }
 
     /**
@@ -112,13 +111,11 @@ public class AuthenticationService {
             String jti = signToken.getJWTClaimsSet().getJWTID();
             Date expiryTime = signToken.getJWTClaimsSet().getExpirationTime();
 
-            InvalidatedToken invalidatedToken = InvalidatedToken.builder()
-                    .id(jti)
-                    .expiryTime(expiryTime)
-                    .build();
+            InvalidatedToken invalidatedToken =
+                    InvalidatedToken.builder().id(jti).expiryTime(expiryTime).build();
 
             invalidatedTokenRepository.save(invalidatedToken);
-        } catch (AppException exception){
+        } catch (AppException exception) {
             log.info("Token already expired");
         }
     }
@@ -131,13 +128,12 @@ public class AuthenticationService {
         var expiryTime = signedJWT.getJWTClaimsSet().getExpirationTime();
 
         invalidatedTokenRepository.save(
-                InvalidatedToken.builder().id(jti).expiryTime(expiryTime).build()
-        );
+                InvalidatedToken.builder().id(jti).expiryTime(expiryTime).build());
 
         // Reissue new token
         var accountId = signedJWT.getJWTClaimsSet().getSubject();
-        var account = accountRepository.findById(accountId)
-                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+        var account =
+                accountRepository.findById(accountId).orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
 
         var token = generateToken(account);
 
@@ -146,7 +142,6 @@ public class AuthenticationService {
                 .expiryTime(token.expiryDate)
                 .build();
     }
-
 
     /* Helper method */
     private TokenInfo generateToken(Account account) {
@@ -167,7 +162,8 @@ public class AuthenticationService {
         jwtClaimsSet.claim("username", account.getUsername());
         jwtClaimsSet.claim("scope", account.getRole().name());
 
-        JWSObject jwsObject = new JWSObject(header, new Payload(jwtClaimsSet.build().toJSONObject()));
+        JWSObject jwsObject =
+                new JWSObject(header, new Payload(jwtClaimsSet.build().toJSONObject()));
 
         try {
             jwsObject.sign(new MACSigner(SIGNER_KEY.getBytes()));
@@ -195,15 +191,18 @@ public class AuthenticationService {
 
         // Determine correct expiration time depending on context
         Date expiryTime = (isRefresh)
-                ? new Date(signedJWT.getJWTClaimsSet().getIssueTime()
-                .toInstant().plus(REFRESHABLE_DURATION, ChronoUnit.SECONDS).toEpochMilli())
+                ? new Date(signedJWT
+                        .getJWTClaimsSet()
+                        .getIssueTime()
+                        .toInstant()
+                        .plus(REFRESHABLE_DURATION, ChronoUnit.SECONDS)
+                        .toEpochMilli())
                 : signedJWT.getJWTClaimsSet().getExpirationTime();
 
         boolean verified = signedJWT.verify(verifier);
 
         // Reject if signature invalid or token expired
-        if (!(verified && expiryTime.after(new Date())))
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        if (!(verified && expiryTime.after(new Date()))) throw new AppException(ErrorCode.UNAUTHENTICATED);
 
         // Reject if the token was previously invalidated (e.g., logged out)
         if (invalidatedTokenRepository.existsById(signedJWT.getJWTClaimsSet().getJWTID()))

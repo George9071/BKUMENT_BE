@@ -1,4 +1,3 @@
 package vn.edu.hcmut.identity.entity;
 
-public class Permission {
-}
+public class Permission {}
