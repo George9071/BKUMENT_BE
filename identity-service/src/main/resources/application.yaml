@@ -9,6 +9,9 @@ spring:
     driverClassName: "org.postgresql.Driver"
     username: avnadmin
     password: AVNS_kUcqwIUEmx324F4MUN1
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
   jpa:
     hibernate:
       ddl-auto: update
