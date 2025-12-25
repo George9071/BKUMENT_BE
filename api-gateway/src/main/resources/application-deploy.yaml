@@ -14,13 +14,13 @@ spring:
         webflux:
           routes:
             - id: identity_service
-              uri: http://localhost:8080
+              uri: ${IDENTITY_URI:https://bkment-identity-service-latest.onrender.com}
               predicates:
                 - Path=${app.api-prefix}/identity/**
               filters:
                 - StripPrefix=2
             - id: resource_service
-              uri: http://localhost:8084
+              uri: ${RESOURCE_URI:https://bkment-resource-service-latest.onrender.com/}
               predicates:
                 - Path=${app.api-prefix}/resource/**
               filters:

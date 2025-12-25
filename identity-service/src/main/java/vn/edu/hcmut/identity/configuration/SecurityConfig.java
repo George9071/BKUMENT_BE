@@ -28,7 +28,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private static final String[] PUBLIC_ENDPOINTS = {
-            "/auth/**"
+        "/auth/**",
     };
 
     private final CustomJwtDecoder customJwtDecoder;
@@ -49,24 +49,38 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults()) // Uses the corsConfigurationSource bean defined below
                 .csrf(AbstractHttpConfigurer::disable)
 
-                .authorizeHttpRequests(request ->
-                        request
-                                .requestMatchers(HttpMethod.OPTIONS, PUBLIC_ENDPOINTS).permitAll()
-                                .requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS).permitAll()
-                                .requestMatchers("/swagger-ui/**").permitAll()
-                                .requestMatchers("/v3/api-docs/**").permitAll()
-                                .requestMatchers("/api-docs/**").permitAll()
-                                .requestMatchers("/swagger-ui.html").permitAll()
-                                .requestMatchers("/actuator/health").permitAll()
-                                .anyRequest().permitAll()
-                )
+                // Define authorization rules for incoming HTTP requests
+                .authorizeHttpRequests(request -> request
+                        // Allow OPTIONS requests for preflight CORS checks
+                        .requestMatchers(HttpMethod.OPTIONS, PUBLIC_ENDPOINTS)
+                        .permitAll()
 
-                .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(jwt -> jwt
-                                .decoder(customJwtDecoder)
-                                .jwtAuthenticationConverter(jwtAuthenticationConverter()))
-                        .authenticationEntryPoint(new JwtAuthenticationEntryPoint())
-                );
+                        // Allow POST requests for authentication-related endpoints
+                        .requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS)
+                        .permitAll()
+
+                        // Allow unauthenticated access to certain public routes
+                        .requestMatchers("/swagger-ui/**")
+                        .permitAll()
+                        .requestMatchers("/v3/api-docs/**")
+                        .permitAll()
+                        .requestMatchers("/api-docs/**")
+                        .permitAll()
+                        .requestMatchers("/swagger-ui.html")
+                        .permitAll()
+                        .requestMatchers("/actuator/health")
+                        .permitAll()
+
+                        // All other endpoints require authentication
+                        .anyRequest()
+                        .authenticated())
+
+                // Configure JWT-based OAuth2 Resource Server authentication
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
+                                jwt.decoder(customJwtDecoder).jwtAuthenticationConverter(jwtAuthenticationConverter()))
+
+                        // Define custom entry point for unauthorized access handling
+                        .authenticationEntryPoint(new JwtAuthenticationEntryPoint()));
         return httpSecurity.build();
     }
 

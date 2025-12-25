@@ -13,8 +13,8 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.stereotype.Component;
 
 import com.nimbusds.jose.JOSEException;
+
 import vn.edu.hcmut.identity.dto.request.IntrospectRequest;
-import vn.edu.hcmut.identity.dto.response.IntrospectResponse;
 import vn.edu.hcmut.identity.service.AuthenticationService;
 
 @Component
