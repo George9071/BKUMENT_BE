@@ -5,8 +5,8 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://206.189.92.152:5432/bkument_db
-    driverClassName: org.postgresql.Driver
+    url: "jdbc:postgresql://206.189.92.152:5432/bkument_db"
+    driverClassName: "org.postgresql.Driver"
     username: bkument
     password: bkument_thesis_252
     hikari:
