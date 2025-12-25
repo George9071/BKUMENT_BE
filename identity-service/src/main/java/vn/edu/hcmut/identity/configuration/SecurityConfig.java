@@ -58,7 +58,7 @@ public class SecurityConfig {
                                 .requestMatchers("/api-docs/**").permitAll()
                                 .requestMatchers("/swagger-ui.html").permitAll()
                                 .requestMatchers("/actuator/health").permitAll()
-                                .anyRequest().authenticated()
+                                .anyRequest().permitAll()
                 )
 
                 .oauth2ResourceServer(oauth2 -> oauth2
