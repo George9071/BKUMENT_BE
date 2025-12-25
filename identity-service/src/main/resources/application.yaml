@@ -5,10 +5,10 @@ server:
 
 spring:
   datasource:
-    url: "jdbc:postgresql://pg-3e26c205-hcmut-bkument.k.aivencloud.com:18737/defaultdb"
+    url: "jdbc:postgresql://206.189.92.152:5432/bkument_db"
     driverClassName: "org.postgresql.Driver"
-    username: avnadmin
-    password: AVNS_kUcqwIUEmx324F4MUN1
+    username: bkument
+    password: bkument_thesis_252
     hikari:
       maximum-pool-size: 5
       minimum-idle: 2
