@@ -1,11 +1,14 @@
 package vn.edu.hcmut.identity.service;
 
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
+import java.util.List;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import vn.edu.hcmut.identity.dto.request.AccountCreationRequest;
 import vn.edu.hcmut.identity.dto.request.AccountUpdateRequest;
 import vn.edu.hcmut.identity.dto.request.UserCreationRequest;
@@ -18,8 +21,6 @@ import vn.edu.hcmut.identity.mapper.ProfileMapper;
 import vn.edu.hcmut.identity.repository.AccountRepository;
 import vn.edu.hcmut.identity.repository.httpclient.ProfileClient;
 
-import java.util.List;
-
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -30,7 +31,6 @@ public class AccountService {
     PasswordEncoder passwordEncoder;
     ProfileClient profileClient;
     ProfileMapper profileMapper;
-
 
     @Transactional
     public AccountResponse createUser(UserCreationRequest request) {
@@ -49,7 +49,6 @@ public class AccountService {
         return accountMapper.toAccountResponse(account);
     }
 
-
     @Transactional
     public AccountResponse createAccount(AccountCreationRequest request) {
         if (accountRepository.existsByUsername(request.getUsername()))
@@ -65,7 +64,8 @@ public class AccountService {
 
     @Transactional
     public Account updateAccount(String accountId, AccountUpdateRequest request) {
-        Account account = accountRepository.findById(accountId)
+        Account account = accountRepository
+                .findById(accountId)
                 .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_EXISTED));
 
         accountMapper.updateAccount(account, request);
@@ -74,21 +74,23 @@ public class AccountService {
         return accountRepository.save(account);
     }
 
-//    @PreAuthorize("hasRole('ADMIN') or hasAuthority('AUTHORIZE_ADMIN')")
+    //    @PreAuthorize("hasRole('ADMIN') or hasAuthority('AUTHORIZE_ADMIN')")
     public List<Account> getAccounts() {
         return accountRepository.findAll();
     }
 
-//    @PostAuthorize("returnObject.username == authentication.name or hasRole('ADMIN')")
+    //    @PostAuthorize("returnObject.username == authentication.name or hasRole('ADMIN')")
     public AccountResponse getAccount(String accountId) {
-        Account account = accountRepository.findById(accountId)
+        Account account = accountRepository
+                .findById(accountId)
                 .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_EXISTED));
         return accountMapper.toAccountResponse(account);
     }
 
-//    @PreAuthorize("hasRole('ADMIN') or hasAuthority('AUTHORIZE_ADMIN')")
+    //    @PreAuthorize("hasRole('ADMIN') or hasAuthority('AUTHORIZE_ADMIN')")
     public void deleteAccount(String accountId) {
-        Account account = accountRepository.findById(accountId)
+        Account account = accountRepository
+                .findById(accountId)
                 .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_EXISTED));
 
         accountRepository.delete(account);
