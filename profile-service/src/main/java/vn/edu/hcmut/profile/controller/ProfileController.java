@@ -14,12 +14,7 @@ import vn.edu.hcmut.profile.service.ProfileService;
 public class ProfileController {
     ProfileService profileService;
 
-    //    @PostMapping("/")
-    //    ProfileResponse createProfile(@RequestBody ProfileCreationRequest request) {
-    //        return profileService.createProfile(request);
-    //    }
-
-    @GetMapping("/users/{profileId}")
+    @GetMapping("/{profileId}")
     ProfileResponse getProfile(@PathVariable String profileId) {
         return profileService.getProfile(profileId);
     }
