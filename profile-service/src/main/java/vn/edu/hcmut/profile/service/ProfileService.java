@@ -12,6 +12,9 @@ import vn.edu.hcmut.profile.entity.Profile;
 import vn.edu.hcmut.profile.mapper.ProfileMapper;
 import vn.edu.hcmut.profile.repository.ProfileRepository;
 
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.Authentication;
+
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -32,4 +35,16 @@ public class ProfileService {
 
         return profileMapper.toProfileResponse(profile);
     }
+
+    public ProfileResponse getMyProfile() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String accountId = authentication.getName();
+        log.info("accountId: {}", accountId);
+
+        Profile profile = profileRepository.findByAccountId(accountId)
+                .orElseThrow(() -> new RuntimeException("Profile not found for account: " + accountId));
+
+        return profileMapper.toProfileResponse(profile);
+    }
+
 }
