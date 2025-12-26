@@ -13,10 +13,26 @@ spring:
       server:
         webflux:
           routes:
+            # GLOBAL BLOCKER
+            - id: internal_blocked
+              uri: no://op
+              order: -1
+              predicates:
+                - Path=${app.api-prefix}/*/internal/**
+              filters:
+                - SetStatus=404
+
+            # SERVICE ROUTES
             - id: identity_service
               uri: http://localhost:8080
               predicates:
                 - Path=${app.api-prefix}/identity/**
+              filters:
+                - StripPrefix=2
+            - id: profile_service
+              uri: http://localhost:8081
+              predicates:
+                - Path=${app.api-prefix}/profile/**
               filters:
                 - StripPrefix=2
             - id: resource_service
@@ -37,3 +53,19 @@ spring:
             allowedMethods: "*"
             allowedHeaders: "*"
             allow-credentials: true
+
+springdoc:
+  swagger-ui:
+    # Helper to clean up the UI
+    use-root-path: true
+    # List the services want to display in the dropdown
+    urls:
+      - name: Identity Service
+        url: /api/v1/identity/v3/api-docs/public
+      - name: Profile Service
+        url: /api/v1/profile/v3/api-docs/public
+#      - name: Resource Service
+#        url: /api/v1/resource/v3/api-docs
+
+swagger:
+  host-url: http://localhost:8888
