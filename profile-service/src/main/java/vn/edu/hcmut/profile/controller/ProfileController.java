@@ -23,4 +23,9 @@ public class ProfileController {
     ProfileResponse getProfile(@PathVariable String profileId) {
         return profileService.getProfile(profileId);
     }
+
+    @GetMapping("/my-profile")
+    public ProfileResponse getMyProfile() {
+        return profileService.getMyProfile();
+    }
 }
