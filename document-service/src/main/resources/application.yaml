@@ -1,5 +1,5 @@
 server:
-  port: 8083
+  port: 8086
   servlet:
     context-path: /document
 
@@ -24,10 +24,10 @@ logging:
 
 # MinIO Configuration
 minio:
-  endpoint: http://localhost:9000
-  access-key: minioadmin
-  secret-key: minioadmin
-  bucket-name: bkument-documents
+  endpoint: http://206.189.92.152:9000
+  access-key: bkument
+  secret-key: bkument_admin
+  bucket-name: documents
   secure: false
 
 # Gateway Configuration

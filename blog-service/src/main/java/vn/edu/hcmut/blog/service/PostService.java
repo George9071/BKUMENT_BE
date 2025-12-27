@@ -7,6 +7,8 @@ import java.util.UUID;
 
 import jakarta.transaction.Transactional;
 
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +33,7 @@ import vn.edu.hcmut.blog.repository.ResourceRepository;
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class PostService {
+    static int MAX_LENGTH = 500;
     PostRepository postRepository;
     ResourceRepository resourceRepository;
     PostAssetRepository postAssetRepository;
@@ -106,5 +109,18 @@ public class PostService {
         }
 
         return postRepository.save(post);
+    }
+
+    public String htmlToTextWithoutImages(String html) {
+        if (html == null || html.isBlank()) return "";
+
+        Document doc = Jsoup.parse(html);
+        doc.select("img").remove();
+
+        String text = doc.text().replace("\u00A0", " ").trim();
+
+        if (text.isEmpty()) return "";
+
+        return text.length() > 500 ? text.substring(0, 500) : text;
     }
 }

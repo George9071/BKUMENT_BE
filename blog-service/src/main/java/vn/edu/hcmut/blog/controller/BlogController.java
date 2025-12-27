@@ -30,9 +30,9 @@ import vn.edu.hcmut.blog.service.PostService;
 public class BlogController {
     PostService postService;
 
-    @GetMapping("")
+    @GetMapping("/health")
     public String getMethodName() {
-        return new String("Health");
+        return "Blog Service is running";
     }
 
     @GetMapping("/search")
@@ -43,13 +43,19 @@ public class BlogController {
         Pageable pageable = PageRequest.of(page, size);
 
         Page<Post> posts = postService.search(q, pageable);
+        posts.forEach(p -> System.out.println("content = " + p.getContent()));
+        posts.forEach(p -> {
+            String text = postService.htmlToTextWithoutImages(p.getContent());
+            System.out.println("TEXT = [" + text + "]");
+        });
 
         if (postService.isUUID(q)) {
             Page<BlogMetadataResponse> result = posts.map(post -> BlogMetadataResponse.builder()
                     .id(post.getId())
                     .name(post.getTitle())
                     .authorId(post.getOwnerId())
-                    .content(post.getContent())
+                    .createdAt(post.getCreatedAt())
+                    .content(postService.htmlToTextWithoutImages(post.getContent()))
                     .coverImage(post.getCoverImage())
                     .build());
 
@@ -62,6 +68,7 @@ public class BlogController {
                     .id(post.getId())
                     .name(post.getTitle())
                     .authorId(post.getOwnerId())
+                    .content(postService.htmlToTextWithoutImages(post.getContent()))
                     .coverImage(post.getCoverImage())
                     .build());
 

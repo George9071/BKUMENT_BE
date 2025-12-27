@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import vn.edu.hcmut.document.configuration.GatewayProperties;
 import vn.edu.hcmut.document.dto.request.DocumentMetadataRequest;
 import vn.edu.hcmut.document.dto.response.*;
 import vn.edu.hcmut.document.entity.Document;
@@ -28,8 +29,9 @@ import vn.edu.hcmut.document.service.DocumentService;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class DocumentController {
     DocumentService documentService;
+    GatewayProperties gatewayProperties;
 
-    @GetMapping("")
+    @GetMapping("/health")
     public String healthCheck() {
         return "Document Service is running";
     }
@@ -49,6 +51,10 @@ public class DocumentController {
                 .documentType(doc.getDocumentType())
                 .university(doc.getUniversity())
                 .course(doc.getCourse())
+                .description(doc.getDescription())
+                .downloadable(doc.isDownloadable())
+                .downloadUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/document/download/"
+                        + doc.getId())
                 .downloadCount(doc.getDownloadCount())
                 .createdAt(doc.getCreatedAt())
                 .build());
@@ -59,7 +65,7 @@ public class DocumentController {
                 .build();
     }
 
-    @PostMapping("")
+    @PostMapping("create")
     public APIResponse<DocumentMetadataResponse> createDocument(@RequestBody @Valid DocumentMetadataRequest request) {
         // TODO: Get ownerId from authentication
         Document document = documentService.createDocument(request, "default-owner-id");
