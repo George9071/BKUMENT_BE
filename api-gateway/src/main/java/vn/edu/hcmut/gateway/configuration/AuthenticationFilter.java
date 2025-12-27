@@ -49,6 +49,8 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         log.info("Enter authentication filter....");
 
+        if (exchange.getRequest().getMethod().name().equals("OPTIONS")) return chain.filter(exchange);
+
         // CHECK IF PUBLIC ENDPOINT
         if (isPublicEndpoint(exchange.getRequest())) return chain.filter(exchange);
 

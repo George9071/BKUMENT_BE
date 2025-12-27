@@ -2,6 +2,8 @@ package vn.edu.hcmut.identity.service;
 
 import java.util.List;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.prepost.PostAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,23 +65,27 @@ public class AccountService {
     }
 
     @Transactional
-    public Account updateAccount(String accountId, AccountUpdateRequest request) {
+    @PostAuthorize("returnObject.username == authentication.name")
+    public AccountResponse updateAccount(String accountId, AccountUpdateRequest request) {
         Account account = accountRepository
                 .findById(accountId)
                 .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_EXISTED));
 
         accountMapper.updateAccount(account, request);
-        account.setPassword(passwordEncoder.encode(request.getPassword()));
 
-        return accountRepository.save(account);
+        if (request.getPassword() != null && !request.getPassword().isEmpty()) {
+            account.setPassword(passwordEncoder.encode(request.getPassword()));
+        }
+
+        return accountMapper.toAccountResponse(accountRepository.save(account));
     }
 
-    //    @PreAuthorize("hasRole('ADMIN') or hasAuthority('AUTHORIZE_ADMIN')")
-    public List<Account> getAccounts() {
-        return accountRepository.findAll();
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<AccountResponse> getAccounts() {
+        return accountRepository.findAll().stream().map(accountMapper::toAccountResponse).toList();
     }
 
-    //    @PostAuthorize("returnObject.username == authentication.name or hasRole('ADMIN')")
+    @PostAuthorize("returnObject.id == authentication.name or hasRole('ADMIN')")
     public AccountResponse getAccount(String accountId) {
         Account account = accountRepository
                 .findById(accountId)
