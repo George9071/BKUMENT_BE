@@ -1,5 +1,8 @@
 package vn.edu.hcmut.identity.configuration;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -17,10 +20,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import vn.edu.hcmut.identity.converter.CustomJwtGrantedAuthoritiesConverter;
 
-import java.util.Arrays;
-import java.util.List;
+import vn.edu.hcmut.identity.converter.CustomJwtGrantedAuthoritiesConverter;
 
 @Configuration
 @EnableWebSecurity
@@ -92,8 +93,9 @@ public class SecurityConfig {
         // 1. Add specific allowed origins
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:3000",
-                "https://bkument-fe-git-main-khoale2k4s-projects.vercel.app" // Removed trailing slash for exact Origin match
-        ));
+                "https://bkument-fe-git-main-khoale2k4s-projects.vercel.app" // Removed trailing slash for exact Origin
+                // match
+                ));
 
         // 2. Add allowed methods (GET, POST, etc.)
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
