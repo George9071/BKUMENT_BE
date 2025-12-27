@@ -29,6 +29,7 @@ spring:
                 - Path=${app.api-prefix}/identity/**
               filters:
                 - StripPrefix=2
+                - RemoveRequestHeader=Origin
             - id: profile_service
               uri: http://localhost:8081
               predicates:
@@ -50,6 +51,7 @@ spring:
               - http://localhost:5173
               - http://localhost:3000
               - https://bkument-fe.vercel.app/
+              - http://localhost:8888
             allowedMethods: "*"
             allowedHeaders: "*"
             allow-credentials: true

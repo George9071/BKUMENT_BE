@@ -1,8 +1,6 @@
 package vn.edu.hcmut.identity.mapper;
 
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.MappingTarget;
+import org.mapstruct.*;
 
 import vn.edu.hcmut.identity.dto.request.AccountCreationRequest;
 import vn.edu.hcmut.identity.dto.request.AccountUpdateRequest;
@@ -17,5 +15,6 @@ public interface AccountMapper {
 
     AccountResponse toAccountResponse(Account account);
 
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     void updateAccount(@MappingTarget Account account, AccountUpdateRequest request);
 }

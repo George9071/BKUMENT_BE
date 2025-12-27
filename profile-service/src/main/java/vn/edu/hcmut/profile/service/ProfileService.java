@@ -1,5 +1,6 @@
 package vn.edu.hcmut.profile.service;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 import lombok.AccessLevel;
@@ -14,6 +15,8 @@ import vn.edu.hcmut.profile.repository.ProfileRepository;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.Authentication;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +33,7 @@ public class ProfileService {
         return profileMapper.toProfileResponse(profile);
     }
 
+
     public ProfileResponse getProfile(String id) {
         Profile profile = profileRepository.findById(id).orElseThrow(() -> new RuntimeException("Profile not found"));
 
@@ -45,6 +49,13 @@ public class ProfileService {
                 .orElseThrow(() -> new RuntimeException("Profile not found for account: " + accountId));
 
         return profileMapper.toProfileResponse(profile);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<ProfileResponse> getAllProfiles() {
+        var profiles = profileRepository.findAll();
+
+        return profiles.stream().map(profileMapper::toProfileResponse).toList();
     }
 
 }

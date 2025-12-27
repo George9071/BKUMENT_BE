@@ -5,8 +5,11 @@ import org.springframework.web.bind.annotation.*;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import vn.edu.hcmut.profile.dto.response.APIResponse;
 import vn.edu.hcmut.profile.dto.response.ProfileResponse;
 import vn.edu.hcmut.profile.service.ProfileService;
+
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -15,12 +18,23 @@ public class ProfileController {
     ProfileService profileService;
 
     @GetMapping("/{profileId}")
-    ProfileResponse getProfile(@PathVariable String profileId) {
-        return profileService.getProfile(profileId);
+    APIResponse<ProfileResponse> getProfile(@PathVariable String profileId) {
+        return APIResponse.<ProfileResponse>builder()
+                .result(profileService.getProfile(profileId))
+                .build();
     }
 
     @GetMapping("/my-profile")
-    public ProfileResponse getMyProfile() {
-        return profileService.getMyProfile();
+    APIResponse<ProfileResponse> getMyProfile() {
+        return APIResponse.<ProfileResponse>builder()
+                .result(profileService.getMyProfile())
+                .build();
+    }
+
+    @GetMapping("/all")
+    APIResponse<List<ProfileResponse>> getAllProfiles() {
+        return APIResponse.<List<ProfileResponse>>builder()
+                .result(profileService.getAllProfiles())
+                .build();
     }
 }

@@ -1,12 +1,12 @@
-package vn.edu.hcmut.identity.configuration;
-
-import java.text.ParseException;
+package vn.edu.hcmut.profile.configuration;
 
 import com.nimbusds.jwt.SignedJWT;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Component;
+
+import java.text.ParseException;
 
 @Component
 public class CustomJwtDecoder implements JwtDecoder {
