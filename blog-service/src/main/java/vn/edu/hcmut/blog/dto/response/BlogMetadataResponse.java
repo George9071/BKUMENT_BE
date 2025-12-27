@@ -1,5 +1,7 @@
 package vn.edu.hcmut.blog.dto.response;
 
+import java.time.LocalDateTime;
+
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -15,4 +17,5 @@ public class BlogMetadataResponse {
     String coverImage;
 
     String content;
+    LocalDateTime createdAt;
 }
