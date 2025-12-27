@@ -30,7 +30,7 @@ public class AccountController {
     AccountService accountService;
     AccountMapper accountMapper;
 
-    @PostMapping("/users")
+    @PostMapping("/registration")
     APIResponse<AccountResponse> createUser(@RequestBody @Valid UserCreationRequest request) {
         APIResponse<AccountResponse> response = new APIResponse<>();
         response.setResult(accountService.createUser(request));
