@@ -55,7 +55,7 @@ public class BlogController {
                     .name(post.getTitle())
                     .authorId(post.getOwnerId())
                     .createdAt(post.getCreatedAt())
-                    .content(postService.htmlToTextWithoutImages(post.getContent()))
+                    .content(post.getContent())
                     .coverImage(post.getCoverImage())
                     .build());
 
