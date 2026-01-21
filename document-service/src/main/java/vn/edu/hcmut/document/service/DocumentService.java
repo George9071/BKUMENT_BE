@@ -10,6 +10,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import io.minio.StatObjectResponse;
 import lombok.AccessLevel;
@@ -18,16 +19,15 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.document.configuration.GatewayProperties;
 import vn.edu.hcmut.document.dto.request.DocumentMetadataRequest;
-import vn.edu.hcmut.document.dto.response.DocumentMetadataResponse;
-import vn.edu.hcmut.document.dto.response.FileInfoResponse;
-import vn.edu.hcmut.document.dto.response.PresignResponse;
-import vn.edu.hcmut.document.dto.response.ResourceDownloadResponse;
+import vn.edu.hcmut.document.dto.response.*;
 import vn.edu.hcmut.document.entity.Document;
 import vn.edu.hcmut.document.entity.Resource;
 import vn.edu.hcmut.document.exception.AppException;
 import vn.edu.hcmut.document.exception.ErrorCode;
 import vn.edu.hcmut.document.repository.DocumentRepository;
 import vn.edu.hcmut.document.repository.ResourceRepository;
+import vn.edu.hcmut.document.repository.httpclient.AiClient;
+import vn.edu.hcmut.document.utils.StreamMultipartFile;
 
 @Slf4j
 @Service
@@ -37,7 +37,58 @@ public class DocumentService {
     DocumentRepository documentRepository;
     ResourceRepository resourceRepository;
     GatewayProperties gatewayProperties;
+
     MinioService minioService;
+    AiClient aiClient;
+
+    public List<String> getDocumentKeywords(String docId) {
+        log.info("[DOC][{}] Start processing document with AI Service", docId);
+
+        Document document = documentRepository.findById(docId).orElseThrow(() -> {
+            log.warn("[DOC][{}] Document not found", docId);
+            return new AppException(ErrorCode.RESOURCE_NOT_EXISTED);
+        });
+
+        String assetId = document.getAssetId();
+        String fileName = document.getTitle();
+        String finalFileName = fileName.toLowerCase().endsWith(".pdf") ? fileName : fileName + ".pdf";
+
+        StatObjectResponse stat = minioService.getFileMetadata(assetId);
+        long fileSize = stat.size();
+
+        try (InputStream inputStream = minioService.getFileInputStream(assetId)) {
+
+            MultipartFile multipartFile =
+                    new StreamMultipartFile("file", finalFileName, "application/pdf", fileSize, inputStream);
+
+            log.info("[DOC][{}] Sending request to AI Service (Streaming mode)", docId);
+
+            DocumentProcessResponse result = aiClient.processDocument(multipartFile);
+
+            if (result == null) {
+                throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
+            }
+
+            updateDocumentWithAiResult(document, result);
+
+            return result.getKeywords();
+
+        } catch (Exception e) {
+            log.error("[DOC][{}] Error processing document", docId, e);
+            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
+        }
+    }
+
+    @Transactional
+    protected void updateDocumentWithAiResult(Document document, DocumentProcessResponse result) {
+        document.setKeywords(result.getKeywords());
+        document.setSummary(result.getSummary());
+        document.setContent(result.getContent());
+        document.setVector(result.getVector());
+
+        documentRepository.save(document);
+        log.info("[DOC][{}] Document updated in database", document.getId());
+    }
 
     public Page<Document> search(String keyword, Pageable pageable) {
         if (keyword == null || keyword.isBlank()) {
