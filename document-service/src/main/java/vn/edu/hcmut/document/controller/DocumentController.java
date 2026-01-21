@@ -2,6 +2,7 @@ package vn.edu.hcmut.document.controller;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import jakarta.validation.Valid;
 
@@ -99,6 +100,14 @@ public class DocumentController {
     public APIResponse<DocumentMetadataResponse> getDocumentInfo(@PathVariable String docId) {
         return APIResponse.<DocumentMetadataResponse>builder()
                 .result(documentService.getDocumentInfo(docId))
+                .message("Get document info successfully")
+                .build();
+    }
+
+    @GetMapping("testProcess/{docId}")
+    public APIResponse<List<String>> getDocContent(@PathVariable String docId) {
+        return APIResponse.<List<String>>builder()
+                .result(documentService.getDocumentKeywords(docId))
                 .message("Get document info successfully")
                 .build();
     }

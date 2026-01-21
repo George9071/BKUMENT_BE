@@ -5,10 +5,10 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://206.189.92.152:5432/bkument_db
+    url: jdbc:postgresql://localhost:5432/postgres
     driverClassName: org.postgresql.Driver
-    username: bkument
-    password: bkument_thesis_252
+    username: postgres
+    password: mysecretpassword
     hikari:
       maximum-pool-size: 5
       minimum-idle: 2
@@ -38,3 +38,7 @@ gateway:
 # Swagger Configuration
 swagger:
   host-url: http://localhost:8086/document
+
+app:
+  services:
+    ai: http://localhost:8087/ai

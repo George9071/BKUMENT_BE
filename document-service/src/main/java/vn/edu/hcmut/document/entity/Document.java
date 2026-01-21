@@ -1,5 +1,7 @@
 package vn.edu.hcmut.document.entity;
 
+import java.util.List;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -15,6 +17,11 @@ import lombok.experimental.FieldDefaults;
 @Entity
 @Table(name = "document")
 public class Document extends Resource {
+    @Column(columnDefinition = "TEXT")
+    String content;
+
+    private List<Double> vector;
+
     @Column(name = "description", columnDefinition = "TEXT")
     String description;
 
