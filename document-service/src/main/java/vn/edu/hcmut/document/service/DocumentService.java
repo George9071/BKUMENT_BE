@@ -81,21 +81,21 @@ public class DocumentService {
 
     @Transactional
     protected void updateDocumentWithAiResult(Document document, DocumentProcessResponse result) {
-        document.setKeywords(result.getKeywords());
+        // document.setKeywords(result.getKeywords()); // TODO: add to keywords
         document.setSummary(result.getSummary());
         document.setContent(result.getContent());
-        document.setVector(result.getVector());
+        document.setEmbedding(result.getVector());
 
         documentRepository.save(document);
         log.info("[DOC][{}] Document updated in database", document.getId());
     }
 
+    // TODO: move to search service
     public Page<Document> search(String keyword, Pageable pageable) {
         if (keyword == null || keyword.isBlank()) {
             return documentRepository.findAll(pageable);
         }
 
-        // Search by ID if it's a UUID
         if (isUUID(keyword)) {
             Optional<Document> optionalDoc = documentRepository.findById(keyword);
             if (optionalDoc.isPresent()) {
@@ -103,7 +103,6 @@ public class DocumentService {
             }
         }
 
-        // Search by title (case-insensitive)
         return documentRepository.findByTitleContainingIgnoreCase(keyword, pageable);
     }
 
