@@ -20,7 +20,7 @@ public class Document extends Resource {
     @Column(columnDefinition = "TEXT")
     String content;
 
-    private List<Double> vector;
+    private List<Double> embedding;
 
     @Column(name = "description", columnDefinition = "TEXT")
     String description;
