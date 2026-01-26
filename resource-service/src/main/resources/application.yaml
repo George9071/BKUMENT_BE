@@ -3,25 +3,6 @@ server:
   servlet:
     context-path: /resource
 
-spring:
-  datasource:
-    url: jdbc:postgresql://206.189.92.152:5432/bkument_db
-    driverClassName: org.postgresql.Driver
-    username: bkument
-    password: bkument_thesis_252
-    hikari:
-      maximum-pool-size: 5
-      minimum-idle: 2
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-
-logging:
-  level:
-    org.hibernate.orm.connections.pooling: DEBUG
-    com.zaxxer.hikari: DEBUG
-
 # MinIO Configuration
 minio:
   endpoint: http://206.189.92.152:9000
@@ -29,11 +10,6 @@ minio:
   secret-key: bkument_admin
   bucket-name: documents
   secure: false
-
-# Gateway Configuration
-gateway:
-  base-url: http://localhost:8082
-  api-prefix: /resource
 
 # Swagger Configuration
 swagger:
