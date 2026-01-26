@@ -1,5 +1,7 @@
 package vn.edu.hcmut.profile.controller;
 
+import java.util.List;
+
 import org.springframework.web.bind.annotation.*;
 
 import lombok.AccessLevel;
@@ -8,8 +10,6 @@ import lombok.experimental.FieldDefaults;
 import vn.edu.hcmut.profile.dto.response.APIResponse;
 import vn.edu.hcmut.profile.dto.response.ProfileResponse;
 import vn.edu.hcmut.profile.service.ProfileService;
-
-import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
