@@ -1,5 +1,8 @@
 package vn.edu.hcmut.identity.configuration;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -14,6 +17,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import vn.edu.hcmut.identity.converter.CustomJwtGrantedAuthoritiesConverter;
 
@@ -76,6 +82,33 @@ public class SecurityConfig {
                         .authenticationEntryPoint(new JwtAuthenticationEntryPoint()));
         return httpSecurity.build();
     }
+
+    // --- NEW CORS CONFIGURATION BEAN ---
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        // 1. Add specific allowed origins
+        configuration.setAllowedOrigins(Arrays.asList(
+                "http://localhost:3000",
+                "https://bkument-fe-git-main-khoale2k4s-projects.vercel.app" // Removed trailing slash for exact Origin
+                // match
+                ));
+
+        // 2. Add allowed methods (GET, POST, etc.)
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
+
+        // 3. Add allowed headers
+        configuration.setAllowedHeaders(List.of("*")); // Or specific headers like "Authorization", "Content-Type"
+
+        // 4. Allow credentials (cookies/auth headers) if needed
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+    // -----------------------------------
 
     @Bean
     JwtAuthenticationConverter jwtAuthenticationConverter() {

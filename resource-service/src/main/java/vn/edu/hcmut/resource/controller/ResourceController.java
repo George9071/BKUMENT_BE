@@ -4,8 +4,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import jakarta.validation.Valid;
-
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -15,10 +13,10 @@ import org.springframework.web.bind.annotation.*;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import vn.edu.hcmut.resource.dto.request.ResourceMetadataRequest;
-import vn.edu.hcmut.resource.dto.response.*;
-import vn.edu.hcmut.resource.entity.Resource;
-import vn.edu.hcmut.resource.service.MinioService;
+import vn.edu.hcmut.resource.dto.response.APIResponse;
+import vn.edu.hcmut.resource.dto.response.FileInfoResponse;
+import vn.edu.hcmut.resource.dto.response.PresignResponse;
+import vn.edu.hcmut.resource.dto.response.ResourceDownloadResponse;
 import vn.edu.hcmut.resource.service.ResourceService;
 
 @RestController
@@ -27,35 +25,35 @@ import vn.edu.hcmut.resource.service.ResourceService;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class ResourceController {
     ResourceService resourceService;
-    MinioService minioService;
 
     @GetMapping("")
-    public APIResponse<List<String>> getAllFiles() {
+    public String healthCheck() {
+        return "Resource Service is running";
+    }
+
+    @GetMapping("/list")
+    public APIResponse<List<String>> listAllFiles() {
         return APIResponse.<List<String>>builder()
-                .result(minioService.listAllFiles())
+                .result(resourceService.listAllFiles())
+                .message("Listed all files successfully")
                 .build();
     }
 
-    @PostMapping("/metadata")
-    public APIResponse<ResourceMetadataResponse> createResource(@RequestBody @Valid ResourceMetadataRequest request) {
-        Resource resource = resourceService.createResource(request, "");
-
-        return APIResponse.<ResourceMetadataResponse>builder()
-                .result(ResourceMetadataResponse.builder()
-                        .id(resource.getId())
-                        .name(resource.getTitle())
-                        .build())
-                .message("Resource created successfully")
+    @GetMapping("/info/asset/{assetId}")
+    public APIResponse<FileInfoResponse> getFileInfo(@PathVariable String assetId) {
+        return APIResponse.<FileInfoResponse>builder()
+                .result(resourceService.getFileInfo(assetId))
+                .message("Get file info successfully")
                 .build();
     }
 
-    @GetMapping("/download/{resourceId}")
-    public ResponseEntity<InputStreamResource> downloadResource(@PathVariable String resourceId) {
-        ResourceDownloadResponse data = resourceService.downloadResource(resourceId);
+    @GetMapping("/download/asset/{assetId}")
+    public ResponseEntity<InputStreamResource> downloadByAssetId(@PathVariable String assetId) {
+        ResourceDownloadResponse data = resourceService.downloadByAssetId(assetId);
 
         String fileName = data.getFileName();
         if (fileName == null || fileName.isBlank()) {
-            fileName = "downloaded-file";
+            fileName = "file";
         }
 
         String encodedFileName =
@@ -71,26 +69,12 @@ public class ResourceController {
                 .body(new InputStreamResource(data.getInputStream()));
     }
 
-    @GetMapping("/{resourceId}")
-    public APIResponse<FileInfoResponse> getResourceInfo(@PathVariable String resourceId) {
-        return APIResponse.<FileInfoResponse>builder()
-                .result(resourceService.getResourceFileInfo(resourceId))
-                .message("Get info successfully")
+    @DeleteMapping("/asset/{assetId}")
+    public APIResponse<String> deleteFile(@PathVariable String assetId) {
+        resourceService.deleteFile(assetId);
+        return APIResponse.<String>builder()
+                .message("File deleted successfully")
                 .build();
-    }
-
-    @GetMapping("/document/{resourceId}")
-    public APIResponse<DocumentResponse> getDocumentInfo(@PathVariable String resourceId) {
-        return APIResponse.<DocumentResponse>builder()
-                .result(resourceService.getDocumentInfo(resourceId))
-                .message("Get document successfully")
-                .build();
-    }
-
-    @DeleteMapping("/delete/{resourceId}")
-    public APIResponse<String> deleteResource(@PathVariable String resourceId) {
-        resourceService.deleteResource(resourceId);
-        return APIResponse.<String>builder().message("Deleted successfully").build();
     }
 
     @GetMapping("/presign")
