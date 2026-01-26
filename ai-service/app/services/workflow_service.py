@@ -17,7 +17,7 @@ class DocumentWorkflowService:
         ai_result = await self.ai_service.extract_keywords(full_text)
 
         semantic_content = f"{ai_result.summary} {' '.join(ai_result.keywords)}"
-        vector = self.vector_service.get_embedding(semantic_content)
+        vector = self.vector_service.get_embedding(semantic_content, False)
 
         return DocumentProcessResponse(
             filename=file.filename,

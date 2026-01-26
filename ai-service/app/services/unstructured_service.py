@@ -15,7 +15,7 @@ async def convert_pdf_to_text(file: UploadFile) -> Dict[str, Any]:
     }
     
     data = {
-        "strategy": "hi_res",
+        "strategy": "auto",
         "split_pdf_page": "true",
         "split_pdf_allow_failed": "true",
         "split_pdf_concurrency_level": "15"

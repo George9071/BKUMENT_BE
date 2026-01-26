@@ -13,8 +13,8 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     print("Đang khởi động AI Service...")
     
-    print("Đang tải model 'all-mpnet-base-v2' (Có thể mất 1-2 phút)...")
-    embedding_model = SentenceTransformer('all-mpnet-base-v2')
+    print("Đang tải model (Có thể mất 1-2 phút)...")
+    embedding_model = SentenceTransformer('intfloat/multilingual-e5-base')
     print("Đã tải xong Model Embedding!")
     
     app.state.vector_service = VectorService(embedding_model)

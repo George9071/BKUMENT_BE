@@ -72,7 +72,7 @@ async def endpoint_vectorize(
     service: Annotated[VectorService, Depends(get_vector_service)]
 ):
     try:
-        vector = service.get_embedding(req.content)
+        vector = service.get_embedding(req.content, False)
         return VectorResponse(vector=vector, dimension=len(vector))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
