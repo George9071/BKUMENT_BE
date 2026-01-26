@@ -2,8 +2,8 @@ package vn.edu.hcmut.identity.service;
 
 import java.util.List;
 
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.access.prepost.PostAuthorize;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -82,7 +82,9 @@ public class AccountService {
 
     @PreAuthorize("hasRole('ADMIN')")
     public List<AccountResponse> getAccounts() {
-        return accountRepository.findAll().stream().map(accountMapper::toAccountResponse).toList();
+        return accountRepository.findAll().stream()
+                .map(accountMapper::toAccountResponse)
+                .toList();
     }
 
     @PostAuthorize("returnObject.id == authentication.name or hasRole('ADMIN')")

@@ -14,6 +14,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+
 import vn.edu.hcmut.identity.converter.CustomJwtGrantedAuthoritiesConverter;
 
 @Configuration
@@ -21,10 +22,7 @@ import vn.edu.hcmut.identity.converter.CustomJwtGrantedAuthoritiesConverter;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private static final String[] PUBLIC_ENDPOINTS = {
-        "/auth/**",
-        "/accounts/registration"
-    };
+    private static final String[] PUBLIC_ENDPOINTS = {"/auth/**", "/accounts/registration"};
 
     private final CustomJwtDecoder customJwtDecoder;
 
