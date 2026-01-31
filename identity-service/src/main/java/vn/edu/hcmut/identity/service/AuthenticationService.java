@@ -28,12 +28,14 @@ import vn.edu.hcmut.identity.dto.request.LogoutRequest;
 import vn.edu.hcmut.identity.dto.request.RefreshRequest;
 import vn.edu.hcmut.identity.dto.response.AuthenticationResponse;
 import vn.edu.hcmut.identity.dto.response.IntrospectResponse;
+import vn.edu.hcmut.identity.dto.response.ProfileResponse;
 import vn.edu.hcmut.identity.entity.Account;
 import vn.edu.hcmut.identity.entity.InvalidatedToken;
 import vn.edu.hcmut.identity.exception.AppException;
 import vn.edu.hcmut.identity.exception.ErrorCode;
 import vn.edu.hcmut.identity.repository.AccountRepository;
 import vn.edu.hcmut.identity.repository.InvalidatedTokenRepository;
+import vn.edu.hcmut.identity.repository.httpclient.ProfileClient;
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +44,7 @@ import vn.edu.hcmut.identity.repository.InvalidatedTokenRepository;
 public class AuthenticationService {
     AccountRepository accountRepository;
     InvalidatedTokenRepository invalidatedTokenRepository;
+    ProfileClient profileClient;
 
     @NonFinal
     @Value("${jwt.signerKey}")
@@ -91,7 +94,14 @@ public class AuthenticationService {
 
         if (!authenticated) throw new AppException(ErrorCode.UNAUTHENTICATED);
 
-        var token = generateToken(account);
+        ProfileResponse profile = null;
+        try {
+            profile = profileClient.getProfileByAccountId(account.getId());
+        } catch (Exception e) {
+            log.error("Cannot fetch profile", e);
+        }
+
+        var token = generateToken(account, profile);
 
         return AuthenticationResponse.builder()
                 .token(token.token)
@@ -135,7 +145,14 @@ public class AuthenticationService {
         var account =
                 accountRepository.findById(accountId).orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
 
-        var token = generateToken(account);
+        ProfileResponse profile = null;
+        try {
+            profile = profileClient.getProfileByAccountId(account.getId());
+        } catch (Exception e) {
+            log.error("Cannot fetch profile", e);
+        }
+
+        var token = generateToken(account, profile);
 
         return AuthenticationResponse.builder()
                 .token(token.token)
@@ -144,7 +161,7 @@ public class AuthenticationService {
     }
 
     /* Helper method */
-    private TokenInfo generateToken(Account account) {
+    private TokenInfo generateToken(Account account, ProfileResponse profile) {
         JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
 
         Instant now = Instant.now();
@@ -161,6 +178,13 @@ public class AuthenticationService {
         // ---- Custom auth claims
         jwtClaimsSet.claim("username", account.getUsername());
         jwtClaimsSet.claim("scope", account.getRole().name());
+
+        if (profile != null) {
+            jwtClaimsSet.claim("profile_id", profile.getId());
+            jwtClaimsSet.claim("email", profile.getEmail());
+            jwtClaimsSet.claim("university_id", profile.getUniversityId());
+            jwtClaimsSet.claim("name", profile.getLastName() + " " + profile.getFirstName());
+        }
 
         JWSObject jwsObject =
                 new JWSObject(header, new Payload(jwtClaimsSet.build().toJSONObject()));
