@@ -19,13 +19,15 @@ import vn.edu.hcmut.profile.dto.response.APIResponse;
 public class GlobalExceptionHandler {
     private static final String MIN_ATTRIBUTE = "min";
 
-    @ExceptionHandler(value = Exception.class)
-    ResponseEntity<APIResponse> handlingRuntimeException(RuntimeException exception) {
-        log.error("Exception: ", exception);
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<APIResponse> handlingRuntimeException(RuntimeException exception) {
+        // Chỉ nhận đúng 1 tham số là RuntimeException
         APIResponse apiResponse = new APIResponse();
 
         apiResponse.setCode(ErrorCode.UNCATEGORIZED_EXCEPTION.getCode());
         apiResponse.setMessage(ErrorCode.UNCATEGORIZED_EXCEPTION.getMessage());
+
+        log.error("Runtime Exception: ", exception);
 
         return ResponseEntity.badRequest().body(apiResponse);
     }
