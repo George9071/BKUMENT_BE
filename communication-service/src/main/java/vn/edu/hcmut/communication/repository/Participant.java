@@ -1,4 +1,4 @@
-package vn.edu.hcmut.lms.repository;
+package vn.edu.hcmut.communication.repository;
 
 import jakarta.persistence.*;
 import lombok.*;
