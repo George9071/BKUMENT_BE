@@ -14,8 +14,15 @@ spring:
       minimum-idle: 2
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
+  cloud:
+    openfeign:
+      client:
+        config:
+          ai-service:
+            connect-timeout: 60000
+            read-timeout: 1200000
 
 logging:
   level:

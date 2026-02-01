@@ -1,5 +1,7 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request, Query
 from typing import Annotated
+import time
+import logging
 
 from app.schemas import (
     AnalysisResult, AnalyzeRequest, DocumentProcessResponse, 
@@ -13,6 +15,7 @@ from app.services.unstructured_service import convert_pdf_to_text
 from app.services.workflow_service import DocumentWorkflowService
 
 router = APIRouter(prefix="/ai")
+logger = logging.getLogger("uvicorn.error")
 
 def get_ai_service():
     return GeminiService()
@@ -33,13 +36,23 @@ async def endpoint_process_document(
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="File phải là PDF")
 
+    start_time = time.perf_counter()
+    logger.info(f"--- Bắt đầu xử lý file: {file.filename} ---")
+
     try:
         workflow = DocumentWorkflowService(ai_service, vector_service)
         result = await workflow.process_document(file)
         
+        end_time = time.perf_counter()
+        duration = end_time - start_time
+        
+        logger.info(f"--- Hoàn thành xử lý trong: {duration:.2f} giây ---")
+        
         return result
         
     except Exception as e:
+        end_time = time.perf_counter()
+        logger.error(f"--- Lỗi sau {end_time - start_time:.2f} giây: {str(e)} ---")
         raise HTTPException(status_code=500, detail=str(e))
     
 @router.post("/convert-pdf", response_model=PDFConversionResponse)
@@ -77,15 +90,24 @@ async def endpoint_vectorize(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/search", response_model=SearchResponse)
+@router.get("/search", response_model=SearchResponse)
 async def endpoint_search(
-    req: SearchRequest,
-    service: Annotated[VectorService, Depends(get_vector_service)]
+    service: Annotated[VectorService, Depends(get_vector_service)],
+
+    query: str = Query(..., description="Từ khóa tìm kiếm"), 
+    page: int = Query(1, ge=1, description="Số trang, bắt đầu từ 1"), 
+    limit: int = Query(5, ge=1, le=50, description="Số lượng kết quả mỗi trang"),
 ):
     try:
-        results = await service.search_documents(req.query, req.limit)
-        return SearchResponse(query=req.query, results=results)
+        results = await service.search_documents(
+            query_text=query, 
+            page=page, 
+            limit=limit
+        )
+        return SearchResponse(query=query, results=results)
+        
     except Exception as e:
+        print(f"Endpoint Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
 @router.get("/", summary="Kiểm tra trạng thái hệ thống")

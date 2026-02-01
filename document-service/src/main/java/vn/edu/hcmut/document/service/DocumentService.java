@@ -1,6 +1,7 @@
 package vn.edu.hcmut.document.service;
 
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -41,27 +42,18 @@ public class DocumentService {
     MinioService minioService;
     AiClient aiClient;
 
-    public List<String> getDocumentKeywords(String docId) {
-        log.info("[DOC][{}] Start processing document with AI Service", docId);
-
-        Document document = documentRepository.findById(docId).orElseThrow(() -> {
-            log.warn("[DOC][{}] Document not found", docId);
-            return new AppException(ErrorCode.RESOURCE_NOT_EXISTED);
-        });
-
-        String assetId = document.getAssetId();
-        String fileName = document.getTitle();
-        String finalFileName = fileName.toLowerCase().endsWith(".pdf") ? fileName : fileName + ".pdf";
+    public DocAnalyzeResponse processAndCreateDocument(String assetId, String originalFileName, String ownerId) {
+        log.info("[ASSET][{}] Bắt đầu xử lý với AI Service", assetId);
 
         StatObjectResponse stat = minioService.getFileMetadata(assetId);
         long fileSize = stat.size();
+        String finalFileName =
+                originalFileName.toLowerCase().endsWith(".pdf") ? originalFileName : originalFileName + ".pdf";
 
         try (InputStream inputStream = minioService.getFileInputStream(assetId)) {
 
             MultipartFile multipartFile =
                     new StreamMultipartFile("file", finalFileName, "application/pdf", fileSize, inputStream);
-
-            log.info("[DOC][{}] Sending request to AI Service (Streaming mode)", docId);
 
             DocumentProcessResponse result = aiClient.processDocument(multipartFile);
 
@@ -69,25 +61,55 @@ public class DocumentService {
                 throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
             }
 
+            log.info(
+                    "[DOC] Processed: filename={}, keywords={}, summaryLen={}, contentLen={}, vectorSize={}",
+                    result.getFilename(),
+                    result.getKeywords() != null ? result.getKeywords().size() : 0,
+                    result.getSummary() != null ? result.getSummary().length() : 0,
+                    result.getContent() != null ? result.getContent().length() : 0,
+                    result.getVector() != null ? result.getVector().size() : 0);
+
+            Document document = new Document();
+            document.setAssetId(assetId);
+            document.setTitle(originalFileName);
+            document.setOwnerId(ownerId);
+            document.setType("DOCUMENT");
+            document.setVisibility("PRIVATE");
+            document.setDownloadable(false);
+            document.setKeywords(new ArrayList<>()); // TODO: ask teammates
+            document.setDownloadCount(0);
+            document.setDocumentType("application/pdf");
+
             updateDocumentWithAiResult(document, result);
 
-            return result.getKeywords();
+            return DocAnalyzeResponse.builder()
+                    .docId(document.getId())
+                    .keywords(result.getKeywords())
+                    .summary(result.getSummary())
+                    .build();
 
         } catch (Exception e) {
-            log.error("[DOC][{}] Error processing document", docId, e);
+            log.error("[ASSET][{}] Lỗi khi xử lý tài liệu", assetId, e);
             throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
         }
     }
 
     @Transactional
     protected void updateDocumentWithAiResult(Document document, DocumentProcessResponse result) {
-        // document.setKeywords(result.getKeywords()); // TODO: add to keywords
         document.setSummary(result.getSummary());
         document.setContent(result.getContent());
-        document.setEmbedding(result.getVector());
+
+        if (result.getVector() != null && !result.getVector().isEmpty()) {
+            List<Double> vector = result.getVector();
+            float[] floatVector = new float[vector.size()];
+            for (int i = 0; i < vector.size(); i++) {
+                floatVector[i] = vector.get(i).floatValue();
+            }
+            document.setEmbedding(floatVector);
+        }
 
         documentRepository.save(document);
-        log.info("[DOC][{}] Document updated in database", document.getId());
+        log.info("[DOC][{}] Đã lưu/cập nhật Document vào Database", document.getAssetId());
     }
 
     // TODO: move to search service
@@ -107,12 +129,22 @@ public class DocumentService {
     }
 
     @Transactional
-    public Document createDocument(DocumentMetadataRequest request, String ownerId) {
-        Document document = new Document();
+    public Document createOrUpdateDocument(DocumentMetadataRequest request, String ownerId) {
+        Document document;
+
+        if (request.getId() != null) {
+            document = documentRepository
+                    .findById(request.getId())
+                    .orElseThrow(() -> new AppException(ErrorCode.DOCUMENT_NOT_FOUND));
+        } else {
+            document = new Document();
+            document.setType("DOCUMENT");
+            document.setOwnerId(ownerId);
+            document.setEmbedding(new float[768]); // TODO: remove hard code
+        }
+
         document.setTitle(request.getTitle());
         document.setVisibility(request.getVisibility());
-        document.setType("DOCUMENT");
-        document.setOwnerId(ownerId);
         document.setDescription(request.getDescription());
         document.setDocumentType(request.getDocumentType());
         document.setUniversity(request.getUniversity());

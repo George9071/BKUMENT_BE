@@ -18,6 +18,7 @@ public class DocumentMetadataRequest {
     String visibility;
 
     String description;
+    String id;
     String documentType;
     String university;
     String course;

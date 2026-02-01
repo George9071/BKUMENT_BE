@@ -8,7 +8,10 @@ public enum ErrorCode {
     RESOURCE_NOT_EXISTED(1001, "Resource not existed"),
     MINIO_ERROR(1002, "MinIO operation failed"),
     INVALID_RESOURCE_TYPE(1003, "Invalid resource type"),
-    VALIDATION_FAILED(1001, "Invalid body");
+    VALIDATION_FAILED(1001, "Invalid body"),
+    UNAUTHENTICATED(1006, "Unauthenticated"),
+    DOCUMENT_NOT_FOUND(404, "Document not found"),
+    INVALID_TOKEN_CLAIMS(401, "Invalid tokien");
 
     ErrorCode(int code, String message) {
         this.code = code;

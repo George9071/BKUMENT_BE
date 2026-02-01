@@ -22,11 +22,15 @@ class VectorResponse(BaseModel):
 
 class SearchRequest(BaseModel):
     query: str
-    limit: int = 5
+    page: int = Field(1, ge=1)
+    limit: int = Field(10, ge=1)
 
 class SearchResultItem(BaseModel):
-    id: int
-    similarity: float
+    id: str                 
+    title: Optional[str] = None 
+    score: float            
+    vector_score: float     
+    keyword_score: float    
 
 class SearchResponse(BaseModel):
     query: str

@@ -3,11 +3,16 @@ package vn.edu.hcmut.document.entity;
 import java.util.List;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.ColumnTransformer;
+
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import vn.edu.hcmut.document.converter.StringListConverter;
+import vn.edu.hcmut.document.converter.VectorConverter;
 
 @Getter
 @Setter
@@ -20,7 +25,14 @@ public class Document extends Resource {
     @Column(columnDefinition = "TEXT")
     String content;
 
-    private List<Double> embedding;
+    @Column(name = "embedding", columnDefinition = "vector(768)")
+    @Convert(converter = VectorConverter.class)
+    @ColumnTransformer(write = "?::vector")
+    private float[] embedding;
+
+    @Column(name = "keywords", columnDefinition = "TEXT")
+    @Convert(converter = StringListConverter.class)
+    private List<String> keywords;
 
     @Column(name = "description", columnDefinition = "TEXT")
     String description;

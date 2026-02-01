@@ -2,7 +2,6 @@ package vn.edu.hcmut.document.controller;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 
 import jakarta.validation.Valid;
 
@@ -13,6 +12,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
 import lombok.AccessLevel;
@@ -22,6 +25,8 @@ import vn.edu.hcmut.document.configuration.GatewayProperties;
 import vn.edu.hcmut.document.dto.request.DocumentMetadataRequest;
 import vn.edu.hcmut.document.dto.response.*;
 import vn.edu.hcmut.document.entity.Document;
+import vn.edu.hcmut.document.exception.AppException;
+import vn.edu.hcmut.document.exception.ErrorCode;
 import vn.edu.hcmut.document.service.DocumentService;
 
 @RestController
@@ -31,6 +36,27 @@ import vn.edu.hcmut.document.service.DocumentService;
 public class DocumentController {
     DocumentService documentService;
     GatewayProperties gatewayProperties;
+
+    private String getProfileIdFromToken() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        if (authentication instanceof JwtAuthenticationToken jwtAuth) {
+            Jwt jwt = jwtAuth.getToken();
+
+            String profileId = jwt.getClaimAsString("profile_id");
+            if (profileId == null || profileId.isBlank()) {
+                throw new AppException(ErrorCode.INVALID_TOKEN_CLAIMS);
+            }
+
+            return profileId;
+        }
+
+        throw new AppException(ErrorCode.UNAUTHENTICATED);
+    }
 
     @GetMapping("/health")
     public String healthCheck() {
@@ -44,6 +70,7 @@ public class DocumentController {
             @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<Document> documents = documentService.search(q, pageable);
+        // String authorId = getProfileIdFromToken();
 
         Page<DocumentMetadataResponse> result = documents.map(doc -> DocumentMetadataResponse.builder()
                 .id(doc.getId())
@@ -58,6 +85,7 @@ public class DocumentController {
                         + doc.getId())
                 .downloadCount(doc.getDownloadCount())
                 .createdAt(doc.getCreatedAt())
+                .summary(doc.getSummary())
                 .build());
 
         return APIResponse.<Page<DocumentMetadataResponse>>builder()
@@ -66,10 +94,11 @@ public class DocumentController {
                 .build();
     }
 
-    @PostMapping("create")
+    @PostMapping("updateMetadata")
     public APIResponse<DocumentMetadataResponse> createDocument(@RequestBody @Valid DocumentMetadataRequest request) {
         // TODO: Get ownerId from authentication
-        Document document = documentService.createDocument(request, "default-owner-id");
+        String authorId = getProfileIdFromToken();
+        Document document = documentService.createOrUpdateDocument(request, authorId);
 
         return APIResponse.<DocumentMetadataResponse>builder()
                 .result(DocumentMetadataResponse.builder()
@@ -104,11 +133,16 @@ public class DocumentController {
                 .build();
     }
 
-    @GetMapping("testProcess/{docId}")
-    public APIResponse<List<String>> getDocContent(@PathVariable String docId) {
-        return APIResponse.<List<String>>builder()
-                .result(documentService.getDocumentKeywords(docId))
-                .message("Get document info successfully")
+    @GetMapping("analyze/{assetId}")
+    public APIResponse<DocAnalyzeResponse> analyseDocument(
+            @PathVariable String assetId, @RequestParam(required = false) String fileName) {
+        String finalName = (fileName == null || fileName.trim().isEmpty()) ? assetId : fileName;
+        // TODO: Get ownerId from authentication
+        String authorId = "default-owner-id";
+
+        return APIResponse.<DocAnalyzeResponse>builder()
+                .result(documentService.processAndCreateDocument(assetId, finalName, authorId))
+                .message("Phân tích và tạo tài liệu thành công")
                 .build();
     }
 

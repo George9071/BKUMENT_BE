@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 import numpy as np
 from typing import List
 from app.config import get_settings
+import math
 
 settings = get_settings()
 
@@ -15,7 +16,10 @@ class VectorService:
             return []
 
         if is_query:
-            return self.model.encode("query: " + text).tolist()
+            return self.model.encode(
+                "query: " + text,
+                normalize_embeddings=True
+            ).tolist()
 
         chunk_size = 250  
         overlap = 30 
@@ -32,19 +36,23 @@ class VectorService:
             
             chunks.append("passage: " + chunk_text)
             
-        chunk_vectors = self.model.encode(chunks)
+
+        chunk_vectors = self.model.encode(
+            chunks,
+            normalize_embeddings=True
+        )
         avg_vector = np.mean(chunk_vectors, axis=0)
-        norm = np.linalg.norm(avg_vector)
-        if norm > 0:
-            avg_vector = avg_vector / norm
+        avg_vector = avg_vector / np.linalg.norm(avg_vector)
             
         return avg_vector.tolist()
     
-    # later
-    async def search_documents(self, query_text: str, limit: int = 5) -> List[Dict[str, Any]]:
-        """Tìm kiếm ngữ nghĩa trong DB"""
+    async def search_documents(self, query_text: str, page: int = 1, limit: int = 10) -> List[Dict[str, Any]]:
+        """Tìm kiếm ngữ nghĩa có phân trang"""
         conn = None
         try:
+            # 1. Tính toán Offset
+            offset = (page - 1) * limit
+
             query_vector = self.get_embedding(query_text, True)
 
             conn = psycopg2.connect(
@@ -57,25 +65,56 @@ class VectorService:
             cur = conn.cursor()
 
             sql = """
-                SELECT id,
-                       1 - (embedding <=> %s::vector) AS similarity
-                FROM document
-                WHERE embedding IS NOT NULL
-                ORDER BY embedding <=> %s::vector
-                LIMIT %s;
+                WITH hybrid_scores AS (
+                    SELECT 
+                        d.id,
+                        r.title,
+                        (1 - (d.embedding <=> %s::vector)) AS vector_score,
+                        
+                        ts_rank_cd(
+                            to_tsvector('simple', COALESCE(r.title, '') || ' ' || COALESCE(d.keywords, '')), 
+                            plainto_tsquery('simple', %s)
+                        ) AS keyword_score
+                    FROM document d
+                    JOIN resource r ON d.id = r.id
+                    WHERE d.embedding IS NOT NULL
+                )
+                SELECT 
+                    id,
+                    title,
+                    (vector_score * 0.7) + (keyword_score * 0.3) AS final_score,
+                    vector_score,
+                    keyword_score
+                FROM hybrid_scores
+                ORDER BY final_score DESC
+                LIMIT %s OFFSET %s; 
             """
 
-            cur.execute(sql, (query_vector, query_vector, limit))
+            cur.execute(sql, (query_vector, query_text, limit, offset))
             rows = cur.fetchall()
 
+            def safe_float(val):
+                if val is None: return 0.0
+                try:
+                    f_val = float(val)
+                    if math.isnan(f_val) or math.isinf(f_val): return 0.0
+                    return f_val
+                except (ValueError, TypeError): return 0.0
+
             documents = [
-                {"id": row[0], "similarity": float(row[1])} 
+                {
+                    "id": str(row[0]), 
+                    "title": row[1],
+                    "score": safe_float(row[2]),        
+                    "vector_score": safe_float(row[3]), 
+                    "keyword_score": safe_float(row[4]) 
+                } 
                 for row in rows
             ]
             return documents
 
         except Exception as e:
-            print(f"Vector DB Error: {e}")
+            print(f"Hybrid Search Error: {e}")
             raise e
         finally:
             if conn:
