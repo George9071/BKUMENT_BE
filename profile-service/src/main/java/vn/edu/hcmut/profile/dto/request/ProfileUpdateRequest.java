@@ -1,4 +1,4 @@
-package vn.edu.hcmut.profile.dto.response;
+package vn.edu.hcmut.profile.dto.request;
 
 import java.time.LocalDate;
 
@@ -10,23 +10,13 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class ProfileResponse {
-    String id;
-    String accountId;
-
-    String fullName;
+public class ProfileUpdateRequest {
     String firstName;
     String lastName;
-
-    String university;
-    Integer universityId;
-
     LocalDate dob;
     String bio;
     String avatarUrl;
-    String email;
-    Long points;
-
-    Integer followerCount;
-    Integer followingCount;
+    String address;
+    String phone;
+    Integer universityId;
 }

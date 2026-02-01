@@ -15,5 +15,9 @@ public class ProfileCreationRequest {
     String firstName;
     String lastName;
     LocalDate dob;
-    String university;
+    Integer universityId;
+    String email;
+    String phone;
+    String address;
+    String bio;
 }

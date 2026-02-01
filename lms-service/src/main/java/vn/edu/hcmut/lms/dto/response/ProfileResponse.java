@@ -1,6 +1,4 @@
-package vn.edu.hcmut.profile.dto.response;
-
-import java.time.LocalDate;
+package vn.edu.hcmut.lms.dto.response;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -13,20 +11,8 @@ import lombok.experimental.FieldDefaults;
 public class ProfileResponse {
     String id;
     String accountId;
-
-    String fullName;
     String firstName;
     String lastName;
-
-    String university;
-    Integer universityId;
-
-    LocalDate dob;
-    String bio;
     String avatarUrl;
     String email;
-    Long points;
-
-    Integer followerCount;
-    Integer followingCount;
 }

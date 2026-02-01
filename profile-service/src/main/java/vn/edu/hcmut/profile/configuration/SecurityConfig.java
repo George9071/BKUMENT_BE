@@ -19,6 +19,10 @@ public class SecurityConfig {
 
     private static final String[] PUBLIC_ENDPOINTS = {};
 
+    private static final String[] PUBLIC_RESOURCES = {
+        "/swagger-ui/**", "/v3/api-docs/**", "/api-docs/**", "/swagger-ui.html", "/actuator/health",
+    };
+
     private final CustomJwtDecoder customJwtDecoder;
 
     public SecurityConfig(CustomJwtDecoder customJwtDecoder) {
@@ -32,22 +36,12 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(request -> request
                         // Allow OPTIONS, POST requests for preflight CORS checks
-                        .requestMatchers(HttpMethod.OPTIONS, PUBLIC_ENDPOINTS)
-                        .permitAll()
-                        .requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS)
-                        .permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, PUBLIC_ENDPOINTS).permitAll()
+                        .requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS).permitAll()
 
                         // Allow unauthenticated access to certain public routes
-                        .requestMatchers("/swagger-ui/**")
-                        .permitAll()
-                        .requestMatchers("/v3/api-docs/**")
-                        .permitAll()
-                        .requestMatchers("/api-docs/**")
-                        .permitAll()
-                        .requestMatchers("/swagger-ui.html")
-                        .permitAll()
-                        .requestMatchers("/actuator/health")
-                        .permitAll()
+                        .requestMatchers(PUBLIC_RESOURCES).permitAll()
+                        .requestMatchers("/internal/**").permitAll()
 
                         // All other endpoints require authentication
                         .anyRequest()

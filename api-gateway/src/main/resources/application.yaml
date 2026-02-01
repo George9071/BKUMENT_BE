@@ -23,6 +23,7 @@ spring:
                 - SetStatus=404
 
             # SERVICE ROUTES
+            # IDENTITY SERVICE
             - id: identity_service
               uri: http://localhost:8080
               predicates:
@@ -30,6 +31,9 @@ spring:
               filters:
                 - StripPrefix=2
                 - RemoveRequestHeader=Origin
+                -
+
+            # PROFILE (USER SERVICE)
             - id: profile_service
               uri: http://localhost:8081
               predicates:
@@ -58,6 +62,22 @@ spring:
               uri: http://localhost:8087
               predicates:
                 - Path=${app.api-prefix}/ai/**
+              filters:
+                - StripPrefix=2
+
+            # LMS SERVICE
+            - id: lms_service
+              uri: http://localhost:8082
+              predicates:
+                - Path=${app.api-prefix}/lms/**
+              filters:
+                - StripPrefix=2
+
+            # COMMUNICATION SERVICE
+            - id: communication_service
+              uri: http://localhost:8083
+              predicates:
+                - Path=${app.api-prefix}/communication/**
               filters:
                 - StripPrefix=2
 

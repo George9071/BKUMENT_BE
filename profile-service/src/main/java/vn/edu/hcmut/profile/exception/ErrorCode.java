@@ -15,8 +15,10 @@ public enum ErrorCode {
     ACCOUNT_NOT_EXISTED(1005, "Account not existed", HttpStatus.NOT_FOUND),
     UNAUTHENTICATED(1006, "Unauthenticated", HttpStatus.UNAUTHORIZED),
     UNAUTHORIZED(1007, "You do not have permission", HttpStatus.FORBIDDEN),
-//    INVALID_DOB(1008, "Your age must be at least {min}", HttpStatus.BAD_REQUEST),
-;
+    //    INVALID_DOB(1008, "Your age must be at least {min}", HttpStatus.BAD_REQUEST),
+
+    UNIVERSITY_NOT_FOUND(9001, "University not found", HttpStatus.NOT_FOUND),
+    PROFILE_NOT_FOUND(9002, "Profile not found", HttpStatus.NOT_FOUND);
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {
         this.code = code;
