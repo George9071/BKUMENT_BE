@@ -19,7 +19,10 @@ public enum ErrorCode {
     ALREADY_ENROLLED(9007, "you already enrolled this class", HttpStatus.BAD_REQUEST),
     CANNOT_ENROLL_OWN_CLASS(9008, "you cannot enroll your own class", HttpStatus.BAD_REQUEST),
     ENROLLMENT_NOT_FOUND(9009, "enrollment not found", HttpStatus.NOT_FOUND),
-    SYNC_FAILED(9998, "An error occurred during the synchronization process", HttpStatus.INTERNAL_SERVER_ERROR)
+    SYNC_FAILED(9998, "An error occurred during the synchronization process", HttpStatus.INTERNAL_SERVER_ERROR),
+    SCHEDULE_CONFLICT(9010, "Schedule conflict", HttpStatus.BAD_REQUEST),
+    UNAUTHORIZED(1007, "You do not have permission", HttpStatus.FORBIDDEN),
+    INVALID_KEY(1001, "Uncategorized error", HttpStatus.BAD_REQUEST),
     ;
 
     private final int code;

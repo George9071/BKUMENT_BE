@@ -21,6 +21,7 @@ import vn.edu.hcmut.lms.repository.EnrollmentRepository;
 import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -30,30 +31,37 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class EnrollmentService {
+
+    ValidationService validationService;
     EnrollmentRepository enrollmentRepository;
     ClassRoomRepository classRoomRepository;
     ProfileClient profileClient;
-
     EnrollmentMapper enrollmentMapper;
 
     @Transactional
     public EnrollmentResponse enrollClass(String classId) {
-        String studentId = getProfileIdFromToken();
+        String userId = getProfileIdFromToken();
 
         ClassRoom classRoom = classRoomRepository.findById(classId)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
 
-        if (classRoom.getStatus() != ClassStatus.ENROLLING) throw new AppException(ErrorCode.CLASS_NOT_AVAILABLE);
+        if (classRoom.getStatus() != ClassStatus.ENROLLING) {
+            throw new AppException(ErrorCode.CLASS_NOT_AVAILABLE);
+        }
 
-        if (enrollmentRepository.existsByClassRoomIdAndStudentProfileId(classId, studentId)) {
+        if (classRoom.getTutor() != null && classRoom.getTutor().getId().equals(userId)) {
+            throw new AppException(ErrorCode.CANNOT_ENROLL_OWN_CLASS);
+        }
+
+        if (enrollmentRepository.existsByClassRoomIdAndStudentProfileId(classId, userId)) {
             throw new AppException(ErrorCode.ALREADY_ENROLLED);
         }
 
-        if (classRoom.getTutor().getId().equals(studentId)) throw new AppException(ErrorCode.CANNOT_ENROLL_OWN_CLASS);
+        validationService.validateBusySchedule(userId, classRoom);
 
         Enrollment enrollment = Enrollment.builder()
                 .classRoom(classRoom)
-                .studentProfileId(studentId)
+                .studentProfileId(userId)
                 .enrolledAt(LocalDateTime.now())
                 .status(EnrollmentStatus.PENDING)
                 .build();

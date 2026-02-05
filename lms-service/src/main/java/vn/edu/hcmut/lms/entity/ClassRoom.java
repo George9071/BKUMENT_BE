@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import vn.edu.hcmut.lms.constant.ClassStatus;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Entity
 @Getter
@@ -14,6 +15,7 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@Table(name = "class_room")
 public class ClassRoom {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -23,7 +25,9 @@ public class ClassRoom {
 
     LocalDate startDate;
     LocalDate endDate;
-    String schedule;
+
+    @OneToMany(mappedBy = "classRoom", cascade = CascadeType.ALL, orphanRemoval = true)
+    List<ClassSchedule> schedules;
 
     @Enumerated(EnumType.STRING)
     ClassStatus status;

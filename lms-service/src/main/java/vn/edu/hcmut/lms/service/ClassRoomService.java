@@ -32,6 +32,8 @@ public class ClassRoomService {
     TutorRepository tutorRepository;
     ClassRoomMapper classMapper;
 
+    ValidationService validationService;
+
     @Transactional
     public ClassRoomResponse createClass(ClassRoomCreationRequest request) {
         String profileId = getProfileIdFromToken();
@@ -48,6 +50,9 @@ public class ClassRoomService {
                     .orElseThrow(() -> new AppException(ErrorCode.TOPIC_NOT_FOUND));
             classRoom.setTopic(topic);
         }
+
+        // VALIDATION
+        validationService.validateBusySchedule(profileId, classRoom);
 
         classRoom = classRoomRepository.save(classRoom);
 
