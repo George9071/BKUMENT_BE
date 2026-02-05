@@ -16,6 +16,7 @@ import vn.edu.hcmut.lms.exception.AppException;
 import vn.edu.hcmut.lms.exception.ErrorCode;
 import vn.edu.hcmut.lms.mapper.TutorMapper;
 import vn.edu.hcmut.lms.repository.TutorRepository;
+import vn.edu.hcmut.lms.repository.httpclient.IdentityClient;
 import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
 
 import java.util.List;
@@ -28,6 +29,7 @@ public class TutorService {
     TutorRepository tutorRepository;
     TutorMapper tutorMapper;
     ProfileClient profileClient;
+    IdentityClient identityClient;
 
     @Transactional
     public TutorResponse registerTutor(TutorRegistrationRequest request) {
@@ -45,12 +47,18 @@ public class TutorService {
         tutorRepository.save(tutor);
 
         try {
+            identityClient.addRole(profileId, "TUTOR");
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to sync role to Identity Service", e);
+        }
+
+        try {
             profileClient.addRole(profileId, "TUTOR");
             if (request.getSubjectIds() != null && !request.getSubjectIds().isEmpty()) {
                 profileClient.updateTutorSubjects(profileId, request.getSubjectIds());
             }
         } catch (Exception e) {
-            log.error("Failed to sync role to Profile Service", e);
+            throw new RuntimeException("Failed to sync role to Profile Service", e);
         }
 
         return tutorMapper.toResponse(tutor);

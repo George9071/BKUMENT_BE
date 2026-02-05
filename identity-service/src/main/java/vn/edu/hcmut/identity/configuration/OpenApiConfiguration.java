@@ -30,10 +30,7 @@ public class OpenApiConfiguration {
     // 2. Define the "Internal" Group (Shows everything)
     @Bean
     public GroupedOpenApi internalApi() {
-        return GroupedOpenApi.builder()
-                .group("internal")
-                .pathsToMatch("/**")
-                .build();
+        return GroupedOpenApi.builder().group("internal").pathsToMatch("/**").build();
     }
 
     @Bean
@@ -45,9 +42,7 @@ public class OpenApiConfiguration {
                         new Server()
                                 .url("http://localhost:8888/api/v1/identity")
                                 .description("Gateway"),
-                        new Server()
-                                .url("http://localhost:8080/identity")
-                                .description("Local")))
+                        new Server().url("http://localhost:8080/identity").description("Local")))
                 // --- SECURITY CONFIGURATION---
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
                 .components(new Components()
@@ -58,8 +53,7 @@ public class OpenApiConfiguration {
                                         .type(SecurityScheme.Type.HTTP)
                                         .scheme("bearer")
                                         .bearerFormat("JWT")
-                                        .description(
-                                        "JWT Authorization header using the Bearer scheme. " +
-                                        "Example: \"Authorization: Bearer {token}\"")));
+                                        .description("JWT Authorization header using the Bearer scheme. "
+                                                + "Example: \"Authorization: Bearer {token}\"")));
     }
 }

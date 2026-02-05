@@ -1,5 +1,6 @@
 package vn.edu.hcmut.identity.service;
 
+import java.util.HashSet;
 import java.util.List;
 
 import org.springframework.security.access.prepost.PostAuthorize;
@@ -11,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import vn.edu.hcmut.identity.constant.UserRole;
 import vn.edu.hcmut.identity.dto.request.AccountCreationRequest;
 import vn.edu.hcmut.identity.dto.request.AccountUpdateRequest;
 import vn.edu.hcmut.identity.dto.request.UserCreationRequest;
@@ -40,8 +42,12 @@ public class AccountService {
             throw new AppException(ErrorCode.ACCOUNT_EXISTED);
 
         Account account = accountMapper.toAccount(request.getAccount());
-        account.setRole(request.getAccount().getRole());
         account.setPassword(passwordEncoder.encode(request.getAccount().getPassword()));
+
+        HashSet<UserRole> roles = new HashSet<>();
+        roles.add(request.getAccount().getRole());
+        account.setRoles(roles);
+
         account = accountRepository.save(account);
 
         var profile = profileMapper.toProfileCreationRequest(request);
@@ -57,7 +63,7 @@ public class AccountService {
             throw new AppException(ErrorCode.ACCOUNT_EXISTED);
 
         Account account = accountMapper.toAccount(request);
-        account.setRole(request.getRole());
+        account.getRoles().add(UserRole.USER);
         account.setPassword(passwordEncoder.encode(request.getPassword()));
         account = accountRepository.save(account);
 
@@ -102,5 +108,18 @@ public class AccountService {
                 .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_EXISTED));
 
         accountRepository.delete(account);
+    }
+
+    public void addRoleToUser(String accountId, String roleName) {
+        Account account = accountRepository
+                .findById(accountId)
+                .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_EXISTED));
+        try {
+            UserRole role = UserRole.valueOf(roleName.toUpperCase());
+            account.getRoles().add(role);
+            accountRepository.save(account);
+        } catch (IllegalArgumentException e) {
+            throw new AppException(ErrorCode.INVALID_ROLE);
+        }
     }
 }

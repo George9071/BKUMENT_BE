@@ -10,7 +10,6 @@ import vn.edu.hcmut.identity.entity.Account;
 @Mapper(componentModel = "spring")
 public interface AccountMapper {
     @Mapping(target = "id", ignore = true)
-    @Mapping(target = "role", ignore = true)
     Account toAccount(AccountCreationRequest request);
 
     AccountResponse toAccountResponse(Account account);

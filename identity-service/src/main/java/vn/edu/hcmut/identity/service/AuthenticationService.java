@@ -4,12 +4,14 @@ import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.StringJoiner;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 import com.nimbusds.jose.*;
 import com.nimbusds.jose.crypto.MACSigner;
@@ -177,7 +179,7 @@ public class AuthenticationService {
 
         // ---- Custom auth claims
         jwtClaimsSet.claim("username", account.getUsername());
-        jwtClaimsSet.claim("scope", account.getRole().name());
+        jwtClaimsSet.claim("scope", buildScope(account));
 
         if (profile != null) {
             jwtClaimsSet.claim("profile_id", profile.getId());
@@ -236,4 +238,16 @@ public class AuthenticationService {
     }
 
     private record TokenInfo(String token, Date expiryDate) {}
+
+    private String buildScope(Account account) {
+        StringJoiner stringJoiner = new StringJoiner(" ");
+
+        if (!CollectionUtils.isEmpty(account.getRoles())) {
+            account.getRoles().forEach(role -> {
+                stringJoiner.add(role.name());
+            });
+        }
+
+        return stringJoiner.toString();
+    }
 }
