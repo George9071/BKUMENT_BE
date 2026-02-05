@@ -51,6 +51,12 @@ public class ClassRoomService {
             classRoom.setTopic(topic);
         }
 
+        if (classRoom.getSchedules() != null) {
+            for (var schedule : classRoom.getSchedules()) {
+                schedule.setClassRoom(classRoom);
+            }
+        }
+
         // VALIDATION
         validationService.validateBusySchedule(profileId, classRoom);
 

@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import vn.edu.hcmut.lms.dto.request.TutorRegistrationRequest;
 import vn.edu.hcmut.lms.dto.request.TutorUpdateRequest;
 import vn.edu.hcmut.lms.dto.response.APIResponse;
+import vn.edu.hcmut.lms.dto.response.SubjectResponse;
 import vn.edu.hcmut.lms.dto.response.TutorResponse;
 import vn.edu.hcmut.lms.service.TutorService;
 
@@ -34,5 +35,12 @@ public class TutorController {
     @GetMapping
     List<TutorResponse> getTutors(@RequestParam(required = false) String subjectId) {
         return tutorService.getTutors(subjectId);
+    }
+
+    @GetMapping("/my-subjects")
+    public APIResponse<List<SubjectResponse>> getTutorSubjects() {
+        return APIResponse.<List<SubjectResponse>>builder()
+                .result(tutorService.getTutorSubjects())
+                .build();
     }
 }

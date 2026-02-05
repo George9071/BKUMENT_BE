@@ -15,6 +15,8 @@ public interface ClassRoomMapper {
     @Mapping(target = "topic", ignore = true)
     ClassRoom toClassRoom(ClassRoomCreationRequest request);
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "classRoom", ignore = true)
     ClassSchedule toScheduleEntity(ClassRoomCreationRequest.ScheduleRequest request);
 
     @Mapping(target = "tutorId", source = "tutor.id")
@@ -37,4 +39,6 @@ public interface ClassRoomMapper {
             classRoom.getSchedules().forEach(schedule -> schedule.setClassRoom(classRoom));
         }
     }
+
+
 }

@@ -10,16 +10,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.hcmut.lms.dto.request.TutorRegistrationRequest;
 import vn.edu.hcmut.lms.dto.request.TutorUpdateRequest;
+import vn.edu.hcmut.lms.dto.response.SubjectResponse;
 import vn.edu.hcmut.lms.dto.response.TutorResponse;
+import vn.edu.hcmut.lms.entity.Subject;
 import vn.edu.hcmut.lms.entity.Tutor;
 import vn.edu.hcmut.lms.exception.AppException;
 import vn.edu.hcmut.lms.exception.ErrorCode;
+import vn.edu.hcmut.lms.mapper.SubjectMapper;
 import vn.edu.hcmut.lms.mapper.TutorMapper;
+import vn.edu.hcmut.lms.repository.SubjectRepository;
 import vn.edu.hcmut.lms.repository.TutorRepository;
 import vn.edu.hcmut.lms.repository.httpclient.IdentityClient;
 import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +34,8 @@ import java.util.List;
 @Slf4j
 public class TutorService {
     TutorRepository tutorRepository;
+    SubjectRepository subjectRepository;
+    SubjectMapper subjectMapper;
     TutorMapper tutorMapper;
     ProfileClient profileClient;
     IdentityClient identityClient;
@@ -112,5 +121,24 @@ public class TutorService {
             return profileId;
         }
         throw new AppException(ErrorCode.UNAUTHENTICATED);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SubjectResponse> getTutorSubjects() {
+        String id = getProfileIdFromToken();
+        Tutor tutor = tutorRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.TUTOR_NOT_FOUND));
+
+        Set<String> subjectIds = tutor.getSubjectIds();
+
+        if (subjectIds == null || subjectIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<Subject> subjects = subjectRepository.findAllById(subjectIds);
+
+        return subjects.stream()
+                .map(subjectMapper::toSubjectResponse)
+                .collect(Collectors.toList());
     }
 }

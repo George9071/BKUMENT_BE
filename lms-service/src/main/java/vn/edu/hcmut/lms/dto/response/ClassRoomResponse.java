@@ -4,7 +4,10 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import vn.edu.hcmut.lms.constant.ClassStatus;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -18,7 +21,7 @@ public class ClassRoomResponse {
 
     LocalDate startDate;
     LocalDate endDate;
-    String schedule;
+    List<ScheduleResponse> schedules;
 
     ClassStatus status;
 
@@ -28,4 +31,14 @@ public class ClassRoomResponse {
 
     String topicName;
     String subjectName;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ScheduleResponse {
+        DayOfWeek dayOfWeek;
+        LocalTime startTime;
+        LocalTime endTime;
+    }
 }

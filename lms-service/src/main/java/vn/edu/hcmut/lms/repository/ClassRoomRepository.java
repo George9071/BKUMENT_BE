@@ -12,7 +12,7 @@ import java.util.Optional;
 
 @Repository
 public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
-    Optional<ClassRoom> findByTutorId(String id);
+    List<ClassRoom> findByTutorId(String id);
 
     @Query("""
         SELECT c FROM ClassRoom c\s
