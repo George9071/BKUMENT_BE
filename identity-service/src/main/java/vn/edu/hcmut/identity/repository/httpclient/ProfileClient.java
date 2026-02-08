@@ -11,4 +11,7 @@ import vn.edu.hcmut.identity.dto.response.ProfileResponse;
 public interface ProfileClient {
     @PostMapping(value = "/internal/users", produces = MediaType.APPLICATION_JSON_VALUE)
     ProfileResponse createProfile(@RequestBody ProfileCreationRequest request);
+
+    @GetMapping("/internal/users/account/{accountId}")
+    ProfileResponse getProfileByAccountId(@PathVariable("accountId") String accountId);
 }

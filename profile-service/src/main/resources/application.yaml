@@ -9,6 +9,18 @@ spring:
     authentication:
       username: neo4j
       password: BKUMENT_THESIS_252
+  datasource:
+    url: "jdbc:postgresql://206.189.92.152:5432/bkument_db"
+    driverClassName: "org.postgresql.Driver"
+    username: bkument
+    password: bkument_thesis_252
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
 
 swagger:
   host-url: http://localhost:8081/profile

@@ -69,6 +69,8 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/actuator/health")
                         .permitAll()
+                        .requestMatchers("/internal/**")
+                        .permitAll()
 
                         // All other endpoints require authentication
                         .anyRequest()

@@ -37,10 +37,13 @@ public class ApplicationInitConfig {
     ApplicationRunner applicationRunner(AccountRepository accountRepository) {
         return args -> {
             if (accountRepository.findByUsername("admin").isEmpty()) {
+
+                var adminRole = new HashSet<UserRole>();
+                adminRole.add(UserRole.ADMIN);
                 Account account = Account.builder()
                         .username(ADMIN_USERNAME)
                         .password(passwordEncoder.encode(ADMIN_PASSWORD))
-                        .role(UserRole.ADMIN)
+                        .roles(adminRole)
                         .build();
 
                 accountRepository.save(account);

@@ -1,5 +1,8 @@
 package vn.edu.hcmut.identity.entity;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import jakarta.persistence.*;
 
 import lombok.*;
@@ -25,7 +28,14 @@ public class Account {
     @Column(name = "password")
     String password;
 
+    //    @Column(name = "role")
+    //    @Enumerated(value = EnumType.STRING)
+    //    UserRole role;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "account_roles", joinColumns = @JoinColumn(name = "account_id"))
+    @Enumerated(EnumType.STRING)
     @Column(name = "role")
-    @Enumerated(value = EnumType.STRING)
-    UserRole role;
+    @Builder.Default
+    Set<UserRole> roles = new HashSet<>();
 }

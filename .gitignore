@@ -1,0 +1,11 @@
+# --- IDE files ---
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# --- Build Artifacts ---
+**/target/
+**/build/
+*.jar
+*.war

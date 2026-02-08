@@ -1,15 +1,15 @@
 package vn.edu.hcmut.profile.entity;
 
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
 
-import org.springframework.data.neo4j.core.schema.GeneratedValue;
-import org.springframework.data.neo4j.core.schema.Id;
-import org.springframework.data.neo4j.core.schema.Node;
-import org.springframework.data.neo4j.core.schema.Property;
+import org.springframework.data.neo4j.core.schema.*;
 import org.springframework.data.neo4j.core.support.UUIDStringGenerator;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import vn.edu.hcmut.profile.entity.neo4j.UserProfileNode;
 
 @Getter
 @Setter
@@ -29,5 +29,18 @@ public class Profile {
     String firstName;
     String lastName;
     LocalDate dob;
+
+    String bio;
+    String avatarUrl;
+    String phone;
+    String address;
+    String email;
     String university;
+
+    @Builder.Default
+    Long points = 0L;
+
+    @Relationship(type = "FOLLOW", direction = Relationship.Direction.OUTGOING)
+    @Builder.Default
+    Set<UserProfileNode> following = new HashSet<>();
 }

@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: communication
+  datasource:
+    url: "jdbc:postgresql://206.189.92.152:5432/bkument_db"
+    driverClassName: "org.postgresql.Driver"
+    username: bkument
+    password: bkument_thesis_252
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+server:
+  port: 8085
+  servlet:
+    context-path: /communication

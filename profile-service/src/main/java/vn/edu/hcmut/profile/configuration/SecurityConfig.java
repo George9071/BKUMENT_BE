@@ -19,6 +19,10 @@ public class SecurityConfig {
 
     private static final String[] PUBLIC_ENDPOINTS = {};
 
+    private static final String[] PUBLIC_RESOURCES = {
+        "/swagger-ui/**", "/v3/api-docs/**", "/api-docs/**", "/swagger-ui.html", "/actuator/health",
+    };
+
     private final CustomJwtDecoder customJwtDecoder;
 
     public SecurityConfig(CustomJwtDecoder customJwtDecoder) {
@@ -38,15 +42,9 @@ public class SecurityConfig {
                         .permitAll()
 
                         // Allow unauthenticated access to certain public routes
-                        .requestMatchers("/swagger-ui/**")
+                        .requestMatchers(PUBLIC_RESOURCES)
                         .permitAll()
-                        .requestMatchers("/v3/api-docs/**")
-                        .permitAll()
-                        .requestMatchers("/api-docs/**")
-                        .permitAll()
-                        .requestMatchers("/swagger-ui.html")
-                        .permitAll()
-                        .requestMatchers("/actuator/health")
+                        .requestMatchers("/internal/**")
                         .permitAll()
 
                         // All other endpoints require authentication

@@ -63,8 +63,6 @@ public class DocumentService {
         String finalFileName =
                 originalFileName.toLowerCase().endsWith(".pdf") ? originalFileName : originalFileName + ".pdf";
 
-        ProcessResult processResult = null;
-
         try (InputStream inputStream = minioService.getFileInputStream(assetId)) {
             byte[] fileBytes = inputStream.readAllBytes();
 
@@ -126,24 +124,6 @@ public class DocumentService {
             this.fastResult = fastResult;
             this.previewUrl = previewUrl;
         }
-    }
-
-    @Transactional
-    protected void updateDocumentWithAiResult(Document document, DocumentProcessResponse result) {
-        document.setSummary(result.getSummary());
-        document.setContent(result.getContent());
-
-        if (result.getVector() != null && !result.getVector().isEmpty()) {
-            List<Double> vector = result.getVector();
-            float[] floatVector = new float[vector.size()];
-            for (int i = 0; i < vector.size(); i++) {
-                floatVector[i] = vector.get(i).floatValue();
-            }
-            document.setEmbedding(floatVector);
-        }
-
-        documentRepository.save(document);
-        log.info("[DOC][{}] Đã lưu/cập nhật Document vào Database", document.getAssetId());
     }
 
     // TODO: move to search service
