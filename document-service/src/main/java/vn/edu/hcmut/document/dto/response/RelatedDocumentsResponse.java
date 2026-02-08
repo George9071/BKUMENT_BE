@@ -1,6 +1,7 @@
 package vn.edu.hcmut.document.dto.response;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -10,18 +11,19 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class DocumentMetadataResponse {
+public class RelatedDocumentsResponse {
     String id;
     String title;
     String authorId;
     String documentType;
     String university;
     String course;
+    String previewImageUrl;
     Integer downloadCount;
     String downloadUrl;
-    String previewImageUrl;
     LocalDateTime createdAt;
     String description;
     String summary;
     boolean downloadable;
+    List<String> keywords;
 }

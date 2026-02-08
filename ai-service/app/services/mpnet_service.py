@@ -50,10 +50,11 @@ class VectorService:
         """Tìm kiếm ngữ nghĩa có phân trang"""
         conn = None
         try:
-            # 1. Tính toán Offset
             offset = (page - 1) * limit
-
+            # Đảm bảo vector là list thuần Python
             query_vector = self.get_embedding(query_text, True)
+            if hasattr(query_vector, "tolist"):
+                query_vector = query_vector.tolist()
 
             conn = psycopg2.connect(
                 host=settings.DB_HOST,
@@ -68,9 +69,11 @@ class VectorService:
                 WITH hybrid_scores AS (
                     SELECT 
                         d.id,
+                        d.preview_image_url,
+                        d.description,
+                        r.created_at,
                         r.title,
                         (1 - (d.embedding <=> %s::vector)) AS vector_score,
-                        
                         ts_rank_cd(
                             to_tsvector('simple', COALESCE(r.title, '') || ' ' || COALESCE(d.keywords, '')), 
                             plainto_tsquery('simple', %s)
@@ -80,14 +83,20 @@ class VectorService:
                     WHERE d.embedding IS NOT NULL
                 )
                 SELECT 
-                    id,
-                    title,
-                    (vector_score * 0.7) + (keyword_score * 0.3) AS final_score,
-                    vector_score,
-                    keyword_score
-                FROM hybrid_scores
+                    id,                 -- index 0
+                    title,              -- index 1
+                    preview_image_url,  -- index 2
+                    description,        -- index 3
+                    created_at,         -- index 4
+                    vector_score,       -- index 5
+                    keyword_score,      -- index 6
+                    final_score         -- index 7 (tổng điểm)
+                FROM (
+                    SELECT *, (vector_score * 0.7) + (keyword_score * 0.3) AS final_score 
+                    FROM hybrid_scores
+                ) sub
                 ORDER BY final_score DESC
-                LIMIT %s OFFSET %s; 
+                LIMIT %s OFFSET %s;
             """
 
             cur.execute(sql, (query_vector, query_text, limit, offset))
@@ -101,13 +110,17 @@ class VectorService:
                     return f_val
                 except (ValueError, TypeError): return 0.0
 
+            # Map dữ liệu chính xác theo thứ tự cột trong câu lệnh SELECT
             documents = [
                 {
                     "id": str(row[0]), 
                     "title": row[1],
-                    "score": safe_float(row[2]),        
-                    "vector_score": safe_float(row[3]), 
-                    "keyword_score": safe_float(row[4]) 
+                    "preview_image_url": row[2],
+                    "description": row[3],
+                    "created_at": row[4], # Pydantic sẽ tự xử lý datetime object
+                    "vector_score": safe_float(row[5]), 
+                    "keyword_score": safe_float(row[6]),
+                    "score": safe_float(row[7]) # final_score
                 } 
                 for row in rows
             ]

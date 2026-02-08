@@ -105,6 +105,20 @@ public class MinioService {
         return UUID.randomUUID().toString() + extension;
     }
 
+    public void uploadFile(String assetId, InputStream inputStream, long size, String contentType) {
+        try {
+            createBucketIfNotExists();
+            minioClient.putObject(
+                    PutObjectArgs.builder().bucket(minioProperties.getBucketName()).object(assetId).stream(
+                                    inputStream, size, -1)
+                            .contentType(contentType)
+                            .build());
+        } catch (Exception e) {
+            log.error("MinIO Upload Error: {}", e.getMessage());
+            throw new AppException(ErrorCode.MINIO_ERROR);
+        }
+    }
+
     private void createBucketIfNotExists() {
         try {
             String bucketName = minioProperties.getBucketName();

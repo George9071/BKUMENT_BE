@@ -3,6 +3,7 @@ package vn.edu.hcmut.document.converter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
@@ -12,13 +13,14 @@ public class StringListConverter implements AttributeConverter<List<String>, Str
 
     @Override
     public String convertToDatabaseColumn(List<String> attribute) {
-        if (attribute == null) {
-            return null;
-        }
-        if (attribute.isEmpty()) {
+        if (attribute == null || attribute.isEmpty()) {
             return "";
         }
-        return String.join(",", attribute);
+
+        return attribute.stream()
+                .filter(s -> s != null && !s.isBlank())
+                .map(s -> s.trim().toLowerCase().replace(" ", "-"))
+                .collect(Collectors.joining(" "));
     }
 
     @Override
@@ -26,6 +28,7 @@ public class StringListConverter implements AttributeConverter<List<String>, Str
         if (dbData == null || dbData.isBlank()) {
             return new ArrayList<>();
         }
-        return Arrays.asList(dbData.split(","));
+
+        return new ArrayList<>(Arrays.asList(dbData.split("\\s+")));
     }
 }

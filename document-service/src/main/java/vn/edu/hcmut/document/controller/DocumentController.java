@@ -84,6 +84,7 @@ public class DocumentController {
                 .downloadUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/document/download/"
                         + doc.getId())
                 .downloadCount(doc.getDownloadCount())
+                .previewImageUrl(doc.getPreviewImageUrl())
                 .createdAt(doc.getCreatedAt())
                 .summary(doc.getSummary())
                 .build());
@@ -97,7 +98,7 @@ public class DocumentController {
     @PostMapping("updateMetadata")
     public APIResponse<DocumentMetadataResponse> createDocument(@RequestBody @Valid DocumentMetadataRequest request) {
         // TODO: Get ownerId from authentication
-        String authorId = getProfileIdFromToken();
+        String authorId = new String("default-author-id"); // getProfileIdFromToken();
         Document document = documentService.createOrUpdateDocument(request, authorId);
 
         return APIResponse.<DocumentMetadataResponse>builder()
@@ -181,6 +182,18 @@ public class DocumentController {
         return APIResponse.<PresignResponse>builder()
                 .result(documentService.generatePresignedUrl(fileName))
                 .message("Presign URL generated")
+                .build();
+    }
+
+    @GetMapping("/related/{docId}")
+    public APIResponse<Page<RelatedDocumentsResponse>> getRelatedDocuments(
+            @PathVariable String docId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return APIResponse.<Page<RelatedDocumentsResponse>>builder()
+                .result(documentService.getRelatedDocuments(docId, pageable))
+                .message("Get related documents successfully")
                 .build();
     }
 }

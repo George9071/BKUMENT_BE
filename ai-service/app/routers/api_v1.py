@@ -23,6 +23,38 @@ def get_ai_service():
 def get_vector_service(request: Request):
     return request.app.state.vector_service
 
+@router.post(
+    "/internal/analyze-fast", 
+    response_model=AnalysisResult,
+)
+async def quick_analyze(
+    file: UploadFile = File(...),
+    ai_service: Annotated[GeminiService, Depends(get_ai_service)] = None
+):
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="File phải là PDF")
+
+    start_time = time.perf_counter()
+    logger.info(f"--- Bắt đầu phân tích nhanh: {file.filename} ---")
+
+    try:
+        content = await file.read()
+        
+        result = await ai_service.analyze_document_fast(
+            file_content=content,
+            file_name=file.filename,
+            mime_type=file.content_type or "application/pdf"
+        )
+        
+        duration = time.perf_counter() - start_time
+        logger.info(f"--- Hoàn thành phân tích nhanh trong: {duration:.2f} giây ---")
+        
+        return result
+
+    except Exception as e:
+        duration = time.perf_counter() - start_time
+        logger.error(f"--- Lỗi phân tích nhanh sau {duration:.2f} giây: {str(e)} ---")
+        raise HTTPException(status_code=500, detail=f"Lỗi khi xử lý nhanh: {str(e)}")
 
 @router.post(
     "/internal/process-document", 

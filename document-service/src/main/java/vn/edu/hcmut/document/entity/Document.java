@@ -37,6 +37,9 @@ public class Document extends Resource {
     @Column(name = "description", columnDefinition = "TEXT")
     String description;
 
+    @Column(name = "preview_image_url")
+    String previewImageUrl;
+
     @Column(name = "download_count")
     Integer downloadCount = 0;
 

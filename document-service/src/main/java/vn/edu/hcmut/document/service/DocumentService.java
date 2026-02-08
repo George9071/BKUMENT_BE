@@ -1,14 +1,26 @@
 package vn.edu.hcmut.document.service;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import javax.imageio.ImageIO;
 
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.rendering.ImageType;
+import org.apache.pdfbox.rendering.PDFRenderer;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -41,6 +53,7 @@ public class DocumentService {
 
     MinioService minioService;
     AiClient aiClient;
+    DocumentAsyncService documentAsyncService;
 
     public DocAnalyzeResponse processAndCreateDocument(String assetId, String originalFileName, String ownerId) {
         log.info("[ASSET][{}] Bắt đầu xử lý với AI Service", assetId);
@@ -50,47 +63,68 @@ public class DocumentService {
         String finalFileName =
                 originalFileName.toLowerCase().endsWith(".pdf") ? originalFileName : originalFileName + ".pdf";
 
+        ProcessResult processResult = null;
+
         try (InputStream inputStream = minioService.getFileInputStream(assetId)) {
+            byte[] fileBytes = inputStream.readAllBytes();
 
-            MultipartFile multipartFile =
-                    new StreamMultipartFile("file", finalFileName, "application/pdf", fileSize, inputStream);
+            try (PDDocument pdDocument = PDDocument.load(fileBytes)) {
+                PDFRenderer pdfRenderer = new PDFRenderer(pdDocument);
+                BufferedImage bim = pdfRenderer.renderImageWithDPI(0, 300, ImageType.RGB);
+                ByteArrayOutputStream os = new ByteArrayOutputStream();
+                ImageIO.write(bim, "png", os);
+                InputStream is = new ByteArrayInputStream(os.toByteArray());
+                String previewAssetId = UUID.randomUUID().toString() + ".png";
+                minioService.uploadFile(previewAssetId, is, os.size(), "image/png");
 
-            DocumentProcessResponse result = aiClient.processDocument(multipartFile);
+                String previewUrl = gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()
+                        + "/resource/download/asset/" + previewAssetId;
 
-            if (result == null) {
-                throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
+                ByteArrayInputStream multipartInputStream = new ByteArrayInputStream(fileBytes);
+                MultipartFile multipartFile = new StreamMultipartFile(
+                        "file", finalFileName, "application/pdf", fileSize, multipartInputStream);
+                FastDocumentProcessResponse fastResult = aiClient.processDocumentFast(multipartFile);
+
+                processResult = new ProcessResult(fastResult, previewUrl);
             }
-
-            log.info(
-                    "[DOC] Processed: filename={}, keywords={}, summaryLen={}, contentLen={}, vectorSize={}",
-                    result.getFilename(),
-                    result.getKeywords() != null ? result.getKeywords().size() : 0,
-                    result.getSummary() != null ? result.getSummary().length() : 0,
-                    result.getContent() != null ? result.getContent().length() : 0,
-                    result.getVector() != null ? result.getVector().size() : 0);
-
-            Document document = new Document();
-            document.setAssetId(assetId);
-            document.setTitle(originalFileName);
-            document.setOwnerId(ownerId);
-            document.setType("DOCUMENT");
-            document.setVisibility("PRIVATE");
-            document.setDownloadable(false);
-            document.setKeywords(new ArrayList<>()); // TODO: ask teammates
-            document.setDownloadCount(0);
-            document.setDocumentType("application/pdf");
-
-            updateDocumentWithAiResult(document, result);
-
-            return DocAnalyzeResponse.builder()
-                    .docId(document.getId())
-                    .keywords(result.getKeywords())
-                    .summary(result.getSummary())
-                    .build();
-
         } catch (Exception e) {
-            log.error("[ASSET][{}] Lỗi khi xử lý tài liệu", assetId, e);
+            log.error("Lỗi khi đọc file hoặc gọi AI nhanh", e);
             throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
+        }
+
+        if (processResult == null || processResult.fastResult == null)
+            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
+
+        Document document = new Document();
+        document.setAssetId(assetId);
+        document.setTitle(originalFileName);
+        document.setOwnerId(ownerId);
+        document.setType("DOCUMENT");
+        document.setVisibility("PRIVATE");
+        document.setDownloadable(false);
+        document.setPreviewImageUrl(processResult.previewUrl);
+        document.setKeywords(processResult.fastResult.getKeywords());
+        document.setSummary(processResult.fastResult.getSummary());
+        document.setDownloadCount(0);
+        document.setDocumentType("application/pdf");
+
+        document = documentRepository.save(document);
+        documentAsyncService.runBackgroundAiProcess(assetId, finalFileName, fileSize, document.getId());
+
+        return DocAnalyzeResponse.builder()
+                .docId(document.getId())
+                .keywords(processResult.fastResult.getKeywords())
+                .summary(processResult.fastResult.getSummary())
+                .build();
+    }
+
+    private static class ProcessResult {
+        FastDocumentProcessResponse fastResult;
+        String previewUrl;
+
+        public ProcessResult(FastDocumentProcessResponse fastResult, String previewUrl) {
+            this.fastResult = fastResult;
+            this.previewUrl = previewUrl;
         }
     }
 
@@ -114,18 +148,23 @@ public class DocumentService {
 
     // TODO: move to search service
     public Page<Document> search(String keyword, Pageable pageable) {
+        Pageable sortedByCreatedAt = PageRequest.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                Sort.by("createdAt").descending());
+
         if (keyword == null || keyword.isBlank()) {
-            return documentRepository.findAll(pageable);
+            return documentRepository.findAll(sortedByCreatedAt);
         }
 
         if (isUUID(keyword)) {
             Optional<Document> optionalDoc = documentRepository.findById(keyword);
             if (optionalDoc.isPresent()) {
-                return new PageImpl<>(List.of(optionalDoc.get()), pageable, 1);
+                return new PageImpl<>(List.of(optionalDoc.get()), sortedByCreatedAt, 1);
             }
         }
 
-        return documentRepository.findByTitleContainingIgnoreCase(keyword, pageable);
+        return documentRepository.findByTitleContainingIgnoreCase(keyword, sortedByCreatedAt);
     }
 
     @Transactional
@@ -206,6 +245,7 @@ public class DocumentService {
                 .description(document.getDescription())
                 .summary(document.getSummary())
                 .downloadable(document.isDownloadable())
+                .previewImageUrl(document.getPreviewImageUrl())
                 .build();
     }
 
@@ -263,6 +303,66 @@ public class DocumentService {
         String assetId = minioService.generateUniqueAssetName(fileName);
         String url = minioService.getPresignedUrl(assetId, 10);
         return new PresignResponse(assetId, url);
+    }
+
+    public Page<RelatedDocumentsResponse> getRelatedDocuments(String docId, Pageable pageable) {
+        Document sourceDoc =
+                documentRepository.findById(docId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
+
+        if (sourceDoc.getEmbedding() == null) {
+            return Page.empty(pageable);
+        }
+
+        String vectorStr = Arrays.toString(sourceDoc.getEmbedding());
+
+        StringBuilder queryBuilder = new StringBuilder();
+        if (sourceDoc.getTitle() != null) {
+            queryBuilder.append(sourceDoc.getTitle()).append(" ");
+        }
+        if (sourceDoc.getKeywords() != null) {
+            queryBuilder.append(String.join(" ", sourceDoc.getKeywords()));
+        }
+        String queryString = queryBuilder.toString().trim();
+        if (queryString.isEmpty()) queryString = " ";
+
+        Page<String> docIdsPage = documentRepository.findRelatedDocumentIds(vectorStr, queryString, docId, pageable);
+
+        if (docIdsPage.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        List<String> docIds = docIdsPage.getContent();
+        Map<String, Document> docMap = documentRepository.findAllById(docIds).stream()
+                .collect(Collectors.toMap(Document::getId, Function.identity()));
+
+        List<RelatedDocumentsResponse> dtos = docIds.stream()
+                .map(docMap::get)
+                .filter(doc -> doc != null)
+                .map(this::toRelatedDocument)
+                .toList();
+
+        return new PageImpl<>(dtos, pageable, docIdsPage.getTotalElements());
+    }
+
+    private RelatedDocumentsResponse toRelatedDocument(Document document) {
+        String downloadUrl =
+                gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/download/" + document.getId();
+        return RelatedDocumentsResponse.builder()
+                .id(document.getId())
+                .title(document.getTitle())
+                .authorId(document.getOwnerId())
+                .documentType(document.getDocumentType())
+                .university(document.getUniversity())
+                .course(document.getCourse())
+                .downloadCount(document.getDownloadCount())
+                .downloadUrl(downloadUrl)
+                .createdAt(document.getCreatedAt())
+                .description(document.getDescription())
+                .summary(document.getSummary())
+                .downloadable(document.isDownloadable())
+                .keywords(document.getKeywords())
+                .previewImageUrl(document.getPreviewImageUrl())
+                .build();
     }
 
     private boolean isUUID(String value) {

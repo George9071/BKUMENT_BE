@@ -8,10 +8,14 @@ import org.springframework.web.multipart.MultipartFile;
 
 import vn.edu.hcmut.document.configuration.FeignMultipartConfig;
 import vn.edu.hcmut.document.dto.response.DocumentProcessResponse;
+import vn.edu.hcmut.document.dto.response.FastDocumentProcessResponse;
 
 @FeignClient(name = "ai-service", url = "${app.services.ai}", configuration = FeignMultipartConfig.class)
 public interface AiClient {
 
     @PostMapping(value = "/internal/process-document", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     DocumentProcessResponse processDocument(@RequestPart("file") MultipartFile file);
+
+    @PostMapping(value = "/internal/analyze-fast", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    FastDocumentProcessResponse processDocumentFast(@RequestPart("file") MultipartFile file);
 }

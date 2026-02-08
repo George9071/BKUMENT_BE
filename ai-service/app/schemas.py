@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Any
+from datetime import datetime
 
 class AnalyzeRequest(BaseModel):
     text: str = Field(..., min_length=10)
@@ -31,6 +32,9 @@ class SearchResultItem(BaseModel):
     score: float            
     vector_score: float     
     keyword_score: float    
+    preview_image_url: Optional[str] = None
+    description: Optional[str] = None     
+    created_at: Optional[datetime] = None
 
 class SearchResponse(BaseModel):
     query: str
