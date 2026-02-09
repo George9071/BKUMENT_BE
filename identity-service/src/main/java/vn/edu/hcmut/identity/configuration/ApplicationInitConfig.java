@@ -15,6 +15,8 @@ import vn.edu.hcmut.identity.constant.UserRole;
 import vn.edu.hcmut.identity.entity.Account;
 import vn.edu.hcmut.identity.repository.AccountRepository;
 
+import java.util.HashSet;
+
 @Configuration
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -38,12 +40,13 @@ public class ApplicationInitConfig {
         return args -> {
             if (accountRepository.findByUsername("admin").isEmpty()) {
 
-                var adminRole = new HashSet<UserRole>();
-                adminRole.add(UserRole.ADMIN);
+                var roles = new HashSet<UserRole>();
+                roles.add(UserRole.ADMIN);
+
                 Account account = Account.builder()
                         .username(ADMIN_USERNAME)
                         .password(passwordEncoder.encode(ADMIN_PASSWORD))
-                        .roles(adminRole)
+                        .roles(roles)
                         .build();
 
                 accountRepository.save(account);
