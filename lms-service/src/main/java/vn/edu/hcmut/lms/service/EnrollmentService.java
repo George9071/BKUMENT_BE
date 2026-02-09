@@ -13,17 +13,14 @@ import vn.edu.hcmut.lms.dto.response.EnrollmentResponse;
 import vn.edu.hcmut.lms.dto.response.ProfileResponse;
 import vn.edu.hcmut.lms.entity.ClassRoom;
 import vn.edu.hcmut.lms.entity.Enrollment;
-import vn.edu.hcmut.lms.exception.AppException;
-import vn.edu.hcmut.lms.exception.ErrorCode;
+import vn.edu.hcmut.lms.exception.*;
 import vn.edu.hcmut.lms.mapper.EnrollmentMapper;
 import vn.edu.hcmut.lms.repository.ClassRoomRepository;
 import vn.edu.hcmut.lms.repository.EnrollmentRepository;
 import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -41,6 +38,8 @@ public class EnrollmentService {
     @Transactional
     public EnrollmentResponse enrollClass(String classId) {
         String userId = getProfileIdFromToken();
+
+        var userProfile = profileClient.getProfile(userId);
 
         ClassRoom classRoom = classRoomRepository.findById(classId)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
@@ -68,7 +67,7 @@ public class EnrollmentService {
 
         enrollment = enrollmentRepository.save(enrollment);
 
-        return enrollmentMapper.toResponse(enrollment, null);
+        return enrollmentMapper.toResponse(enrollment, userProfile);
     }
 
     @Transactional
@@ -86,41 +85,30 @@ public class EnrollmentService {
         enrollmentRepository.save(enrollment);
     }
 
-    public List<EnrollmentResponse> getClassMembers(String classId) {
-        String requesterId = getProfileIdFromToken();
+    public List<EnrollmentResponse> getPendingRequestsOfClass(String classId) {
+        String currentUserId = getProfileIdFromToken();
 
         ClassRoom classRoom = classRoomRepository.findById(classId)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
 
+        if (!classRoom.getTutor().getId().equals(currentUserId))
+            throw new AppException(ErrorCode.UNAUTHORIZED_ACCESS);
 
-        List<Enrollment> enrollments = enrollmentRepository.findByClassRoomId(classId);
+        List<Enrollment> enrollments =
+                enrollmentRepository.findByClassRoomIdAndStatus(classId, EnrollmentStatus.PENDING);
 
-        // --- KỸ THUẬT BATCH GET PROFILE ---
-        // B1: Lấy list student IDs
-        List<String> studentIds = enrollments.stream()
-                .map(Enrollment::getStudentProfileId)
-                .distinct()
-                .toList();
+        if (enrollments.isEmpty()) return Collections.emptyList();
 
-        // B2: Gọi 1 lần sang Profile Service
-        Map<String, ProfileResponse> profileMap;
-        try {
-            List<ProfileResponse> profiles = profileClient.getProfiles(studentIds);
-            profileMap = profiles.stream()
-                    .collect(Collectors.toMap(ProfileResponse::getId, Function.identity()));
-        } catch (Exception e) {
-            // Fallback nếu profile service lỗi: trả về map rỗng
-            profileMap = Map.of();
-        }
+        return toEnrollmentResponses(enrollments);
+    }
 
-        // B3: Map dữ liệu
-        final var profilesFinal = profileMap;
-        return enrollments.stream()
-                .map(enrollment -> enrollmentMapper.toResponse(
-                        enrollment,
-                        profilesFinal.get(enrollment.getStudentProfileId())
-                ))
-                .toList();
+    public List<EnrollmentResponse> getClassMembers(String classId) {
+        List<Enrollment> enrollments =
+                enrollmentRepository.findByClassRoomIdAndStatus(classId, EnrollmentStatus.APPROVED);
+
+        if (enrollments.isEmpty()) return new ArrayList<>();
+
+        return toEnrollmentResponses(enrollments);
     }
 
     @Transactional
@@ -141,5 +129,18 @@ public class EnrollmentService {
     private String getProfileIdFromToken() {
         var jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return jwt.getClaimAsString("profile_id");
+    }
+
+    private List<EnrollmentResponse> toEnrollmentResponses(List<Enrollment> enrollments) {
+        Set<String> studentIds = enrollments.stream()
+                .map(Enrollment::getStudentProfileId)
+                .collect(Collectors.toSet());
+
+        var profiles = profileClient.getProfiles(new ArrayList<>(studentIds));
+
+        Map<String, ProfileResponse> profileMap = profiles.stream()
+                .collect(Collectors.toMap(ProfileResponse::getId, Function.identity()));
+
+        return enrollmentMapper.toResponseList(enrollments, profileMap);
     }
 }

@@ -39,7 +39,7 @@ public class InternalProfileController {
         profileService.addRole(id, role);
     }
 
-    @PostMapping("/internal/users/batch")
+    @PostMapping("/batch")
     List<ProfileResponse> getProfiles(@RequestBody List<String> profileIds) {
         return profileService.getProfilesByIds(profileIds);
     }
@@ -47,5 +47,10 @@ public class InternalProfileController {
     @PutMapping("/{id}/subjects")
     public void updateTutorSubjects(@PathVariable String id, @RequestBody Set<String> subjectIds) {
         profileService.updateTutorSubjects(id, subjectIds);
+    }
+
+    @DeleteMapping("/{profileId}")
+    public void deleteProfile(@PathVariable String profileId) {
+        profileService.deleteProfile(profileId);
     }
 }

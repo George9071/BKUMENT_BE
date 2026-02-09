@@ -23,6 +23,7 @@ public enum ErrorCode {
     SCHEDULE_CONFLICT(9010, "Schedule conflict", HttpStatus.BAD_REQUEST),
     UNAUTHORIZED(1007, "You do not have permission", HttpStatus.FORBIDDEN),
     INVALID_KEY(1001, "Uncategorized error", HttpStatus.BAD_REQUEST),
+    UNAUTHORIZED_ACCESS(9011, "you are not the owner of this class", HttpStatus.FORBIDDEN),
     ;
 
     private final int code;

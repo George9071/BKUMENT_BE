@@ -95,6 +95,15 @@ public class TutorService {
         return tutorMapper.toResponse(tutor);
     }
 
+    @Transactional
+    public void deleteTutor(String profileId) {
+        if (tutorRepository.existsById(profileId)) {
+            // REMOVE CLASSROOM
+            tutorRepository.deleteById(profileId);
+            log.info("Deleted Tutor profile for id: {}", profileId);
+        }
+    }
+
     public List<TutorResponse> getTutors(String subjectId) {
         List<Tutor> tutors;
 

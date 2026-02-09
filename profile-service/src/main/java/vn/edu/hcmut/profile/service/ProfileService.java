@@ -74,6 +74,7 @@ public class ProfileService {
     }
 
     public ProfileResponse getProfile(String id) {
+        log.info("profile_id: {}", id);
         UserProfile user = jpaRepository.findById(id).orElseThrow(() -> new RuntimeException("Profile not found"));
         return profileMapper.toProfileResponse(user);
     }
@@ -151,6 +152,25 @@ public class ProfileService {
         return response;
     }
 
+    @Transactional(transactionManager = "transactionManager", rollbackFor = Exception.class)
+    public void deleteProfile(String profileId){
+        UserProfile user = jpaRepository
+                .findById(profileId)
+                .orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
+        jpaRepository.delete(user);
+
+        String query = """
+                MATCH (u:UserProfile {id: $profileId})
+                DETACH DELETE u
+                """;
+
+        neo4jClient.query(query)
+                .bindAll(Map.of("profileId", profileId))
+                .run();
+
+        log.info("Deleted UserProfile {} and all its relationships in Neo4j", profileId);
+    }
+
     public void addRole(String profileId, String role) {
         neo4jRepository.findById(profileId).ifPresent(node -> {
             List<String> currentRoles = node.getRoles();
@@ -195,13 +215,4 @@ public class ProfileService {
                         "subjectIds", subjectIds))
                 .run();
     }
-
-    //
-    //    // GET ALL
-    //    @PreAuthorize("hasRole('ADMIN')")
-    //    public List<ProfileResponse> getAllProfiles() {
-    //        return jpaRepository.findAll().stream()
-    //                .map(profileMapper::toProfileResponse)
-    //                .toList();
-    //    }
 }

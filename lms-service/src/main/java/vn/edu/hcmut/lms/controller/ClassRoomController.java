@@ -8,7 +8,9 @@ import vn.edu.hcmut.lms.dto.request.ClassRoomCreationRequest;
 import vn.edu.hcmut.lms.dto.request.ClassRoomUpdateRequest;
 import vn.edu.hcmut.lms.dto.response.APIResponse;
 import vn.edu.hcmut.lms.dto.response.ClassRoomResponse;
+import vn.edu.hcmut.lms.dto.response.EnrollmentResponse;
 import vn.edu.hcmut.lms.service.ClassRoomService;
+import vn.edu.hcmut.lms.service.EnrollmentService;
 
 import java.util.List;
 
@@ -18,9 +20,11 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class ClassRoomController {
     ClassRoomService classRoomService;
+    EnrollmentService enrollmentService;
 
     @PostMapping
-    APIResponse<ClassRoomResponse> createClass(@RequestBody ClassRoomCreationRequest request) {
+    APIResponse<ClassRoomResponse> createClass(
+            @RequestBody ClassRoomCreationRequest request) {
         return APIResponse.<ClassRoomResponse>builder()
                 .result(classRoomService.createClass(request))
                 .build();
@@ -34,18 +38,46 @@ public class ClassRoomController {
     }
 
     @PutMapping("/{classId}")
-    APIResponse<ClassRoomResponse> updateClass(@PathVariable String classId, @RequestBody ClassRoomUpdateRequest request) {
+    APIResponse<ClassRoomResponse> updateClass(
+            @PathVariable String classId,
+            @RequestBody ClassRoomUpdateRequest request) {
         return APIResponse.<ClassRoomResponse>builder()
                 .result(classRoomService.updateClass(classId, request))
                 .build();
     }
 
-    // Hủy lớp (Soft delete)
+    // (Soft delete - change status)
     @DeleteMapping("/{classId}")
-    APIResponse<String> deleteClass(@PathVariable String classId) {
+    APIResponse<String> deleteClass(
+            @PathVariable String classId) {
         classRoomService.deleteClass(classId);
         return APIResponse.<String>builder()
                 .result("Class has been cancelled successfully")
                 .build();
     }
+
+    @PostMapping("/{classId}/enroll")
+    APIResponse<EnrollmentResponse> enrollClass(
+            @PathVariable String classId) {
+        return APIResponse.<EnrollmentResponse>builder()
+                .result(enrollmentService.enrollClass(classId))
+                .build();
+    }
+
+    @GetMapping("/{classId}/members")
+    public APIResponse<List<EnrollmentResponse>> getClassMembers(
+            @PathVariable String classId) {
+        return APIResponse.<List<EnrollmentResponse>>builder()
+                .result(enrollmentService.getClassMembers(classId))
+                .build();
+    }
+
+    @GetMapping("/{classId}/enrollments/pending")
+    public APIResponse<List<EnrollmentResponse>> getPendingEnrollments(
+            @PathVariable String classId) {
+        return APIResponse.<List<EnrollmentResponse>>builder()
+                .result(enrollmentService.getPendingRequestsOfClass(classId))
+                .build();
+    }
+
 }

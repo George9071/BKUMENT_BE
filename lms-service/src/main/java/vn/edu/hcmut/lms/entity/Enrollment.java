@@ -30,5 +30,7 @@ public class Enrollment {
     ClassRoom classRoom;
 
     LocalDateTime enrolledAt;
+
+    @Enumerated(EnumType.STRING)
     EnrollmentStatus status;
 }

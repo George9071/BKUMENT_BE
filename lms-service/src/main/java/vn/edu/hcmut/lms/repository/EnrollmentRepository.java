@@ -16,6 +16,7 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, String> 
     boolean existsByClassRoomIdAndStudentProfileId(String classId, String studentProfileId);
 
     List<Enrollment> findByClassRoomId(String classId);
+    List<Enrollment> findByClassRoomIdAndStatus(String classRoomId, EnrollmentStatus status);
 
     @Query("""
         SELECT e.classRoom FROM Enrollment e\s
