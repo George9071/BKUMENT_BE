@@ -17,6 +17,9 @@ public enum ErrorCode {
     UNAUTHORIZED(1007, "You do not have permission", HttpStatus.FORBIDDEN),
     //    INVALID_DOB(1008, "Your age must be at least {min}", HttpStatus.BAD_REQUEST),
     INVALID_ROLE(1008, "Invalid role (MODERATOR, ADMIN, USER, TUTOR)", HttpStatus.BAD_REQUEST),
+    DELETE_LMS_FAILED(9020, "Failed to delete LMS data", HttpStatus.INTERNAL_SERVER_ERROR),
+    DELETE_PROFILE_FAILED(9021, "Failed to delete User Profile", HttpStatus.INTERNAL_SERVER_ERROR),
+    PROFILE_NOT_FOUND(9022, "Profile not found", HttpStatus.NOT_FOUND),
     ;
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {

@@ -3,6 +3,7 @@ package vn.edu.hcmut.identity.service;
 import java.util.HashSet;
 import java.util.List;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PostAuthorize;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,17 +24,20 @@ import vn.edu.hcmut.identity.exception.ErrorCode;
 import vn.edu.hcmut.identity.mapper.AccountMapper;
 import vn.edu.hcmut.identity.mapper.ProfileMapper;
 import vn.edu.hcmut.identity.repository.AccountRepository;
+import vn.edu.hcmut.identity.repository.httpclient.LmsClient;
 import vn.edu.hcmut.identity.repository.httpclient.ProfileClient;
 
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@Slf4j
 public class AccountService {
 
     AccountRepository accountRepository;
     AccountMapper accountMapper;
     PasswordEncoder passwordEncoder;
     ProfileClient profileClient;
+    LmsClient lmsClient;
     ProfileMapper profileMapper;
 
     @Transactional
@@ -101,13 +105,38 @@ public class AccountService {
         return accountMapper.toAccountResponse(account);
     }
 
-    //    @PreAuthorize("hasRole('ADMIN') or hasAuthority('AUTHORIZE_ADMIN')")
+    @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
     public void deleteAccount(String accountId) {
-        Account account = accountRepository
-                .findById(accountId)
-                .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_EXISTED));
+        if (!accountRepository.existsById(accountId)) throw new AppException(ErrorCode.ACCOUNT_NOT_EXISTED);
 
-        accountRepository.delete(account);
+        String profileId = null;
+        try {
+            var profile = profileClient.getProfileByAccountId(accountId);
+            if (profile != null) profileId = profile.getId();
+        } catch (Exception e) {
+            log.error("Cannot fetch profile for account: {}", accountId, e);
+        }
+
+        if (profileId != null) {
+            try {
+                lmsClient.deleteTutor(profileId);
+            } catch (Exception e) {
+                log.error("Error deleting Tutor data for profile: {}", profileId, e);
+                throw new AppException(ErrorCode.DELETE_LMS_FAILED);
+            }
+
+            try {
+                profileClient.deleteProfile(profileId);
+            } catch (Exception e) {
+                log.error("Error deleting Neo4j Profile data for profile: {}", profileId, e);
+                throw new AppException(ErrorCode.DELETE_PROFILE_FAILED);
+            }
+        }
+
+        accountRepository.deleteById(accountId);
+
+        log.info("Account {} and related profiles have been deleted", accountId);
     }
 
     public void addRoleToUser(String accountId, String roleName) {
