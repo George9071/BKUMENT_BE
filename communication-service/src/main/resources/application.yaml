@@ -1,20 +1,34 @@
 spring:
   application:
-    name: communication
-  datasource:
-    url: "jdbc:postgresql://206.189.92.152:5432/bkument_db"
-    driverClassName: "org.postgresql.Driver"
-    username: bkument
-    password: bkument_thesis_252
-    hikari:
-      maximum-pool-size: 5
-      minimum-idle: 2
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
+    name: communication-service
+  data:
+    mongodb:
+      uri: mongodb://bkument_admin:bkument_thesis_252@127.0.0.1:27018/communication?authSource=admin
+      auto-index-creation: true
+
+ssh:
+  tunnel:
+    enabled: true
+    host: 206.189.92.152
+    port: 22
+    user: root
+    password: BKUMENT_THESIS_252
+    local-port: 27018
+    remote-port: 27017
 
 server:
   port: 8085
   servlet:
     context-path: /communication
+
+app:
+  services:
+    identity:
+      url: http://localhost:8080/identity
+    profile:
+      url: http://localhost:8081/profile
+    lms:
+      url: http://localhost:8082/lms
+
+swagger:
+  host-url: http://localhost:8085/communication
