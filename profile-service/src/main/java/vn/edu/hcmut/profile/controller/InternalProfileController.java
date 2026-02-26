@@ -9,6 +9,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import vn.edu.hcmut.profile.dto.request.ProfileCreationRequest;
+import vn.edu.hcmut.profile.dto.response.APIResponse;
 import vn.edu.hcmut.profile.dto.response.ProfileResponse;
 import vn.edu.hcmut.profile.service.ProfileService;
 
@@ -20,18 +21,24 @@ public class InternalProfileController {
     ProfileService profileService;
 
     @PostMapping
-    ProfileResponse createProfile(@RequestBody ProfileCreationRequest request) {
-        return profileService.createProfile(request);
+    APIResponse<ProfileResponse> createProfile(@RequestBody ProfileCreationRequest request) {
+        return APIResponse.<ProfileResponse> builder()
+                .result(profileService.createProfile(request))
+                .build();
     }
 
     @GetMapping("/{id}")
-    ProfileResponse getProfile(@PathVariable String id) {
-        return profileService.getProfile(id);
+    APIResponse<ProfileResponse> getProfile(@PathVariable String id) {
+        return APIResponse.<ProfileResponse> builder()
+                .result(profileService.getProfile(id))
+                .build();
     }
 
     @GetMapping("/account/{accountId}")
-    ProfileResponse getProfileByAccountId(@PathVariable String accountId) {
-        return profileService.getProfileByAccountId(accountId);
+    APIResponse<ProfileResponse> getProfileByAccountId(@PathVariable String accountId) {
+        return APIResponse.<ProfileResponse> builder()
+                .result(profileService.getProfileByAccountId(accountId))
+                .build();
     }
 
     @PutMapping("/{id}/tutor-register")
@@ -40,8 +47,10 @@ public class InternalProfileController {
     }
 
     @PostMapping("/batch")
-    List<ProfileResponse> getProfiles(@RequestBody List<String> profileIds) {
-        return profileService.getProfilesByIds(profileIds);
+    APIResponse<List<ProfileResponse>> getProfiles(@RequestBody List<String> profileIds) {
+        return APIResponse.<List<ProfileResponse>> builder()
+                .result(profileService.getProfilesByIds(profileIds))
+                .build();
     }
 
     @PutMapping("/{id}/subjects")

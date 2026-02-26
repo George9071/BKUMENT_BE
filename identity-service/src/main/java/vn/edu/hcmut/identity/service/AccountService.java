@@ -112,7 +112,7 @@ public class AccountService {
 
         String profileId = null;
         try {
-            var profile = profileClient.getProfileByAccountId(accountId);
+            var profile = profileClient.getProfileByAccountId(accountId).getResult();
             if (profile != null) profileId = profile.getId();
         } catch (Exception e) {
             log.error("Cannot fetch profile for account: {}", accountId, e);

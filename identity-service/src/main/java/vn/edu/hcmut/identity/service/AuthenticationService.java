@@ -4,6 +4,7 @@ import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.UUID;
 
@@ -69,14 +70,21 @@ public class AuthenticationService {
     public IntrospectResponse introspect(IntrospectRequest request) throws JOSEException, ParseException {
         var token = request.getToken();
         boolean isValid = true;
+        SignedJWT jwt = null;
 
         try {
-            verifyToken(token, false);
+            jwt = verifyToken(token, false);
         } catch (AppException e) {
             isValid = false;
         }
 
-        return IntrospectResponse.builder().valid(isValid).build();
+        return IntrospectResponse.builder()
+                .valid(isValid)
+                .profileId(
+                        Objects.nonNull(jwt)
+                                ? jwt.getJWTClaimsSet().getStringClaim("profile_id")
+                                : null)
+                .build();
     }
 
     /**
@@ -98,7 +106,7 @@ public class AuthenticationService {
 
         ProfileResponse profile = null;
         try {
-            profile = profileClient.getProfileByAccountId(account.getId());
+            profile = profileClient.getProfileByAccountId(account.getId()).getResult();
         } catch (Exception e) {
             log.error("Cannot fetch profile", e);
         }
@@ -149,7 +157,7 @@ public class AuthenticationService {
 
         ProfileResponse profile = null;
         try {
-            profile = profileClient.getProfileByAccountId(account.getId());
+            profile = profileClient.getProfileByAccountId(account.getId()).getResult();
         } catch (Exception e) {
             log.error("Cannot fetch profile", e);
         }

@@ -39,7 +39,7 @@ public class EnrollmentService {
     public EnrollmentResponse enrollClass(String classId) {
         String userId = getProfileIdFromToken();
 
-        var userProfile = profileClient.getProfile(userId);
+        var userProfile = profileClient.getProfile(userId).getResult();
 
         ClassRoom classRoom = classRoomRepository.findById(classId)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
@@ -136,7 +136,7 @@ public class EnrollmentService {
                 .map(Enrollment::getStudentProfileId)
                 .collect(Collectors.toSet());
 
-        var profiles = profileClient.getProfiles(new ArrayList<>(studentIds));
+        var profiles = profileClient.getProfiles(new ArrayList<>(studentIds)).getResult();
 
         Map<String, ProfileResponse> profileMap = profiles.stream()
                 .collect(Collectors.toMap(ProfileResponse::getId, Function.identity()));
