@@ -95,22 +95,17 @@ public class EnrollmentService {
         ClassRoom classRoom = classRoomRepository.findById(classId)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
 
-<<<<<<< Updated upstream
         if (!classRoom.getTutor().getId().equals(currentUserId))
             throw new AppException(ErrorCode.UNAUTHORIZED_ACCESS);
 
         List<Enrollment> enrollments =
                 enrollmentRepository.findByClassRoomIdAndStatus(classId, EnrollmentStatus.PENDING);
-=======
-        List<Enrollment> enrollments = enrollmentRepository.findByClassRoomId(classId);
->>>>>>> Stashed changes
 
         if (enrollments.isEmpty()) return Collections.emptyList();
 
         return toEnrollmentResponses(enrollments);
     }
 
-<<<<<<< Updated upstream
     public List<EnrollmentResponse> getClassMembers(String classId) {
         List<Enrollment> enrollments =
                 enrollmentRepository.findByClassRoomIdAndStatus(classId, EnrollmentStatus.APPROVED);
@@ -118,15 +113,6 @@ public class EnrollmentService {
         if (enrollments.isEmpty()) return new ArrayList<>();
 
         return toEnrollmentResponses(enrollments);
-=======
-        // B3: Map dữ liệu
-        final var profilesFinal = profileMap;
-        return enrollments.stream()
-                .map(enrollment -> enrollmentMapper.toResponse(
-                        enrollment,
-                        profilesFinal.get(enrollment.getStudentProfileId())))
-                .toList();
->>>>>>> Stashed changes
     }
 
     @Transactional
