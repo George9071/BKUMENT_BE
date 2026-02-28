@@ -2,6 +2,7 @@ package vn.edu.hcmut.document.controller;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import jakarta.validation.Valid;
 
@@ -27,6 +28,7 @@ import vn.edu.hcmut.document.dto.response.*;
 import vn.edu.hcmut.document.entity.Document;
 import vn.edu.hcmut.document.exception.AppException;
 import vn.edu.hcmut.document.exception.ErrorCode;
+import vn.edu.hcmut.document.repository.httpclient.ProfileClient;
 import vn.edu.hcmut.document.service.DocumentService;
 
 @RestController
@@ -36,6 +38,7 @@ import vn.edu.hcmut.document.service.DocumentService;
 public class DocumentController {
     DocumentService documentService;
     GatewayProperties gatewayProperties;
+    ProfileClient profileClient;
 
     private String getProfileIdFromToken() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -70,7 +73,6 @@ public class DocumentController {
             @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<Document> documents = documentService.search(q, pageable);
-        // String authorId = getProfileIdFromToken();
 
         Page<DocumentMetadataResponse> result = documents.map(doc -> DocumentMetadataResponse.builder()
                 .id(doc.getId())
@@ -97,8 +99,7 @@ public class DocumentController {
 
     @PostMapping("updateMetadata")
     public APIResponse<DocumentMetadataResponse> createDocument(@RequestBody @Valid DocumentMetadataRequest request) {
-        // TODO: Get ownerId from authentication
-        String authorId = new String("default-author-id"); // getProfileIdFromToken();
+        String authorId = getProfileIdFromToken();
         Document document = documentService.createOrUpdateDocument(request, authorId);
 
         return APIResponse.<DocumentMetadataResponse>builder()
@@ -138,8 +139,7 @@ public class DocumentController {
     public APIResponse<DocAnalyzeResponse> analyseDocument(
             @PathVariable String assetId, @RequestParam(required = false) String fileName) {
         String finalName = (fileName == null || fileName.trim().isEmpty()) ? assetId : fileName;
-        // TODO: Get ownerId from authentication
-        String authorId = "default-owner-id";
+        String authorId = getProfileIdFromToken();
 
         return APIResponse.<DocAnalyzeResponse>builder()
                 .result(documentService.processAndCreateDocument(assetId, finalName, authorId))
@@ -149,7 +149,8 @@ public class DocumentController {
 
     @GetMapping("/download/{docId}")
     public ResponseEntity<InputStreamResource> downloadDocument(@PathVariable String docId) {
-        ResourceDownloadResponse data = documentService.downloadDocument(docId);
+        String userId = getProfileIdFromToken();
+        ResourceDownloadResponse data = documentService.downloadDocument(docId, userId);
 
         String fileName = data.getFileName();
         if (fileName == null || fileName.isBlank()) {
@@ -193,6 +194,29 @@ public class DocumentController {
         Pageable pageable = PageRequest.of(page, size);
         return APIResponse.<Page<RelatedDocumentsResponse>>builder()
                 .result(documentService.getRelatedDocuments(docId, pageable))
+                .message("Get related documents successfully")
+                .build();
+    }
+
+    @GetMapping("/search-universities")
+    public APIResponse<List<UniversityResponse>> getAllUniversitiesByQuery(@RequestParam(required = false) String q) {
+        List<UniversityResponse> universities = profileClient.searchUniversities(q);
+        return APIResponse.<List<UniversityResponse>>builder()
+                .result(universities)
+                .message("Get universities successfully")
+                .build();
+    }
+
+    @GetMapping("/recommendations")
+    public APIResponse<Page<RelatedDocumentsResponse>> getRecommendationDocuments(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+
+        String userId = getProfileIdFromToken();
+
+        Pageable pageable = PageRequest.of(page, size);
+
+        return APIResponse.<Page<RelatedDocumentsResponse>>builder()
+                .result(documentService.getRecommendedDocuments(userId, pageable))
                 .message("Get related documents successfully")
                 .build();
     }

@@ -22,21 +22,21 @@ public class InternalProfileController {
 
     @PostMapping
     APIResponse<ProfileResponse> createProfile(@RequestBody ProfileCreationRequest request) {
-        return APIResponse.<ProfileResponse> builder()
+        return APIResponse.<ProfileResponse>builder()
                 .result(profileService.createProfile(request))
                 .build();
     }
 
     @GetMapping("/{id}")
     APIResponse<ProfileResponse> getProfile(@PathVariable String id) {
-        return APIResponse.<ProfileResponse> builder()
+        return APIResponse.<ProfileResponse>builder()
                 .result(profileService.getProfile(id))
                 .build();
     }
 
     @GetMapping("/account/{accountId}")
     APIResponse<ProfileResponse> getProfileByAccountId(@PathVariable String accountId) {
-        return APIResponse.<ProfileResponse> builder()
+        return APIResponse.<ProfileResponse>builder()
                 .result(profileService.getProfileByAccountId(accountId))
                 .build();
     }
@@ -48,7 +48,7 @@ public class InternalProfileController {
 
     @PostMapping("/batch")
     APIResponse<List<ProfileResponse>> getProfiles(@RequestBody List<String> profileIds) {
-        return APIResponse.<List<ProfileResponse>> builder()
+        return APIResponse.<List<ProfileResponse>>builder()
                 .result(profileService.getProfilesByIds(profileIds))
                 .build();
     }

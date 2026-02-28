@@ -5,6 +5,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,9 +35,11 @@ import vn.edu.hcmut.document.configuration.GatewayProperties;
 import vn.edu.hcmut.document.dto.request.DocumentMetadataRequest;
 import vn.edu.hcmut.document.dto.response.*;
 import vn.edu.hcmut.document.entity.Document;
+import vn.edu.hcmut.document.entity.DocumentDownload;
 import vn.edu.hcmut.document.entity.Resource;
 import vn.edu.hcmut.document.exception.AppException;
 import vn.edu.hcmut.document.exception.ErrorCode;
+import vn.edu.hcmut.document.repository.DocumentDownloadRepository;
 import vn.edu.hcmut.document.repository.DocumentRepository;
 import vn.edu.hcmut.document.repository.ResourceRepository;
 import vn.edu.hcmut.document.repository.httpclient.AiClient;
@@ -48,10 +51,12 @@ import vn.edu.hcmut.document.utils.StreamMultipartFile;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class DocumentService {
     DocumentRepository documentRepository;
+    DocumentDownloadRepository documentDownloadRepository;
     ResourceRepository resourceRepository;
     GatewayProperties gatewayProperties;
 
     MinioService minioService;
+    GraphSyncService graphSyncService;
     AiClient aiClient;
     DocumentAsyncService documentAsyncService;
 
@@ -62,6 +67,7 @@ public class DocumentService {
         long fileSize = stat.size();
         String finalFileName =
                 originalFileName.toLowerCase().endsWith(".pdf") ? originalFileName : originalFileName + ".pdf";
+        ProcessResult processResult = null;
 
         try (InputStream inputStream = minioService.getFileInputStream(assetId)) {
             byte[] fileBytes = inputStream.readAllBytes();
@@ -172,6 +178,13 @@ public class DocumentService {
         document.setDownloadable(Boolean.TRUE.equals(request.getDownloadable()));
         document.setAssetId(request.getAssetId());
 
+        // Set ID fields for relationships
+        document.setUniversityId(request.getUniversityId());
+        document.setCourseId(request.getCourseId());
+        if (request.getTopicId() != null) {
+            document.setTopicId(request.getTopicId());
+        }
+
         return documentRepository.save(document);
     }
 
@@ -196,6 +209,13 @@ public class DocumentService {
         document.setSummary(request.getSummary());
         document.setDownloadable(Boolean.TRUE.equals(request.getDownloadable()));
 
+        // Update ID fields for relationships
+        document.setUniversityId(request.getUniversityId());
+        document.setCourseId(request.getCourseId());
+        if (request.getTopicId() != null) {
+            document.setTopicId(request.getTopicId());
+        }
+
         if (request.getAssetId() != null && !request.getAssetId().isBlank()) {
             document.setAssetId(request.getAssetId());
         }
@@ -219,6 +239,9 @@ public class DocumentService {
                 .documentType(document.getDocumentType())
                 .university(document.getUniversity())
                 .course(document.getCourse())
+                .universityId(document.getUniversityId())
+                .courseId(document.getCourseId())
+                .topicId(document.getTopicId())
                 .downloadCount(document.getDownloadCount())
                 .downloadUrl(downloadUrl)
                 .createdAt(resource.getCreatedAt())
@@ -230,13 +253,24 @@ public class DocumentService {
     }
 
     @Transactional
-    public ResourceDownloadResponse downloadDocument(String docId) {
+    public ResourceDownloadResponse downloadDocument(String docId, String userId) {
         Document document =
                 documentRepository.findById(docId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
 
         // Increment download counter
         document.setDownloadCount(document.getDownloadCount() + 1);
         documentRepository.save(document);
+
+        // Save download history
+        DocumentDownload documentDownload = new DocumentDownload();
+        documentDownload.setDocumentId(docId);
+        documentDownload.setProfileId(userId);
+        documentDownloadRepository.save(documentDownload);
+
+        // Notify graph sync service
+        if (document.getTopicId() != null) {
+            graphSyncService.handleDownloadEvent(userId, docId, document.getTopicId());
+        }
 
         // Get file from MinIO
         String assetId = document.getAssetId();
@@ -283,6 +317,33 @@ public class DocumentService {
         String assetId = minioService.generateUniqueAssetName(fileName);
         String url = minioService.getPresignedUrl(assetId, 10);
         return new PresignResponse(assetId, url);
+    }
+
+    public Page<RelatedDocumentsResponse> getRecommendedDocuments(String userId, Pageable pageable) {
+        int page = pageable.getPageNumber();
+        int size = pageable.getPageSize();
+
+        Collection<String> docIds = graphSyncService.getCollaborativeRecommendations(userId, page, size);
+        log.info("[Recommended] Số tài liệu gợi ý: {}", docIds.size());
+
+        if (docIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        List<Document> documents = documentRepository.findAllById(docIds);
+
+        Map<String, Document> docMap =
+                documents.stream().collect(Collectors.toMap(Document::getId, Function.identity()));
+
+        List<RelatedDocumentsResponse> dtos = docIds.stream()
+                .filter(docMap::containsKey)
+                .map(docMap::get)
+                .map(this::toRelatedDocument)
+                .toList();
+
+        long estimatedTotal = (long) page * size + dtos.size() + (dtos.size() == size ? 1 : 0);
+
+        return new PageImpl<>(dtos, pageable, estimatedTotal);
     }
 
     public Page<RelatedDocumentsResponse> getRelatedDocuments(String docId, Pageable pageable) {

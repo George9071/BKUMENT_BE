@@ -54,9 +54,9 @@ public class AccountController {
                 .build();
     }
 
-        @DeleteMapping("/{accountId}")
-        APIResponse<String> deleteAccount(@PathVariable String accountId) {
-            accountService.deleteAccount(accountId);
-            return APIResponse.<String>builder().result("Account has been deleted").build();
-        }
+    @DeleteMapping("/{accountId}")
+    APIResponse<String> deleteAccount(@PathVariable String accountId) {
+        accountService.deleteAccount(accountId);
+        return APIResponse.<String>builder().result("Account has been deleted").build();
+    }
 }

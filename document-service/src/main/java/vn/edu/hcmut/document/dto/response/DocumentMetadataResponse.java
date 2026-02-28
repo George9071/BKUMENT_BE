@@ -19,9 +19,15 @@ public class DocumentMetadataResponse {
     String course;
     Integer downloadCount;
     String downloadUrl;
+    String viewUrl;
     String previewImageUrl;
     LocalDateTime createdAt;
     String description;
     String summary;
     boolean downloadable;
+
+    // ID fields for relationships
+    String universityId;
+    String courseId;
+    String topicId;
 }

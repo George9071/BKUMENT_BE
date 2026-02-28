@@ -8,4 +8,3 @@ public interface LmsClient {
     @DeleteMapping("/internal/tutors/{profileId}")
     void deleteTutor(@PathVariable("profileId") String profileId);
 }
-

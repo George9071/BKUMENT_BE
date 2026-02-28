@@ -1,5 +1,7 @@
 package vn.edu.hcmut.identity.configuration;
 
+import java.util.HashSet;
+
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -14,8 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.identity.constant.UserRole;
 import vn.edu.hcmut.identity.entity.Account;
 import vn.edu.hcmut.identity.repository.AccountRepository;
-
-import java.util.HashSet;
 
 @Configuration
 @RequiredArgsConstructor
