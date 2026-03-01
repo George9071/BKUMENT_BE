@@ -22,12 +22,19 @@ public class Conversation {
 
     String type; // GROUP, DIRECT
 
+    String name;
+
     @Indexed(unique = true)
     String participantsHash;
+
+    String conversationAvatar;
 
     List<ParticipantInfo> participants;
 
     Instant createdDate;
+    
+    String lastMessage;
+    Instant lastMessageTime;
 
     Instant modifiedDate;
 }

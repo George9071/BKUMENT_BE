@@ -16,6 +16,7 @@ public enum ErrorCode {
 
     USER_NOT_FOUND(5001, "User not found", HttpStatus.NOT_FOUND),
     CONVERSATION_NOT_FOUND(5002, "Conversation not found", HttpStatus.NOT_FOUND),
+    INVALID_PARTICIPANT(5003, "Invalid participant", HttpStatus.BAD_REQUEST)
     ;
 
     private final int code;

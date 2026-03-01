@@ -18,7 +18,9 @@ public class ConversationResponse {
     String participantsHash;
     String conversationAvatar;
     String conversationName;
+    String lastMessage;
     List<ParticipantInfo> participants;
+    Instant lastMessageTime;
     Instant createdDate;
     Instant modifiedDate;
 }

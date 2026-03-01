@@ -37,7 +37,20 @@ services:
       - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@localhost:9093
       - ALLOW_PLAINTEXT_LISTENER=yes
 
+  mongodb:
+    image: mongo:7.0-jammy
+    container_name: bkument-mongodb
+    restart: unless-stopped
+    ports:
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: bkument_admin
+      MONGO_INITDB_ROOT_PASSWORD: bkument_thesis_252
+    volumes:
+      - mongo_data:/data/db
+
 
 volumes:
   neo4j_data:
   postgres_data:
+  mongo_data:

@@ -15,6 +15,7 @@ public class ChatMessageResponse {
     String id;
     String conversationId;
     boolean me;
+    String type;
     String message;
     ParticipantInfo sender;
     Instant createdDate;
