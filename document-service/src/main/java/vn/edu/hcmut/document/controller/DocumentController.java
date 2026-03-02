@@ -85,6 +85,8 @@ public class DocumentController {
                 .downloadable(doc.isDownloadable())
                 .downloadUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/document/download/"
                         + doc.getId())
+                .viewUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/resource/download/asset/"
+                        + doc.getAssetId())
                 .downloadCount(doc.getDownloadCount())
                 .previewImageUrl(doc.getPreviewImageUrl())
                 .createdAt(doc.getCreatedAt())

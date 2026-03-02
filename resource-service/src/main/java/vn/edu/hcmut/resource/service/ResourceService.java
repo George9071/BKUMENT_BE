@@ -26,8 +26,8 @@ public class ResourceService {
     }
 
     public ResourceDownloadResponse downloadByAssetId(String assetId) {
-        InputStream stream = minioService.getFileInputStream(assetId);
         StatObjectResponse stat = minioService.getFileMetadata(assetId);
+        InputStream stream = minioService.getFileInputStream(assetId);
 
         return ResourceDownloadResponse.builder()
                 .fileName(assetId)

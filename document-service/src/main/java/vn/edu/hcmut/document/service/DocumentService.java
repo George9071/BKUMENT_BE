@@ -230,7 +230,11 @@ public class DocumentService {
         Document document =
                 documentRepository.findById(docId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
 
-        String downloadUrl = gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/download/" + docId;
+        String downloadUrl =
+                gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/document/asset/" + docId;
+
+        String viewUrl =
+                gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/resource/download/asset/" + docId;
 
         return DocumentMetadataResponse.builder()
                 .id(document.getId())
@@ -241,6 +245,7 @@ public class DocumentService {
                 .course(document.getCourse())
                 .universityId(document.getUniversityId())
                 .courseId(document.getCourseId())
+                .viewUrl(viewUrl)
                 .topicId(document.getTopicId())
                 .downloadCount(document.getDownloadCount())
                 .downloadUrl(downloadUrl)
@@ -386,8 +391,8 @@ public class DocumentService {
     }
 
     private RelatedDocumentsResponse toRelatedDocument(Document document) {
-        String downloadUrl =
-                gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/download/" + document.getId();
+        String downloadUrl = gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()
+                + "/resource/download/asset/" + document.getId();
         return RelatedDocumentsResponse.builder()
                 .id(document.getId())
                 .title(document.getTitle())

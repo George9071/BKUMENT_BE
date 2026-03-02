@@ -42,12 +42,13 @@ spring:
                 - Path=${app.api-prefix}/resource/**
               filters:
                 - StripPrefix=2
-            - id: blog_service
+            - id: communications_service
               uri: http://localhost:8085
               predicates:
-                - Path=${app.api-prefix}/blog/**
+                - Path=${app.api-prefix}/communication/**
               filters:
                 - StripPrefix=2
+                - RemoveRequestHeader=Origin
             - id: document_service
               uri: http://localhost:8086
               predicates:
@@ -75,7 +76,7 @@ spring:
             allowedOrigins:
               - http://localhost:5173
               - http://localhost:3000
-              - https://bkument-fe.vercel.app/
+              - https://bkument-fe.vercel.app
               - http://localhost:8888
             allowedMethods: "*"
             allowedHeaders: "*"
@@ -96,3 +97,10 @@ springdoc:
 
 swagger:
   host-url: http://localhost:8888
+
+logging:
+  level:
+    org.springframework.cloud.gateway: TRACE
+    org.springframework.http.server.reactive: DEBUG
+    org.springframework.web.reactive: DEBUG
+    vn.edu.hcmut.gateway.configuration: DEBUG
