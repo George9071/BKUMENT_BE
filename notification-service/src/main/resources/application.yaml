@@ -1,0 +1,39 @@
+server:
+  port: 8084
+  servlet:
+    context-path: /notification
+
+spring:
+  application:
+    name: notification-service
+  data:
+    mongodb:
+      uri: mongodb://bkument_admin:bkument_thesis_252@127.0.0.1:27018/notification?authSource=admin
+      auto-index-creation: true
+  kafka:
+    bootstrap-servers: localhost:9094
+    consumer:
+      group-id: notification-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+
+notification:
+  email:
+    brevo-url: https://api.brevo.com
+    brevo-apikey: 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
+
+ssh:
+  tunnel:
+    enabled: false
+    host: 206.189.92.152
+    port: 22
+    user: root
+    password: BKUMENT_THESIS_252
+    local-port: 27018
+    remote-port: 27017
+
+swagger:
+  host-url: http://localhost:8084/notification
