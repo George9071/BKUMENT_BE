@@ -52,19 +52,31 @@ public class EnrollmentService {
             throw new AppException(ErrorCode.CANNOT_ENROLL_OWN_CLASS);
         }
 
-        if (enrollmentRepository.existsByClassRoomIdAndStudentProfileId(classId, userId)) {
-            throw new AppException(ErrorCode.ALREADY_ENROLLED);
-        }
-
         validationService.validateBusySchedule(userId, classRoom);
 
-        Enrollment enrollment = Enrollment.builder()
-                .classRoom(classRoom)
-                .studentProfileId(userId)
-                .enrolledAt(LocalDateTime.now())
-                .status(EnrollmentStatus.PENDING)
-                .build();
+        Optional<Enrollment> existingEnrollment = enrollmentRepository.findByClassRoomIdAndStudentProfileId(classId, userId);
+        Enrollment enrollment;
 
+        if (existingEnrollment.isPresent()) {
+            enrollment = existingEnrollment.get();
+            if (enrollment.getStatus() == EnrollmentStatus.APPROVED) {
+                throw new AppException(ErrorCode.ALREADY_ENROLLED);
+            }
+            if (enrollment.getStatus() == EnrollmentStatus.PENDING) {
+                throw new AppException(ErrorCode.ENROLLMENT_PENDING);
+            }
+            if (enrollment.getStatus() == EnrollmentStatus.REJECTED) {
+                enrollment.setStatus(EnrollmentStatus.PENDING);
+                enrollment.setEnrolledAt(LocalDateTime.now());
+            }
+        } else {
+            enrollment = Enrollment.builder()
+                    .classRoom(classRoom)
+                    .studentProfileId(userId)
+                    .enrolledAt(LocalDateTime.now())
+                    .status(EnrollmentStatus.PENDING)
+                    .build();
+        }
         enrollment = enrollmentRepository.save(enrollment);
 
         return enrollmentMapper.toResponse(enrollment, userProfile);

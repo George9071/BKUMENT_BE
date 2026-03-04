@@ -10,12 +10,13 @@ import vn.edu.hcmut.lms.entity.ClassRoom;
 import vn.edu.hcmut.lms.entity.Enrollment;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface EnrollmentRepository extends JpaRepository<Enrollment, String> {
     boolean existsByClassRoomIdAndStudentProfileId(String classId, String studentProfileId);
 
-    List<Enrollment> findByClassRoomId(String classId);
+    Optional<Enrollment> findByClassRoomIdAndStudentProfileId(String classId, String studentId);
     List<Enrollment> findByClassRoomIdAndStatus(String classRoomId, EnrollmentStatus status);
 
     @Query("""
