@@ -9,4 +9,6 @@ import java.util.List;
 @Repository
 public interface TopicRepository extends JpaRepository<Topic, String> {
     List<Topic> findBySubjectIdIn(List<String> subjectIds);
+
+    List<Topic> findBySubjectId(String subjectId);
 }

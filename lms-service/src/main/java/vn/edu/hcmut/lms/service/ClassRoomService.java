@@ -8,9 +8,13 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.hcmut.lms.constant.ClassStatus;
+import vn.edu.hcmut.lms.constant.LearningFormat;
 import vn.edu.hcmut.lms.dto.request.ClassRoomCreationRequest;
 import vn.edu.hcmut.lms.dto.request.ClassRoomUpdateRequest;
 import vn.edu.hcmut.lms.dto.response.ClassRoomResponse;
+import vn.edu.hcmut.lms.dto.response.ProfileResponse;
+import vn.edu.hcmut.lms.dto.response.TutorResponse;
+import vn.edu.hcmut.lms.dto.response.TutorSearchResponse;
 import vn.edu.hcmut.lms.entity.ClassRoom;
 import vn.edu.hcmut.lms.entity.Topic;
 import vn.edu.hcmut.lms.entity.Tutor;
@@ -20,8 +24,13 @@ import vn.edu.hcmut.lms.mapper.ClassRoomMapper;
 import vn.edu.hcmut.lms.repository.ClassRoomRepository;
 import vn.edu.hcmut.lms.repository.TopicRepository;
 import vn.edu.hcmut.lms.repository.TutorRepository;
+import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -72,6 +81,12 @@ public class ClassRoomService {
                 .toList();
     }
 
+    public List<ClassRoomResponse> getClassesOfTutor(String tutorId) {
+        return classRoomRepository.findByTutorId(tutorId).stream()
+                .map(classMapper::toResponse)
+                .toList();
+    }
+
     @Transactional
     public ClassRoomResponse updateClass(String classId, ClassRoomUpdateRequest request) {
         String profileId = getProfileIdFromToken();
@@ -110,8 +125,64 @@ public class ClassRoomService {
         classRoomRepository.save(classRoom);
     }
 
+    public List<TutorSearchResponse> searchClassesGroupedByTutor(
+            String subjectName,
+            String topicName,
+            LearningFormat format) {
+
+        String subject = processKeyword(subjectName);
+        String topic = processKeyword(topicName);
+
+        List<ClassRoom> matchingClasses = classRoomRepository.searchAvailableClasses(subject, topic, format);
+        if (matchingClasses.isEmpty()) return new ArrayList<>();
+
+        // Group by tutor ID
+        Map<String, List<ClassRoom>> classes = matchingClasses
+                .stream()
+                .collect(Collectors.groupingBy(classRoom -> classRoom.getTutor().getId()));
+
+        List<TutorSearchResponse> result = new ArrayList<>();
+
+        for (var entry : classes.entrySet()) {
+            List<ClassRoom> tutorClasses = entry.getValue();
+
+            // Get the tutor from the first class (all classes in this list share the same tutor).
+            var tutor = tutorClasses.getFirst().getTutor();
+
+            TutorResponse response = TutorResponse.builder()
+                    .id(tutor.getId())
+                    .introduction(tutor.getIntroduction())
+                    .averageRating(tutor.getAverageRating())
+                    .ratingCount(tutor.getRatingCount())
+                    .status(tutor.getStatus())
+                    .name(tutor.getName())
+                    .avatar(tutor.getAvatar())
+                    .build();
+
+            List<ClassRoomResponse> classResponses = tutorClasses.stream()
+                    .map(classMapper::toResponse)
+                    .toList();
+
+            TutorSearchResponse searchResponse = TutorSearchResponse.builder()
+                    .tutor(response)
+                    .matchingClasses(classResponses)
+                    .build();
+
+            result.add(searchResponse);
+        }
+
+        return result;
+    }
+
     private String getProfileIdFromToken() {
         var jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return jwt.getClaimAsString("profile_id");
+    }
+
+    private String processKeyword(String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return null;
+        }
+        return "%" + keyword.trim().toLowerCase() + "%";
     }
 }

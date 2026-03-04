@@ -4,6 +4,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import jakarta.persistence.*;
 import vn.edu.hcmut.lms.constant.ClassStatus;
+import vn.edu.hcmut.lms.constant.LearningFormat;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -25,6 +26,11 @@ public class ClassRoom {
 
     LocalDate startDate;
     LocalDate endDate;
+
+    String location;
+
+    @Enumerated(EnumType.STRING)
+    LearningFormat format;
 
     @OneToMany(mappedBy = "classRoom", cascade = CascadeType.ALL, orphanRemoval = true)
     List<ClassSchedule> schedules;
