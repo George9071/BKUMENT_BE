@@ -37,8 +37,8 @@ public class OpenApiConfiguration {
         return new OpenAPI()
                 .info(new Info().title("BKUMENT").version("1.0").description("APIs for communication-service"))
                 .servers(List.of(
-                        new Server().url("http://localhost:8888/api/v1/profile").description("Gateway"),
-                        new Server().url("http://localhost:8085/communication").description("Local")))
+                        new Server().url("http://localhost:8888/api/v1/communication").description("Gateway"),
+                        new Server().url("http://localhost:8083/communication").description("Local")))
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
                 .components(new Components()
                         .addSecuritySchemes(

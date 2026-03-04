@@ -22,15 +22,11 @@ public class Account {
     @GeneratedValue(strategy = GenerationType.UUID)
     String id;
 
-    @Column(name = "username")
+    @Column(name = "username", unique = true, columnDefinition = "VARCHAR(255) COLLATE utf8mb4_unicode_ci")
     String username;
 
     @Column(name = "password")
     String password;
-
-    //    @Column(name = "role")
-    //    @Enumerated(value = EnumType.STRING)
-    //    UserRole role;
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "account_roles", joinColumns = @JoinColumn(name = "account_id"))

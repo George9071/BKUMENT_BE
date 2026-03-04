@@ -30,30 +30,49 @@ spring:
               filters:
                 - StripPrefix=2
                 - RemoveRequestHeader=Origin
+
             - id: profile_service
               uri: http://localhost:8081
               predicates:
                 - Path=${app.api-prefix}/profile/**
               filters:
                 - StripPrefix=2
+
             - id: resource_service
               uri: http://localhost:8082
               predicates:
                 - Path=${app.api-prefix}/resource/**
               filters:
                 - StripPrefix=2
+
+            - id: communication_service
+              uri: http://localhost:8083
+              predicates:
+                - Path=${app.api-prefix}/communication/**
+              filters:
+                - StripPrefix=2
+
+            - id: notification_service
+              uri: http://localhost:8084
+              predicates:
+                - Path=${app.api-prefix}/notification/**
+              filters:
+                - StripPrefix=2
+
             - id: blog_service
               uri: http://localhost:8085
               predicates:
                 - Path=${app.api-prefix}/blog/**
               filters:
                 - StripPrefix=2
+
             - id: document_service
               uri: http://localhost:8086
               predicates:
                 - Path=${app.api-prefix}/document/**
               filters:
                 - StripPrefix=2
+
             - id: ai_service
               uri: http://localhost:8087
               predicates:
@@ -84,6 +103,12 @@ springdoc:
         url: /api/v1/identity/v3/api-docs/public
       - name: Profile Service
         url: /api/v1/profile/v3/api-docs/public
+      - name: Communication Service
+        url: /api/v1/communication/v3/api-docs/public
+#      - name: Notification Service
+#        url: /api/v1/notification/v3/api-docs/public
+#      - name: LMS Service
+#        url: /api/v1/lms/v3/api-docs/public
 #      - name: Resource Service
 #        url: /api/v1/resource/v3/api-docs
 

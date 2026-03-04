@@ -8,7 +8,7 @@ spring:
 
 ssh:
   tunnel:
-    enabled: true
+    enabled: false
     host: 206.189.92.152
     port: 22
     user: root
@@ -17,7 +17,7 @@ ssh:
     remote-port: 27017
 
 server:
-  port: 8085
+  port: 8083
   servlet:
     context-path: /communication
 
@@ -31,4 +31,4 @@ app:
       url: http://localhost:8082/lms
 
 swagger:
-  host-url: http://localhost:8085/communication
+  host-url: http://localhost:8083/communication

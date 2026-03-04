@@ -35,6 +35,9 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
     IdentityService identityService;
     ObjectMapper objectMapper;
 
+    /**
+     * Array of regex patterns for endpoints that bypass authentication (login, registration, etc).
+     */
     @NonFinal
     private String[] publicEndpoints = {
             "/identity/auth/.*",
@@ -45,26 +48,40 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
     @NonFinal
     private String apiPrefix;
 
+    /**
+     * The core filtering logic applied to all requests passing through the gateway.
+     *
+     * @param exchange the current server exchange (contains request/response)
+     * @param chain    provides a way to delegate to the next filter
+     * @return a Mono that indicates when request processing is complete
+     */
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        log.info("Enter authentication filter....");
+//        log.info("Enter authentication filter....");
 
-        if (exchange.getRequest().getMethod().name().equals("OPTIONS")) return chain.filter(exchange);
+        // CORS preflight requests (OPTIONS) don't carry headers like Authorization,
+        // so they must be allowed to pass through to avoid CORS errors on the frontend.d.
+        if (exchange.getRequest().getMethod().name().equals("OPTIONS")) {
+            return chain.filter(exchange);
+        }
 
-        // CHECK IF PUBLIC ENDPOINT
-        if (isPublicEndpoint(exchange.getRequest())) return chain.filter(exchange);
+        // Bypass authentication for explicitly defined public endpoints
+        if (isPublicEndpoint(exchange.getRequest())) {
+            return chain.filter(exchange);
+        }
 
-        // GET TOKEN FROM AUTHORIZATION HEADER
+        // Extract the Authorization header
         List<String> authHeader = exchange.getRequest().getHeaders().get(HttpHeaders.AUTHORIZATION);
-        if (CollectionUtils.isEmpty(authHeader))
+        if (CollectionUtils.isEmpty(authHeader)) {
             return unauthenticated(exchange.getResponse());
+        }
 
         String token = authHeader.get(0).replace("Bearer ", "");
-        log.info("Token: {}", token);
+//        log.info("Token: {}", token);
 
-        // VERIFY TOKEN WITH IDENTITY SERVICE
+        // Verify the token by calling the Identity Service asynchronously
         return identityService.introspect(token).flatMap(introspectResponse -> {
-            // IF VALID -> PASS TO NEXT FILTER
+            // If the token is valid, continue the filter chain to route the request
             if (introspectResponse.getResult().isValid())
                 return chain.filter(exchange);
             else

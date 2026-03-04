@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.List;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.access.prepost.PostAuthorize;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import vn.edu.hcmut.event.dto.NotificationEvent;
 import vn.edu.hcmut.identity.constant.UserRole;
 import vn.edu.hcmut.identity.dto.request.AccountCreationRequest;
 import vn.edu.hcmut.identity.dto.request.AccountUpdateRequest;
@@ -40,6 +42,8 @@ public class AccountService {
     LmsClient lmsClient;
     ProfileMapper profileMapper;
 
+    KafkaTemplate<String, Object> kafkaTemplate;
+
     @Transactional
     public AccountResponse createUser(UserCreationRequest request) {
         if (accountRepository.existsByUsername(request.getAccount().getUsername()))
@@ -57,6 +61,16 @@ public class AccountService {
         var profile = profileMapper.toProfileCreationRequest(request);
         profile.setAccountId(account.getId());
         profileClient.createProfile(profile);
+
+        NotificationEvent noti = NotificationEvent.builder()
+                .channel("EMAIL")
+                .recipient(request.getEmail())
+                .subject("Welcome to BKUMENT")
+                .body("Hello, " + request.getAccount().getUsername())
+                .build();
+
+        // Publish message to kafka
+        kafkaTemplate.send("notification-delivery", noti);
 
         return accountMapper.toAccountResponse(account);
     }
