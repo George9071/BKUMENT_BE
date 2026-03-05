@@ -153,20 +153,17 @@ public class ProfileService {
     }
 
     @Transactional(transactionManager = "transactionManager", rollbackFor = Exception.class)
-    public void deleteProfile(String profileId){
-        UserProfile user = jpaRepository
-                .findById(profileId)
-                .orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
+    public void deleteProfile(String profileId) {
+        UserProfile user =
+                jpaRepository.findById(profileId).orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
         jpaRepository.delete(user);
 
         String query = """
-                MATCH (u:UserProfile {id: $profileId})
-                DETACH DELETE u
-                """;
+				MATCH (u:UserProfile {id: $profileId})
+				DETACH DELETE u
+				""";
 
-        neo4jClient.query(query)
-                .bindAll(Map.of("profileId", profileId))
-                .run();
+        neo4jClient.query(query).bindAll(Map.of("profileId", profileId)).run();
 
         log.info("Deleted UserProfile {} and all its relationships in Neo4j", profileId);
     }

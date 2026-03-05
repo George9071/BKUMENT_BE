@@ -80,10 +80,7 @@ public class AuthenticationService {
 
         return IntrospectResponse.builder()
                 .valid(isValid)
-                .profileId(
-                        Objects.nonNull(jwt)
-                                ? jwt.getJWTClaimsSet().getStringClaim("profile_id")
-                                : null)
+                .profileId(Objects.nonNull(jwt) ? jwt.getJWTClaimsSet().getStringClaim("profile_id") : null)
                 .build();
     }
 

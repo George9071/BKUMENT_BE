@@ -3,7 +3,6 @@ package vn.edu.hcmut.identity.service;
 import java.util.HashSet;
 import java.util.List;
 
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.access.prepost.PostAuthorize;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -14,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.event.dto.NotificationEvent;
 import vn.edu.hcmut.identity.constant.UserRole;
 import vn.edu.hcmut.identity.dto.request.AccountCreationRequest;

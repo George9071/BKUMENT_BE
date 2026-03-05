@@ -46,8 +46,8 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/internal/**")
                         .permitAll()
-
-                        .requestMatchers("/error").permitAll()
+                        .requestMatchers("/error")
+                        .permitAll()
 
                         // All other endpoints require authentication
                         .anyRequest()
