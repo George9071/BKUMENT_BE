@@ -28,14 +28,16 @@ public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
             "JOIN c.topic t " +
             "JOIN t.subject s " +
             "WHERE " +
-            "(:subjectName IS NULL OR LOWER(s.name) LIKE :subjectName) AND " +
-            "(:topicName IS NULL OR LOWER(t.name) LIKE :topicName) AND " +
+            "(:subjectName IS NULL OR LOWER(FUNCTION('unaccent', s.name)) LIKE :subjectName) AND " +
+            "(:topicName IS NULL OR LOWER(FUNCTION('unaccent', t.name)) LIKE :topicName) AND " +
             "(:format IS NULL OR c.format = :format) AND " +
+            "(:keyword IS NULL OR LOWER(FUNCTION('unaccent', c.name)) LIKE :keyword OR LOWER(FUNCTION('unaccent', c.tutor.name)) LIKE :keyword) AND " +
             "c.status = 'ENROLLING'")
     List<ClassRoom> searchAvailableClasses(
             @Param("subjectName") String subjectName,
             @Param("topicName") String topicName,
-            @Param("format") LearningFormat format
+            @Param("format") LearningFormat format,
+            @Param("keyword") String keyword
     );
 
 }

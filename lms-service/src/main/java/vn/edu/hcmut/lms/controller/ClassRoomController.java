@@ -93,9 +93,10 @@ public class ClassRoomController {
     public APIResponse<List<TutorSearchResponse>> searchClasses(
             @RequestParam(required = false) String subjectName,
             @RequestParam(required = false) String topicName,
-            @RequestParam(required = false) LearningFormat format) {
+            @RequestParam(required = false) LearningFormat format,
+            @RequestParam(required = false, name = "keyword") String userSearchKeyword) {
         return APIResponse.<List<TutorSearchResponse>>builder()
-                .result(classRoomService.searchClassesGroupedByTutor(subjectName, topicName, format))
+                .result(classRoomService.searchClassesGroupedByTutor(subjectName, topicName, format, userSearchKeyword))
                 .build();
     }
 }

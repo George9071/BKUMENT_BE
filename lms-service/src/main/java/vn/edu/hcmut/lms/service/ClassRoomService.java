@@ -26,10 +26,12 @@ import vn.edu.hcmut.lms.repository.TopicRepository;
 import vn.edu.hcmut.lms.repository.TutorRepository;
 import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
 
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -128,12 +130,14 @@ public class ClassRoomService {
     public List<TutorSearchResponse> searchClassesGroupedByTutor(
             String subjectName,
             String topicName,
-            LearningFormat format) {
+            LearningFormat format,
+            String userSearchKeyword) {
 
         String subject = processKeyword(subjectName);
         String topic = processKeyword(topicName);
+        String keyword = processKeyword(userSearchKeyword);
 
-        List<ClassRoom> matchingClasses = classRoomRepository.searchAvailableClasses(subject, topic, format);
+        List<ClassRoom> matchingClasses = classRoomRepository.searchAvailableClasses(subject, topic, format, keyword);
         if (matchingClasses.isEmpty()) return new ArrayList<>();
 
         // Group by tutor ID
@@ -180,9 +184,22 @@ public class ClassRoomService {
     }
 
     private String processKeyword(String keyword) {
-        if (keyword == null || keyword.trim().isEmpty()) {
+        String noAccentKeyword = standardization(keyword);
+        if (noAccentKeyword == null) {
             return null;
         }
-        return "%" + keyword.trim().toLowerCase() + "%";
+        return "%" + noAccentKeyword + "%";
+    }
+
+    private String standardization(String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) return null;
+
+        String normalized = Normalizer.normalize(keyword.trim(), Normalizer.Form.NFD);
+        Pattern pattern = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
+
+        return pattern.matcher(normalized).replaceAll("")
+                .replace("Đ", "D")
+                .replace("đ", "d")
+                .toLowerCase();
     }
 }

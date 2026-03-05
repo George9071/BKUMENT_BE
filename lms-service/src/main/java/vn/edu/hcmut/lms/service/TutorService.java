@@ -56,7 +56,7 @@ public class TutorService {
         tutorRepository.save(tutor);
 
         try {
-            identityClient.addRole(profileId, "TUTOR");
+            identityClient.addRole(getAccountIdFromToken(), "TUTOR");
         } catch (Exception e) {
             throw new RuntimeException("Failed to sync role to Identity Service", e);
         }
@@ -128,6 +128,16 @@ public class TutorService {
             String profileId = jwt.getClaimAsString("profile_id");
             if (profileId == null) throw new AppException(ErrorCode.INVALID_TOKEN_CLAIMS);
             return profileId;
+        }
+        throw new AppException(ErrorCode.UNAUTHENTICATED);
+    }
+
+    private String getAccountIdFromToken() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) throw new AppException(ErrorCode.UNAUTHENTICATED);
+
+        if (authentication.getPrincipal() instanceof Jwt jwt) {
+            return jwt.getSubject();
         }
         throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
