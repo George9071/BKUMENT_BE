@@ -32,6 +32,13 @@ public class TutorController {
         return tutorService.updateTutorProfile(request);
     }
 
+    @GetMapping("/me")
+    public APIResponse<TutorResponse> getMyTutorProfile() {
+        return APIResponse.<TutorResponse>builder()
+                .result(tutorService.getMyTutorProfile())
+                .build();
+    }
+
     @GetMapping
     List<TutorResponse> getTutors(@RequestParam(required = false) String subjectId) {
         return tutorService.getTutors(subjectId);

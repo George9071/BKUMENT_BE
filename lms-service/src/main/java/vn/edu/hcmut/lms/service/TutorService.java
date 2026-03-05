@@ -118,6 +118,23 @@ public class TutorService {
                 .toList();
     }
 
+    public TutorResponse getMyTutorProfile() {
+        String tutorId = getProfileIdFromToken();
+
+        Tutor tutor = tutorRepository.findById(tutorId)
+                .orElseThrow(() -> new AppException(ErrorCode.TUTOR_NOT_FOUND));
+
+        return TutorResponse.builder()
+                .id(tutor.getId())
+                .introduction(tutor.getIntroduction())
+                .averageRating(tutor.getAverageRating())
+                .ratingCount(tutor.getRatingCount())
+                .status(tutor.getStatus()) // Assuming status is an Enum
+                .name(tutor.getName())
+                .avatar(tutor.getAvatar())
+                .build();
+    }
+
     private String getProfileIdFromToken() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null) throw new AppException(ErrorCode.UNAUTHENTICATED);
