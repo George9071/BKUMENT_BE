@@ -9,7 +9,6 @@ import java.util.StringJoiner;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -48,6 +47,7 @@ public class AuthenticationService {
     AccountRepository accountRepository;
     InvalidatedTokenRepository invalidatedTokenRepository;
     ProfileClient profileClient;
+    PasswordEncoder passwordEncoder;
 
     @NonFinal
     @Value("${jwt.signerKey}")
@@ -62,40 +62,33 @@ public class AuthenticationService {
     protected long REFRESHABLE_DURATION;
 
     /**
-     * Verifies whether a given token is valid.
-     *
-     * @param request contains the token to introspect
-     * @return {@link IntrospectResponse} indicating whether the token is valid
+     * Verifies whether a given token is valid and extracts the profile_id.
+     * Used by API Gateway or internal checks.
      */
-    public IntrospectResponse introspect(IntrospectRequest request) throws JOSEException, ParseException {
+    public IntrospectResponse introspect(IntrospectRequest request) {
         var token = request.getToken();
         boolean isValid = true;
         SignedJWT jwt = null;
 
         try {
             jwt = verifyToken(token, false);
-        } catch (AppException e) {
+        } catch (AppException | JOSEException | ParseException e) {
             isValid = false;
         }
 
         return IntrospectResponse.builder()
                 .valid(isValid)
-                .profileId(Objects.nonNull(jwt) ? jwt.getJWTClaimsSet().getStringClaim("profile_id") : null)
+                .profileId(Objects.nonNull(jwt) ? parseStringClaim(jwt, "profile_id") : null)
                 .build();
     }
 
     /**
-     * Authenticates the user by username and password, then issues a JWT.
-     *
-     * @param request contains username and password credentials
-     * @return {@link AuthenticationResponse} containing a signed JWT if successful
-     * @throws AppException if credentials are invalid or user not found
+     * Authenticates the user credentials and issues a new JWT.
      */
     public AuthenticationResponse authenticate(AuthenticationRequest request) {
-        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
         var account = accountRepository
                 .findByUsername(request.getUsername())
-                .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_EXISTED));
+                .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_FOUND));
 
         boolean authenticated = passwordEncoder.matches(request.getPassword(), account.getPassword());
 
@@ -105,7 +98,7 @@ public class AuthenticationService {
         try {
             profile = profileClient.getProfileByAccountId(account.getId()).getResult();
         } catch (Exception e) {
-            log.error("Cannot fetch profile", e);
+            log.error("Cannot fetch profile for account {}", account.getId(), e);
         }
 
         var token = generateToken(account, profile);
@@ -118,47 +111,54 @@ public class AuthenticationService {
     }
 
     /**
-     * Invalidates a token by storing its ID (JTI) into the invalidation repository.
-     * @param request contains the token to invalidate
+     * Invalidates a token by storing its ID (JTI) into the database.
      */
-    public void logout(LogoutRequest request) throws ParseException, JOSEException {
+    public void logout(LogoutRequest request) {
         try {
             var signToken = verifyToken(request.getToken(), true);
 
             String jti = signToken.getJWTClaimsSet().getJWTID();
             Date expiryTime = signToken.getJWTClaimsSet().getExpirationTime();
 
-            InvalidatedToken invalidatedToken =
-                    InvalidatedToken.builder().id(jti).expiryTime(expiryTime).build();
+            InvalidatedToken invalidatedToken = InvalidatedToken.builder()
+                    .id(jti)
+                    .expiryTime(expiryTime)
+                    .build();
 
             invalidatedTokenRepository.save(invalidatedToken);
-        } catch (AppException exception) {
-            log.info("Token already expired");
+            log.info("Token {} successfully invalidated", jti);
+
+        } catch (AppException | ParseException | JOSEException exception) {
+            log.info("Token is already expired or invalid, skipping logout");
         }
     }
 
-    public AuthenticationResponse refreshToken(RefreshRequest request) throws ParseException, JOSEException {
+    /**
+     * Issues a new token if the old token is within the refreshable duration.
+     */
+    public AuthenticationResponse refreshToken(RefreshRequest request)
+            throws ParseException, JOSEException {
         var signedJWT = verifyToken(request.getToken(), true);
 
         // Invalidate old token
         var jti = signedJWT.getJWTClaimsSet().getJWTID();
         var expiryTime = signedJWT.getJWTClaimsSet().getExpirationTime();
+        invalidatedTokenRepository.save(InvalidatedToken.builder().id(jti).expiryTime(expiryTime).build());
 
-        invalidatedTokenRepository.save(
-                InvalidatedToken.builder().id(jti).expiryTime(expiryTime).build());
-
-        // Reissue new token
+        // Fetch account
         var accountId = signedJWT.getJWTClaimsSet().getSubject();
-        var account =
-                accountRepository.findById(accountId).orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+        var account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
 
-        ProfileResponse profile = null;
+        ProfileResponse profile;
         try {
             profile = profileClient.getProfileByAccountId(account.getId()).getResult();
         } catch (Exception e) {
-            log.error("Cannot fetch profile", e);
+            log.warn("ProfileService is down during token refresh. Falling back to claims from the old token.");
+            profile = extractProfileFromOldToken(signedJWT);
         }
 
+        // Issue new token
         var token = generateToken(account, profile);
 
         return AuthenticationResponse.builder()
@@ -167,22 +167,23 @@ public class AuthenticationService {
                 .build();
     }
 
-    /* Helper method */
+    /* ========================================================================= */
+    /* HELPER METHODS                                                            */
+    /* ========================================================================= */
     private TokenInfo generateToken(Account account, ProfileResponse profile) {
         JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
 
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(VALID_DURATION);
-        String jti = UUID.randomUUID().toString();
 
         JWTClaimsSet.Builder jwtClaimsSet = new JWTClaimsSet.Builder()
                 .issuer("bkument.vn.edu.hcmut")
                 .subject(account.getId())
                 .issueTime(Date.from(now))
                 .expirationTime(Date.from(expiresAt))
-                .jwtID(jti);
+                .jwtID(UUID.randomUUID().toString());
 
-        // ---- Custom auth claims
+        // ---- custom claims ----
         jwtClaimsSet.claim("username", account.getUsername());
         jwtClaimsSet.claim("scope", buildScope(account));
 
@@ -190,37 +191,32 @@ public class AuthenticationService {
             jwtClaimsSet.claim("profile_id", profile.getId());
             jwtClaimsSet.claim("email", profile.getEmail());
             jwtClaimsSet.claim("university_id", profile.getUniversityId());
-            jwtClaimsSet.claim("name", profile.getLastName() + " " + profile.getFirstName());
+            String fullName = (profile.getLastName() != null ? profile.getLastName() : "") + " " +
+                    (profile.getFirstName() != null ? profile.getFirstName() : "");
+            jwtClaimsSet.claim("name", fullName.trim());
         }
 
-        JWSObject jwsObject =
-                new JWSObject(header, new Payload(jwtClaimsSet.build().toJSONObject()));
+        JWSObject jwsObject = new JWSObject(header, new Payload(jwtClaimsSet.build().toJSONObject()));
 
         try {
             jwsObject.sign(new MACSigner(SIGNER_KEY.getBytes()));
-            String token = jwsObject.serialize();
-            Date expiryDate = Date.from(expiresAt);
-            return new TokenInfo(token, expiryDate);
+            return new TokenInfo(jwsObject.serialize(), Date.from(expiresAt));
         } catch (JOSEException e) {
-            log.error("Cannot create token", e);
-            throw new RuntimeException(e);
+            log.error("Failed to sign JWT token", e);
+            throw new RuntimeException("Error while creating token", e);
         }
     }
 
     /**
      * Verifies a JWT’s signature, expiration, and invalidation state.
-     *
-     * @param token     the JWT string to verify
-     * @param isRefresh whether this is for token refresh (uses refreshable duration)
-     * @return parsed and verified {@link SignedJWT}
-     * @throws AppException if token is invalid, expired, or revoked
      */
-    private SignedJWT verifyToken(String token, boolean isRefresh) throws JOSEException, ParseException {
+    private SignedJWT verifyToken(String token, boolean isRefresh)
+            throws JOSEException, ParseException {
 
         JWSVerifier verifier = new MACVerifier(SIGNER_KEY.getBytes());
         SignedJWT signedJWT = SignedJWT.parse(token);
 
-        // Determine correct expiration time depending on context
+        // Determine correct expiration time based on context (Authentication or Refreshing)
         Date expiryTime = (isRefresh)
                 ? new Date(signedJWT
                         .getJWTClaimsSet()
@@ -232,27 +228,67 @@ public class AuthenticationService {
 
         boolean verified = signedJWT.verify(verifier);
 
-        // Reject if signature invalid or token expired
-        if (!(verified && expiryTime.after(new Date()))) throw new AppException(ErrorCode.UNAUTHENTICATED);
-
-        // Reject if the token was previously invalidated (e.g., logged out)
-        if (invalidatedTokenRepository.existsById(signedJWT.getJWTClaimsSet().getJWTID()))
+        // Reject if signature invalid or token has passed its allowed time window
+        if (!(verified && expiryTime.after(new Date()))) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        // Reject if the token was previously invalidated
+        if (invalidatedTokenRepository.existsById(signedJWT.getJWTClaimsSet().getJWTID())) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
 
         return signedJWT;
     }
 
-    private record TokenInfo(String token, Date expiryDate) {}
+    /**
+     * Recovers profile data from an old token if the Profile Service is unreachable.
+     * Prevents the new token from losing critical claims.
+     */
+    private ProfileResponse extractProfileFromOldToken(SignedJWT oldToken) {
+        String fullName = parseStringClaim(oldToken, "name");
+        String lastName = "";
+        String firstName = "";
+
+        if (fullName != null && !fullName.trim().isEmpty()) {
+            String[] parts = fullName.split(" ", 2);
+            lastName = parts.length > 0 ? parts[0] : "";
+            firstName = parts.length > 1 ? parts[1] : "";
+        }
+
+        return ProfileResponse.builder()
+                .id(parseStringClaim(oldToken, "profile_id"))
+                .email(parseStringClaim(oldToken, "email"))
+                .universityId(parseIntegerClaim(oldToken, "university_id"))
+                .lastName(lastName)
+                .firstName(firstName)
+                .build();
+    }
 
     private String buildScope(Account account) {
         StringJoiner stringJoiner = new StringJoiner(" ");
-
         if (!CollectionUtils.isEmpty(account.getRoles())) {
-            account.getRoles().forEach(role -> {
-                stringJoiner.add(role.name());
-            });
+            account.getRoles().forEach(role -> stringJoiner.add(role.name()));
         }
-
         return stringJoiner.toString();
     }
+
+    private String parseStringClaim(SignedJWT jwt, String keyword) {
+        try {
+            return jwt.getJWTClaimsSet().getStringClaim(keyword);
+        } catch (ParseException e) {
+            return null;
+        }
+    }
+
+    private Integer parseIntegerClaim(SignedJWT jwt, String keyword) {
+        try {
+            return jwt.getJWTClaimsSet().getIntegerClaim(keyword);
+        } catch (ParseException e) {
+            log.warn("Failed to parse integer claim for key: {}", keyword);
+            return null;
+        }
+    }
+
+    private record TokenInfo(String token, Date expiryDate) {}
 }
