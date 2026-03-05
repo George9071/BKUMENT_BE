@@ -1,7 +1,6 @@
 package vn.edu.hcmut.identity.configuration;
 
-import java.util.HashSet;
-
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -17,6 +16,8 @@ import vn.edu.hcmut.identity.constant.UserRole;
 import vn.edu.hcmut.identity.entity.Account;
 import vn.edu.hcmut.identity.repository.AccountRepository;
 
+import java.util.HashSet;
+
 @Configuration
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -26,10 +27,12 @@ public class ApplicationInitConfig {
     PasswordEncoder passwordEncoder;
 
     @NonFinal
-    static final String ADMIN_USERNAME = "admin";
+    @Value("${app.init.admin.username}")
+    String ADMIN_USERNAME;
 
     @NonFinal
-    static final String ADMIN_PASSWORD = "admin";
+    @Value("${app.init.admin.password}")
+    String ADMIN_PASSWORD;
 
     @Bean
     @ConditionalOnProperty(
@@ -38,7 +41,7 @@ public class ApplicationInitConfig {
             havingValue = "org.postgresql.Driver")
     ApplicationRunner applicationRunner(AccountRepository accountRepository) {
         return args -> {
-            if (accountRepository.findByUsername("admin").isEmpty()) {
+            if (accountRepository.findByUsername(ADMIN_USERNAME).isEmpty()) {
 
                 var roles = new HashSet<UserRole>();
                 roles.add(UserRole.ADMIN);

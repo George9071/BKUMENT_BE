@@ -17,7 +17,7 @@ import io.swagger.v3.oas.models.servers.Server;
 public class OpenApiConfiguration {
     private static final String SECURITY_SCHEME_NAME = "bearerAuth";
 
-    // 1. Define the "Public" Group (Excludes internal paths)
+    // the "public" group (excludes internal paths)
     @Bean
     public GroupedOpenApi publicApi() {
         return GroupedOpenApi.builder()
@@ -27,10 +27,13 @@ public class OpenApiConfiguration {
                 .build();
     }
 
-    // 2. Define the "Internal" Group (Shows everything)
+    // the "internal" group
     @Bean
     public GroupedOpenApi internalApi() {
-        return GroupedOpenApi.builder().group("internal").pathsToMatch("/**").build();
+        return GroupedOpenApi.builder()
+                .group("internal")
+                .pathsToMatch("/**")
+                .build();
     }
 
     @Bean
@@ -39,10 +42,9 @@ public class OpenApiConfiguration {
                 .info(new Info().title("BKUMENT").version("1.0").description("APIs for identity-service"))
                 // --- SERVER CONFIGURATION---
                 .servers(List.of(
-                        new Server()
-                                .url("http://localhost:8888/api/v1/identity")
-                                .description("Gateway"),
-                        new Server().url("http://localhost:8080/identity").description("Local")))
+                        new Server().url("http://localhost:8080/identity").description("Local"),
+                        new Server().url("http://localhost:8888/api/v1/identity").description("Gateway")))
+
                 // --- SECURITY CONFIGURATION---
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
                 .components(new Components()
