@@ -7,19 +7,34 @@ import lombok.Getter;
 
 @Getter
 public enum ErrorCode {
-    UNCATEGORIZED_EXCEPTION(9999, "Uncategorized error", HttpStatus.INTERNAL_SERVER_ERROR),
-    INVALID_KEY(1001, "Uncategorized error", HttpStatus.BAD_REQUEST),
-    ACCOUNT_EXISTED(1002, "Account existed", HttpStatus.BAD_REQUEST),
-    //    USERNAME_INVALID(1003, "Username must be at least {min} characters", HttpStatus.BAD_REQUEST),
-    //    INVALID_PASSWORD(1004, "Password must be at least {min} characters", HttpStatus.BAD_REQUEST),
-    ACCOUNT_NOT_EXISTED(1005, "Account not existed", HttpStatus.NOT_FOUND),
-    UNAUTHENTICATED(1006, "Unauthenticated", HttpStatus.UNAUTHORIZED),
-    UNAUTHORIZED(1007, "You do not have permission", HttpStatus.FORBIDDEN),
-    //    INVALID_DOB(1008, "Your age must be at least {min}", HttpStatus.BAD_REQUEST),
-    INVALID_ROLE(1008, "Invalid role (MODERATOR, ADMIN, USER, TUTOR)", HttpStatus.BAD_REQUEST),
-    DELETE_LMS_FAILED(9020, "Failed to delete LMS data", HttpStatus.INTERNAL_SERVER_ERROR),
-    DELETE_PROFILE_FAILED(9021, "Failed to delete User Profile", HttpStatus.INTERNAL_SERVER_ERROR),
-    PROFILE_NOT_FOUND(9022, "Profile not found", HttpStatus.NOT_FOUND),
+
+    // ----------------------------------------------------------------------
+    // 1xxx: GENERAL VALIDATION and REQUEST ERRORS
+    // ----------------------------------------------------------------------
+    INVALID_KEY(1001, "Invalid message key or request parameter", HttpStatus.BAD_REQUEST),
+    INVALID_ROLE(1002, "Invalid role. Accepted (MODERATOR, ADMIN, USER, TUTOR)", HttpStatus.BAD_REQUEST),
+    USERNAME_LENGTH_INVALID(1003, "username must be between {min} and {max} characters", HttpStatus.BAD_REQUEST),
+    PASSWORD_LENGTH_INVALID(1004, "password must be between {min} and {max} characters", HttpStatus.BAD_REQUEST),
+    INVALID_EMAIL(1005, "The email format is invalid", HttpStatus.BAD_REQUEST),
+    INVALID_DOB(1006, "Date of birth must be a valid date in the past", HttpStatus.BAD_REQUEST),
+    REQUIRED_FIELD(1007, "This field is required and cannot be empty", HttpStatus.BAD_REQUEST),
+    BIO_LENGTH_INVALID(1008, "Bio length must be not exceed {max} characters", HttpStatus.BAD_REQUEST),
+
+    // ----------------------------------------------------------------------
+    // 2xxx: IDENTITY and ACCOUNT BUSINESS LOGIC (IDENTITY SERVICE DOMAIN)
+    // ----------------------------------------------------------------------
+    ACCOUNT_ALREADY_EXISTS(2001, "Account already exists", HttpStatus.BAD_REQUEST),
+    ACCOUNT_NOT_FOUND(2002, "Account not found", HttpStatus.NOT_FOUND),
+    UNAUTHENTICATED(2003, "Unauthenticated access. Please log in", HttpStatus.UNAUTHORIZED),
+    ACCESS_DENIED(2004, "You do not have permission to access this resource", HttpStatus.FORBIDDEN),
+
+    // ----------------------------------------------------------------------
+    // 9yxx: MICROSERVICE INTEGRATION and SYSTEM ERRORS (y is the last digit of the port number in the target service)
+    // ----------------------------------------------------------------------
+    DELETE_LMS_FAILED(9201, "Failed to delete LMS data during account removal", HttpStatus.INTERNAL_SERVER_ERROR),
+    DELETE_PROFILE_FAILED(9101, "Failed to delete user profile during account removal", HttpStatus.INTERNAL_SERVER_ERROR),
+    PROFILE_NOT_FOUND(9102, "User profile not found in Profile Service", HttpStatus.NOT_FOUND),
+    UNCATEGORIZED_EXCEPTION(9999, "Uncategorized system error", HttpStatus.INTERNAL_SERVER_ERROR)
     ;
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {

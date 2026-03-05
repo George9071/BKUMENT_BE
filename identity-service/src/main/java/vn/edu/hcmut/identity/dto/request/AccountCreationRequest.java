@@ -1,5 +1,7 @@
 package vn.edu.hcmut.identity.dto.request;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import lombok.*;
@@ -12,11 +14,14 @@ import vn.edu.hcmut.identity.constant.UserRole;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class AccountCreationRequest {
-    @Size(min = 6, message = "USERNAME_INVALID")
+    @NotBlank(message = "REQUIRED_FIELD")
+    @Size(min = 6, max = 20, message = "USERNAME_LENGTH_INVALID")
     String username;
 
-    @Size(min = 8, message = "INVALID_PASSWORD")
+    @NotBlank(message = "REQUIRED_FIELD")
+    @Size(min = 8, message = "PASSWORD_LENGTH_INVALID")
     String password;
 
+    @NotNull(message = "INVALID_ROLE")
     UserRole role;
 }
