@@ -33,11 +33,20 @@ public class Resource {
     @Column(name = "owner_id", nullable = false)
     String ownerId;
 
+    @Column(name = "topic_id", nullable = false)
+    String topicId;
+
     @Column(name = "created_at")
     LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     LocalDateTime updatedAt;
+
+    @Column(name = "university_id")
+    String universityId;
+
+    @Column(name = "course_id")
+    String courseId;
 
     @PrePersist
     protected void onCreate() {

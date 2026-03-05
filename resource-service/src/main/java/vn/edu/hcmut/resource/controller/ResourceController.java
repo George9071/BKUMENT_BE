@@ -1,14 +1,16 @@
 package vn.edu.hcmut.resource.controller;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -48,25 +50,26 @@ public class ResourceController {
     }
 
     @GetMapping("/download/asset/{assetId}")
-    public ResponseEntity<InputStreamResource> downloadByAssetId(@PathVariable String assetId) {
+    public ResponseEntity<StreamingResponseBody> downloadByAssetId(@PathVariable String assetId) {
         ResourceDownloadResponse data = resourceService.downloadByAssetId(assetId);
 
-        String fileName = data.getFileName();
-        if (fileName == null || fileName.isBlank()) {
-            fileName = "file";
-        }
-
+        String fileName = (data.getFileName() == null || data.getFileName().isBlank()) ? "file" : data.getFileName();
         String encodedFileName =
                 URLEncoder.encode(fileName, StandardCharsets.UTF_8).replace("+", "%20");
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + encodedFileName + "\"");
+        StreamingResponseBody responseBody = outputStream -> {
+            try (InputStream is = data.getInputStream()) {
+                is.transferTo(outputStream);
+                outputStream.flush();
+            } catch (IOException e) {
+            }
+        };
 
         return ResponseEntity.ok()
-                .headers(headers)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + encodedFileName + "\"")
                 .contentType(MediaType.parseMediaType(data.getContentType()))
                 .contentLength(data.getFileSize())
-                .body(new InputStreamResource(data.getInputStream()));
+                .body(responseBody);
     }
 
     @DeleteMapping("/asset/{assetId}")

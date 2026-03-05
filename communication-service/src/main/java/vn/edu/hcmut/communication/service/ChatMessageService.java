@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import vn.edu.hcmut.communication.dto.request.ChatMessageRequest;
 import vn.edu.hcmut.communication.dto.response.ChatMessageResponse;
 import vn.edu.hcmut.communication.entity.ChatMessage;
+import vn.edu.hcmut.communication.entity.Conversation;
 import vn.edu.hcmut.communication.entity.ParticipantInfo;
 import vn.edu.hcmut.communication.entity.WebSocketSession;
 import vn.edu.hcmut.communication.exception.AppException;
@@ -105,6 +106,16 @@ public class ChatMessageService {
 
         // Create chat message
         chatMessage = chatMessageRepository.save(chatMessage);
+
+        conversation.setLastMessage(
+            "image".equals(request.getType())
+                ? "Hình ảnh"
+                : chatMessage.getMessage()
+        );
+        conversation.setLastMessageTime(chatMessage.getCreatedDate());
+        conversation.setModifiedDate(Instant.now());
+
+        conversationRepository.save(conversation);
 
         // Publish socket event to clients in conversation
         // Get participants ids

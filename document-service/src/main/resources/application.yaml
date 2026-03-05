@@ -5,16 +5,16 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/postgres
+    url: jdbc:postgresql://206.189.92.152:5432/bkument_db
     driverClassName: org.postgresql.Driver
-    username: postgres
-    password: mysecretpassword
+    username: bkument
+    password: bkument_thesis_252
     hikari:
       maximum-pool-size: 5
       minimum-idle: 2
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: true
   cloud:
     openfeign:
@@ -23,6 +23,11 @@ spring:
           ai-service:
             connect-timeout: 60000
             read-timeout: 1200000
+  neo4j:
+    uri: bolt://206.189.92.152:7687
+    authentication:
+      username: neo4j
+      password: BKUMENT_THESIS_252
 
 logging:
   level:
@@ -49,3 +54,4 @@ swagger:
 app:
   services:
     ai: http://localhost:8087/ai
+    profile: http://localhost:8081/profile

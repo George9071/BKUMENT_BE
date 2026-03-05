@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 public class EnrollmentService {
 
     ValidationService validationService;
+    GraphSyncService graphSyncService;
     EnrollmentRepository enrollmentRepository;
     ClassRoomRepository classRoomRepository;
     ProfileClient profileClient;
@@ -78,6 +79,9 @@ public class EnrollmentService {
                     .build();
         }
         enrollment = enrollmentRepository.save(enrollment);
+
+        String topicId = classRoom.getTopic() != null ? classRoom.getTopic().getId() : null;
+        graphSyncService.handleEnrollmentEvent(userId, classId, topicId);
 
         return enrollmentMapper.toResponse(enrollment, userProfile);
     }

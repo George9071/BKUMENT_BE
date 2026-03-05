@@ -25,4 +25,9 @@ public class DocumentMetadataRequest {
     String summary;
     Boolean downloadable;
     String assetId; // MinIO file ID
+
+    // ID fields for relationships
+    String universityId;
+    String courseId;
+    String topicId;
 }

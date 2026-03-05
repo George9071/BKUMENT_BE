@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+
+import vn.edu.hcmut.communication.dto.request.ConversationMetadataRequest;
 import vn.edu.hcmut.communication.dto.request.ConversationRequest;
 import vn.edu.hcmut.communication.dto.response.ConversationResponse;
 import vn.edu.hcmut.communication.entity.Conversation;
@@ -33,10 +35,47 @@ public class ConversationService {
 
     ConversationMapper conversationMapper;
 
+    public ConversationResponse updateMetadata(String id, ConversationMetadataRequest request) {
+        Conversation conversation = conversationRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
+
+        if (request.getType() != null) {
+            conversation.setType(request.getType());
+        }
+
+        if (request.getName() != null) {
+            conversation.setName(request.getName());
+        }
+
+        if (request.getConversationAvatar() != null) {
+            conversation.setConversationAvatar(request.getConversationAvatar());
+        }
+
+        if (request.getLastMessage() != null) {
+            conversation.setLastMessage(request.getLastMessage());
+        }
+
+        if (request.getLastMessageTime() != null) {
+            conversation.setLastMessageTime(request.getLastMessageTime());
+        }
+
+        conversation.setModifiedDate(Instant.now());
+
+        return toConversationResponse(conversationRepository.save(conversation));
+    }
+
     public List<ConversationResponse> myConversations() {
         String userId = getProfileIdFromToken();
         List<Conversation> conversations = conversationRepository.findAllByParticipantIdsContains(userId);
-        return conversations.stream().map(this::toConversationResponse).toList();
+
+        return conversations.stream()
+                .sorted((c1, c2) -> {
+                    Instant t1 = c1.getLastMessageTime() != null ? c1.getLastMessageTime() : c1.getCreatedDate();
+                    Instant t2 = c2.getLastMessageTime() != null ? c2.getLastMessageTime() : c2.getCreatedDate();
+                    return t2.compareTo(t1);
+                })
+                .map(this::toConversationResponse)
+                .toList();
     }
 
     public ConversationResponse create(ConversationRequest request) {
@@ -45,7 +84,7 @@ public class ConversationService {
         var user = profileClient.getProfile(userId);
 
         // Assume only 2 participants
-        var participant = profileClient.getProfile(request.getParticipantIds().getFirst());
+        var participant = profileClient.getProfile(request.getParticipantIds().get(0));
 
         if (Objects.isNull(user) || Objects.isNull(participant)) {
             throw new AppException(ErrorCode.USER_NOT_FOUND);
@@ -80,8 +119,7 @@ public class ConversationService {
                                     .firstName(participantInfo.getFirstName())
                                     .lastName(participantInfo.getLastName())
                                     .avatar(participantInfo.getAvatarUrl())
-                                    .build()
-                    );
+                                    .build());
 
                     // Build conversation info
                     Conversation newConversation = Conversation.builder()
@@ -118,7 +156,19 @@ public class ConversationService {
                 .filter(participantInfo -> !participantInfo.getUserId().equals(userId))
                 .findFirst().ifPresent(participantInfo -> {
                     conversationResponse.setConversationName(participantInfo.getUsername());
-                    conversationResponse.setConversationAvatar(participantInfo.getAvatar());
+
+                    try {
+                        var profile = profileClient.getProfile(participantInfo.getUserId());
+                        if (profile != null && profile.getResult() != null) {
+                            conversationResponse.setConversationAvatar(profile.getResult().getAvatarUrl());
+                        } else {
+                            conversationResponse.setConversationAvatar(participantInfo.getAvatar());
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to fetch avatar for user {}, falling back to snapshot",
+                                participantInfo.getUserId());
+                        conversationResponse.setConversationAvatar(participantInfo.getAvatar());
+                    }
                 });
 
         return conversationResponse;
