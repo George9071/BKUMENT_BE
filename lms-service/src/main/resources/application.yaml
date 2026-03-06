@@ -1,5 +1,5 @@
 server:
-  port: 8088
+  port: 8082
   servlet:
     context-path: /lms
 
@@ -23,7 +23,7 @@ spring:
       password: BKUMENT_THESIS_252
 
 swagger:
-  host-url: http://localhost:8088/lms
+  host-url: http://localhost:8082/lms
 
 jwt:
   signerKey: "5016f0096d30f88524edc817d00b36406e26788c87ea9c97d57c4b7758b5f033"

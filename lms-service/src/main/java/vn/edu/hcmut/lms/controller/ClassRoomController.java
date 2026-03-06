@@ -4,13 +4,11 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.web.bind.annotation.*;
+import vn.edu.hcmut.lms.constant.EnrollmentStatus;
 import vn.edu.hcmut.lms.constant.LearningFormat;
 import vn.edu.hcmut.lms.dto.request.ClassRoomCreationRequest;
 import vn.edu.hcmut.lms.dto.request.ClassRoomUpdateRequest;
-import vn.edu.hcmut.lms.dto.response.APIResponse;
-import vn.edu.hcmut.lms.dto.response.ClassRoomResponse;
-import vn.edu.hcmut.lms.dto.response.EnrollmentResponse;
-import vn.edu.hcmut.lms.dto.response.TutorSearchResponse;
+import vn.edu.hcmut.lms.dto.response.*;
 import vn.edu.hcmut.lms.service.ClassRoomService;
 import vn.edu.hcmut.lms.service.EnrollmentService;
 
@@ -32,10 +30,28 @@ public class ClassRoomController {
                 .build();
     }
 
-    @GetMapping("/my-classes")
-    APIResponse<List<ClassRoomResponse>> getMyClasses() {
+    @GetMapping("/teaching")
+    public APIResponse<List<ClassRoomResponse>> getMyClassesAsTutor() {
         return APIResponse.<List<ClassRoomResponse>>builder()
-                .result(classRoomService.getMyClasses())
+                .result(classRoomService.getMyClassesAsTutor())
+                .build();
+    }
+
+    @GetMapping("/my-class")
+    public APIResponse<PageResponse<EnrollmentResponse>> getMyClassesAsUser(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return APIResponse.<PageResponse<EnrollmentResponse>>builder()
+                .result(enrollmentService.getMyEnrollments(EnrollmentStatus.APPROVED, page, size))
+                .build();
+    }
+
+    @GetMapping("/pending")
+    public APIResponse<PageResponse<EnrollmentResponse>> getMyPendingClasses(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return APIResponse.<PageResponse<EnrollmentResponse>>builder()
+                .result(enrollmentService.getMyEnrollments(EnrollmentStatus.PENDING, page, size))
                 .build();
     }
 

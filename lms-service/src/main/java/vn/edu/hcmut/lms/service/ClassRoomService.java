@@ -76,7 +76,9 @@ public class ClassRoomService {
         return classMapper.toResponse(classRoom);
     }
 
-    public List<ClassRoomResponse> getMyClasses() {
+
+
+    public List<ClassRoomResponse> getMyClassesAsTutor() {
         String profileId = getProfileIdFromToken();
         return classRoomRepository.findByTutorId(profileId).stream()
                 .map(classMapper::toResponse)
@@ -151,7 +153,7 @@ public class ClassRoomService {
             List<ClassRoom> tutorClasses = entry.getValue();
 
             // Get the tutor from the first class (all classes in this list share the same tutor).
-            var tutor = tutorClasses.getFirst().getTutor();
+            var tutor = tutorClasses.get(0).getTutor();
 
             TutorResponse response = TutorResponse.builder()
                     .id(tutor.getId())

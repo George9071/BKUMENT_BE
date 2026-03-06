@@ -1,5 +1,7 @@
 package vn.edu.hcmut.lms.repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -30,4 +32,11 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, String> 
             @Param("enrollmentStatus") EnrollmentStatus enrollmentStatus,
             @Param("classStatuses") List<ClassStatus> classStatuses
     );
+
+    @Query("SELECT e FROM Enrollment e WHERE e.studentProfileId = :profileId " +
+            "AND (:status IS NULL OR e.status = :status)")
+    Page<Enrollment> findByStudentProfileIdAndStatus(
+            @Param("profileId") String profileId,
+            @Param("status") EnrollmentStatus status,
+            Pageable pageable);
 }

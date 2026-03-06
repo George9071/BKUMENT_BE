@@ -3,6 +3,9 @@ package vn.edu.hcmut.lms.service;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -10,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.edu.hcmut.lms.constant.ClassStatus;
 import vn.edu.hcmut.lms.constant.EnrollmentStatus;
 import vn.edu.hcmut.lms.dto.response.EnrollmentResponse;
+import vn.edu.hcmut.lms.dto.response.PageResponse;
 import vn.edu.hcmut.lms.dto.response.ProfileResponse;
 import vn.edu.hcmut.lms.entity.ClassRoom;
 import vn.edu.hcmut.lms.entity.Enrollment;
@@ -125,6 +129,25 @@ public class EnrollmentService {
         if (enrollments.isEmpty()) return new ArrayList<>();
 
         return toEnrollmentResponses(enrollments);
+    }
+
+    public PageResponse<EnrollmentResponse> getMyEnrollments(EnrollmentStatus status, int page, int size) {
+        Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
+
+        Page<Enrollment> enrollments = enrollmentRepository
+                .findByStudentProfileIdAndStatus(getProfileIdFromToken(), status, pageable);
+
+        List<EnrollmentResponse> responses = enrollments.getContent().stream()
+                .map(enrollmentMapper::toResponse)
+                .toList();
+
+        return PageResponse.<EnrollmentResponse>builder()
+                .currentPage(page)
+                .totalPages(enrollments.getTotalPages())
+                .pageSize(enrollments.getSize())
+                .totalElements(enrollments.getTotalElements())
+                .data(responses)
+                .build();
     }
 
     @Transactional
