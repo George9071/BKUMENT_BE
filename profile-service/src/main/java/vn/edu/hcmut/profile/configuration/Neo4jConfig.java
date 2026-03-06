@@ -13,6 +13,7 @@ public class Neo4jConfig {
     @Bean("neo4jTransactionManager")
     public PlatformTransactionManager neo4jTransactionManager(
             Driver driver, DatabaseSelectionProvider databaseNameProvider) {
+
         return new Neo4jTransactionManager(driver, databaseNameProvider);
     }
 }

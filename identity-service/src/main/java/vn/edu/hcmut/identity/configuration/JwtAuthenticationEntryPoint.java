@@ -2,7 +2,6 @@ package vn.edu.hcmut.identity.configuration;
 
 import java.io.IOException;
 
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -28,16 +27,15 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
      * Triggered automatically by Spring Security when an unauthenticated user attempts
      * to access a secured HTTP resource.
      *
-     * @param request       The HTTP request that resulted in an AuthenticationException.
-     * @param response      The HTTP response to be sent back to the client.
-     * @param authException The exception that caused the invocation.
+     * @param request           The HTTP request that resulted in an AuthenticationException.
+     * @param response          The HTTP response to be sent back to the client.
+     * @param authException     The exception that caused the invocation.
      * @throws IOException      If an input or output exception occurs during response writing.
-     * @throws ServletException If a servlet exception occurs.
      */
     @Override
     public void commence(
             HttpServletRequest request, HttpServletResponse response, AuthenticationException authException)
-            throws IOException, ServletException {
+            throws IOException {
 
         ErrorCode errorCode = ErrorCode.UNAUTHENTICATED;
 
