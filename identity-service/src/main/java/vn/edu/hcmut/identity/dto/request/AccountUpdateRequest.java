@@ -1,6 +1,5 @@
 package vn.edu.hcmut.identity.dto.request;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 import lombok.AccessLevel;
@@ -16,11 +15,9 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class AccountUpdateRequest {
-    @NotBlank(message = "REQUIRED_FIELD")
     @Size(min = 6, max = 20, message = "USERNAME_LENGTH_INVALID")
     String username;
 
-    @NotBlank(message = "REQUIRED_FIELD")
     @Size(min = 8, message = "PASSWORD_LENGTH_INVALID")
     String password;
 }

@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import vn.edu.hcmut.profile.constant.Gender;
 
 @Entity
 @Table(name = "user_profiles")
@@ -39,6 +40,9 @@ public class UserProfile {
     String avatarUrl;
     String phone;
     String address;
+
+    @Enumerated(EnumType.STRING)
+    Gender gender;
 
     @Builder.Default
     Long points = 0L;

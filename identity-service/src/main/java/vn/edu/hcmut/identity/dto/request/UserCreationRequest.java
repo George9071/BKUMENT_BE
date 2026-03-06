@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import vn.edu.hcmut.identity.constant.Gender;
 
 @Data
 @NoArgsConstructor
@@ -39,6 +40,10 @@ public class UserCreationRequest {
     String phone;
 
     String address;
+
+    String avatar;
+
+    Gender gender;
 
     @Size(max = 500, message = "BIO_LENGTH_INVALID")
     String bio;
