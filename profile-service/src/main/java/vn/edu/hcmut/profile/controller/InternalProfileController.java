@@ -42,7 +42,7 @@ public class InternalProfileController {
     }
 
     @PutMapping("/{id}/tutor-register")
-    void addRole(@PathVariable String id, @RequestBody String role) {
+    void addRole(@PathVariable String id, @RequestParam String role) {
         profileService.addRole(id, role);
     }
 

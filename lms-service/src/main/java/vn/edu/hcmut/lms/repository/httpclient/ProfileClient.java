@@ -17,7 +17,7 @@ public interface ProfileClient {
     APIResponse<ProfileResponse> getProfile(@PathVariable("id") String id);
 
     @PutMapping("/internal/users/{id}/tutor-register")
-    void addRole(@PathVariable("id") String id, @RequestBody String role);
+    void addRole(@PathVariable("id") String id, @RequestParam String role);
 
     @PostMapping("/internal/users/batch")
     APIResponse<List<ProfileResponse>> getProfiles(@RequestBody List<String> profileIds);
