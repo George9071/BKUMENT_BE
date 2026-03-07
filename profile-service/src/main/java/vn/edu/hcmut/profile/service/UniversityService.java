@@ -15,6 +15,8 @@ import vn.edu.hcmut.profile.entity.jpa.University;
 import vn.edu.hcmut.profile.mapper.UniversityMapper;
 import vn.edu.hcmut.profile.repository.UniversityRepository;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -22,6 +24,12 @@ import vn.edu.hcmut.profile.repository.UniversityRepository;
 public class UniversityService {
     UniversityRepository universityRepository;
     UniversityMapper universityMapper;
+
+    public List<UniversityResponse> getAllUniversities() {
+        return universityRepository.findAll().stream()
+                .map(universityMapper::toResponse)
+                .toList();
+    }
 
     /**
      * Searches for universities by name or abbreviation with pagination.
@@ -40,9 +48,7 @@ public class UniversityService {
             universities = universityRepository.findAll(pageable);
         } else {
             String keyword = query.trim();
-
-            universities = universityRepository.findByNameContainingIgnoreCaseOrAbbreviationContainingIgnoreCase(
-                    keyword, keyword, pageable);
+            universities = universityRepository.search(keyword, pageable);
         }
 
         var responses = universities.getContent().stream()
