@@ -118,7 +118,7 @@ public class ClassRoomController {
             @Parameter(description = "Page number") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
         return APIResponse.<PageResponse<ClassRoomResponse>>builder()
-                .result(classRoomService.getMyClassesAsTutor(page, size))
+                .result(enrollmentService.getMyClassesByEnrollmentStatus(EnrollmentStatus.APPROVED, page, size))
                 .build();
     }
 
