@@ -25,6 +25,7 @@ public enum ErrorCode {
     INVALID_KEY(1001, "Uncategorized error", HttpStatus.BAD_REQUEST),
     UNAUTHORIZED_ACCESS(9011, "you are not the owner of this class", HttpStatus.FORBIDDEN),
     ENROLLMENT_PENDING(9012, "you already request for this class, please wait for the response of the owner of this class", HttpStatus.BAD_REQUEST),
+    ACCESS_DENIED(2002, "You do not have permission to access this resource", HttpStatus.FORBIDDEN),
     ;
 
     private final int code;

@@ -12,12 +12,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.hcmut.lms.constant.ClassStatus;
 import vn.edu.hcmut.lms.constant.EnrollmentStatus;
+import vn.edu.hcmut.lms.dto.response.ClassRoomResponse;
 import vn.edu.hcmut.lms.dto.response.EnrollmentResponse;
 import vn.edu.hcmut.lms.dto.response.PageResponse;
 import vn.edu.hcmut.lms.dto.response.ProfileResponse;
 import vn.edu.hcmut.lms.entity.ClassRoom;
 import vn.edu.hcmut.lms.entity.Enrollment;
 import vn.edu.hcmut.lms.exception.*;
+import vn.edu.hcmut.lms.mapper.ClassRoomMapper;
 import vn.edu.hcmut.lms.mapper.EnrollmentMapper;
 import vn.edu.hcmut.lms.repository.ClassRoomRepository;
 import vn.edu.hcmut.lms.repository.EnrollmentRepository;
@@ -39,6 +41,7 @@ public class EnrollmentService {
     ClassRoomRepository classRoomRepository;
     ProfileClient profileClient;
     EnrollmentMapper enrollmentMapper;
+    ClassRoomMapper classMapper;
 
     @Transactional
     public EnrollmentResponse enrollClass(String classId) {
@@ -131,17 +134,17 @@ public class EnrollmentService {
         return toEnrollmentResponses(enrollments);
     }
 
-    public PageResponse<EnrollmentResponse> getMyEnrollments(EnrollmentStatus status, int page, int size) {
+    public PageResponse<ClassRoomResponse> getMyClassesByEnrollmentStatus(EnrollmentStatus status, int page, int size) {
         Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
 
         Page<Enrollment> enrollments = enrollmentRepository
                 .findByStudentProfileIdAndStatus(getProfileIdFromToken(), status, pageable);
 
-        List<EnrollmentResponse> responses = enrollments.getContent().stream()
-                .map(enrollmentMapper::toResponse)
+        List<ClassRoomResponse> responses = enrollments.getContent().stream()
+                .map(enrollment -> classMapper.toResponse(enrollment.getClassRoom()))
                 .toList();
 
-        return PageResponse.<EnrollmentResponse>builder()
+        return PageResponse.<ClassRoomResponse>builder()
                 .currentPage(page)
                 .totalPages(enrollments.getTotalPages())
                 .pageSize(enrollments.getSize())

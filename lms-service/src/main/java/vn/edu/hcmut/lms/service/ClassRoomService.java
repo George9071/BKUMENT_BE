@@ -3,6 +3,9 @@ package vn.edu.hcmut.lms.service;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -12,7 +15,7 @@ import vn.edu.hcmut.lms.constant.LearningFormat;
 import vn.edu.hcmut.lms.dto.request.ClassRoomCreationRequest;
 import vn.edu.hcmut.lms.dto.request.ClassRoomUpdateRequest;
 import vn.edu.hcmut.lms.dto.response.ClassRoomResponse;
-import vn.edu.hcmut.lms.dto.response.ProfileResponse;
+import vn.edu.hcmut.lms.dto.response.PageResponse;
 import vn.edu.hcmut.lms.dto.response.TutorResponse;
 import vn.edu.hcmut.lms.dto.response.TutorSearchResponse;
 import vn.edu.hcmut.lms.entity.ClassRoom;
@@ -24,13 +27,11 @@ import vn.edu.hcmut.lms.mapper.ClassRoomMapper;
 import vn.edu.hcmut.lms.repository.ClassRoomRepository;
 import vn.edu.hcmut.lms.repository.TopicRepository;
 import vn.edu.hcmut.lms.repository.TutorRepository;
-import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -42,9 +43,15 @@ public class ClassRoomService {
     TopicRepository topicRepository;
     TutorRepository tutorRepository;
     ClassRoomMapper classMapper;
-
     ValidationService validationService;
 
+    // Vietnamese string processing
+    private static final Pattern DIACRITICAL_MARKS_PATTERN = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
+
+    /**
+     * Creates a new classroom with the authenticated user as the tutor.
+     * Links topic, schedules, and validates if the tutor's schedule is free.
+     */
     @Transactional
     public ClassRoomResponse createClass(ClassRoomCreationRequest request) {
         String profileId = getProfileIdFromToken();
@@ -56,19 +63,21 @@ public class ClassRoomService {
         classRoom.setTutor(tutor);
         classRoom.setStatus(ClassStatus.ENROLLING);
 
+
+        // assign TOPIC if provided
         if (request.getTopicId() != null) {
             Topic topic = topicRepository.findById(request.getTopicId())
                     .orElseThrow(() -> new AppException(ErrorCode.TOPIC_NOT_FOUND));
             classRoom.setTopic(topic);
         }
 
+        // Establish bidirectional relationship for schedules
         if (classRoom.getSchedules() != null) {
-            for (var schedule : classRoom.getSchedules()) {
-                schedule.setClassRoom(classRoom);
-            }
+            ClassRoom c = classRoom;
+            classRoom.getSchedules().forEach(schedule -> schedule.setClassRoom(c));
         }
 
-        // VALIDATION
+        // Validate tutor's schedule constraints
         validationService.validateBusySchedule(profileId, classRoom);
 
         classRoom = classRoomRepository.save(classRoom);
@@ -76,21 +85,53 @@ public class ClassRoomService {
         return classMapper.toResponse(classRoom);
     }
 
-
-
-    public List<ClassRoomResponse> getMyClassesAsTutor() {
+    /**
+     * Retrieves a paginated list of classes for the currently authenticated tutor.
+     */
+    public PageResponse<ClassRoomResponse> getMyClassesAsTutor(int page, int size) {
         String profileId = getProfileIdFromToken();
-        return classRoomRepository.findByTutorId(profileId).stream()
+        Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
+
+        Page<ClassRoom> classes = classRoomRepository.findByTutorId(profileId, pageable);
+
+        List<ClassRoomResponse> classResponses = classes.getContent().stream()
                 .map(classMapper::toResponse)
                 .toList();
+
+        return PageResponse.<ClassRoomResponse>builder()
+                .currentPage(page)
+                .totalPages(classes.getTotalPages())
+                .pageSize(classes.getSize())
+                .totalElements(classes.getTotalElements())
+                .data(classResponses)
+                .build();
     }
 
-    public List<ClassRoomResponse> getClassesOfTutor(String tutorId) {
-        return classRoomRepository.findByTutorId(tutorId).stream()
+    /**
+     * Retrieves a paginated list of classes for a specific tutor ID.
+     */
+    public PageResponse<ClassRoomResponse> getClassesOfTutor(String tutorId, int page, int size) {
+        Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
+
+        Page<ClassRoom> classes = classRoomRepository.findByTutorId(tutorId, pageable);
+
+        List<ClassRoomResponse> classResponses = classes.getContent().stream()
                 .map(classMapper::toResponse)
                 .toList();
+
+        return PageResponse.<ClassRoomResponse>builder()
+                .currentPage(page)
+                .totalPages(classes.getTotalPages())
+                .pageSize(classes.getSize())
+                .totalElements(classes.getTotalElements())
+                .data(classResponses)
+                .build();
     }
 
+    /**
+     * Updates details of an existing class.
+     * Ensures only the tutor who owns the class can modify it.
+     */
     @Transactional
     public ClassRoomResponse updateClass(String classId, ClassRoomUpdateRequest request) {
         String profileId = getProfileIdFromToken();
@@ -102,9 +143,9 @@ public class ClassRoomService {
             throw new AppException(ErrorCode.UNAUTHORIZED_ACTION);
         }
 
-        // 3. Map dữ liệu update
         classMapper.updateClass(classRoom, request);
 
+        // Update topic if requested
         if (request.getTopicId() != null) {
             Topic topic = topicRepository.findById(request.getTopicId())
                     .orElseThrow(() -> new AppException(ErrorCode.TOPIC_NOT_FOUND));
@@ -114,6 +155,9 @@ public class ClassRoomService {
         return classMapper.toResponse(classRoomRepository.save(classRoom));
     }
 
+    /**
+     * Performs a soft delete by changing the class status to CANCEL.
+     */
     @Transactional
     public void deleteClass(String classId) {
         String profileId = getProfileIdFromToken();
@@ -129,33 +173,43 @@ public class ClassRoomService {
         classRoomRepository.save(classRoom);
     }
 
-    public List<TutorSearchResponse> searchClassesGroupedByTutor(
+    /**
+     * Searches for available classes based on various filters and groups the results by Tutor.
+     */
+    public PageResponse<TutorSearchResponse> searchClassesGroupedByTutor(
             String subjectName,
             String topicName,
             LearningFormat format,
-            String userSearchKeyword) {
+            String userSearchKeyword,
+            int page,
+            int size) {
 
         String subject = processKeyword(subjectName);
         String topic = processKeyword(topicName);
         String keyword = processKeyword(userSearchKeyword);
 
-        List<ClassRoom> matchingClasses = classRoomRepository.searchAvailableClasses(subject, topic, format, keyword);
-        if (matchingClasses.isEmpty()) return new ArrayList<>();
+        List<ClassRoom> matches = classRoomRepository.searchAvailableClasses(subject, topic, format, keyword);
+
+        if (matches.isEmpty()) {
+            return PageResponse.<TutorSearchResponse>builder()
+                    .currentPage(page)
+                    .totalPages(0)
+                    .pageSize(size)
+                    .totalElements(0L)
+                    .data(new ArrayList<>()).build();
+        }
 
         // Group by tutor ID
-        Map<String, List<ClassRoom>> classes = matchingClasses
-                .stream()
+        Map<String, List<ClassRoom>> classesGrouped = matches.stream()
                 .collect(Collectors.groupingBy(classRoom -> classRoom.getTutor().getId()));
 
-        List<TutorSearchResponse> result = new ArrayList<>();
+        List<TutorSearchResponse> results = new ArrayList<>();
 
-        for (var entry : classes.entrySet()) {
-            List<ClassRoom> tutorClasses = entry.getValue();
+        for (var classes : classesGrouped.values()) {
+            // Extract tutor from the first class in the list (all classes in this list share the same tutor).
+            var tutor = classes.get(0).getTutor();
 
-            // Get the tutor from the first class (all classes in this list share the same tutor).
-            var tutor = tutorClasses.get(0).getTutor();
-
-            TutorResponse response = TutorResponse.builder()
+            TutorResponse tutorResponse = TutorResponse.builder()
                     .id(tutor.getId())
                     .introduction(tutor.getIntroduction())
                     .averageRating(tutor.getAverageRating())
@@ -165,19 +219,35 @@ public class ClassRoomService {
                     .avatar(tutor.getAvatar())
                     .build();
 
-            List<ClassRoomResponse> classResponses = tutorClasses.stream()
+            List<ClassRoomResponse> classResponses = classes.stream()
                     .map(classMapper::toResponse)
                     .toList();
 
-            TutorSearchResponse searchResponse = TutorSearchResponse.builder()
-                    .tutor(response)
+            results.add(TutorSearchResponse.builder()
+                    .tutor(tutorResponse)
                     .matchingClasses(classResponses)
-                    .build();
-
-            result.add(searchResponse);
+                    .build());
         }
 
-        return result;
+        // In-Memory Pagination
+        int totalElements = results.size();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+
+        // Calculate index to slice the array
+        int from = (page > 0 ? page - 1 : 0) * size;
+        int to = Math.min(from + size, totalElements);
+
+        List<TutorSearchResponse> pagedResults = new ArrayList<>();
+
+        if (from < totalElements) pagedResults = results.subList(from, to);
+
+        return PageResponse.<TutorSearchResponse>builder()
+                .currentPage(page)
+                .totalPages(totalPages)
+                .pageSize(size)
+                .totalElements(totalElements)
+                .data(pagedResults)
+                .build();
     }
 
     private String getProfileIdFromToken() {
@@ -186,20 +256,19 @@ public class ClassRoomService {
     }
 
     private String processKeyword(String keyword) {
-        String noAccentKeyword = standardization(keyword);
-        if (noAccentKeyword == null) {
+        String standardizedKeywords = standardization(keyword);
+        if (standardizedKeywords == null) {
             return null;
         }
-        return "%" + noAccentKeyword + "%";
+        return "%" + standardizedKeywords + "%";
     }
 
     private String standardization(String keyword) {
         if (keyword == null || keyword.trim().isEmpty()) return null;
 
         String normalized = Normalizer.normalize(keyword.trim(), Normalizer.Form.NFD);
-        Pattern pattern = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
 
-        return pattern.matcher(normalized).replaceAll("")
+        return DIACRITICAL_MARKS_PATTERN.matcher(normalized).replaceAll("")
                 .replace("Đ", "D")
                 .replace("đ", "d")
                 .toLowerCase();

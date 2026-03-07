@@ -11,13 +11,17 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 
+/**
+ * Main security configuration class for the application.
+ * Defines authentication, authorization rules, CORS, and JWT decoding mechanisms.
+ */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
 
     private static final String[] PUBLIC_ENDPOINTS = {
-            "/admin/**",
+            "/admin/**", // synchronize tasks
     };
 
     private static final String[] PUBLIC_RESOURCES = {
@@ -26,7 +30,7 @@ public class SecurityConfig {
             "/api-docs/**",
             "/swagger-ui.html",
             "/actuator/health",
-            // "/classes/public/**"
+            "/internal/**", // internal microservice-to-microservice communication
     };
 
     private final CustomJwtDecoder customJwtDecoder;
@@ -38,34 +42,36 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity
-                .cors(Customizer.withDefaults())
+                .cors(AbstractHttpConfigurer::disable)
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(request -> request
-                        // Allow OPTIONS, POST requests for preflight CORS checks
+                        // Allow OPTIONS requests for preflight CORS checks and specific POST requests
                         .requestMatchers(HttpMethod.OPTIONS, PUBLIC_ENDPOINTS)
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS)
                         .permitAll()
 
-                        // Allow unauthenticated access to certain public routes
+                        // Allow swagger documentation, actuator health checks, and internal API calls
                         .requestMatchers(PUBLIC_RESOURCES)
-                        .permitAll()
-                        .requestMatchers("/internal/**")
                         .permitAll()
 
                         // All other endpoints require authentication
                         .anyRequest()
                         .authenticated())
 
-                // Configure JWT-based OAuth2 Resource Server authentication
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwtConfigurer -> jwtConfigurer
-                                .decoder(customJwtDecoder)
-                                .jwtAuthenticationConverter(jwtAuthenticationConverter()))
-                        // Define custom entry point for unauthorized access handling
+                // Configure OAuth2 Resource Server to use custom JWT decoder and converter
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
+                                jwt.decoder(customJwtDecoder).jwtAuthenticationConverter(jwtAuthenticationConverter()))
+
+                        // Handle unauthenticated access exceptions with custom JSON response
                         .authenticationEntryPoint(new JwtAuthenticationEntryPoint()));
         return httpSecurity.build();
     }
 
+    /**
+     * Configures the JWT to GrantedAuthority converter.
+     * This maps the "scope" or "role" claims inside the JWT payload into Spring Security Authorities.
+     */
     @Bean
     JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtGrantedAuthoritiesConverter grantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();

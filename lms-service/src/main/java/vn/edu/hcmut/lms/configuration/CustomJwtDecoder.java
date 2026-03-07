@@ -8,6 +8,10 @@ import org.springframework.stereotype.Component;
 
 import java.text.ParseException;
 
+/**
+ * This component is responsible for converting the Bearer token string from the request
+ * into a standard Spring Security JWT object to be passed into the SecurityContext.
+ */
 @Component
 public class CustomJwtDecoder implements JwtDecoder {
     @Override
