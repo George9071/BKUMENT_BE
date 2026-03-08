@@ -3,6 +3,8 @@ package vn.edu.hcmut.lms.service;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class EnrollmentService {
@@ -79,7 +82,8 @@ public class EnrollmentService {
                     .build();
         }
         enrollment = enrollmentRepository.save(enrollment);
-
+        
+        log.info("Before handleEnrollmentEvent....");
         String topicId = classRoom.getTopic() != null ? classRoom.getTopic().getId() : null;
         graphSyncService.handleEnrollmentEvent(userId, classId, topicId);
 

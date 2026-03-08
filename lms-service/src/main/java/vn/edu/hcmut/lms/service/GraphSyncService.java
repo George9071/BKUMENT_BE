@@ -26,7 +26,7 @@ public class GraphSyncService {
             MERGE (t:Topic {id: $topicId})
             
             MERGE (u)-[r:ENROLLED_IN]->(c)
-            ON CREATE SET r.enrolledAt = datetime($time)
+            ON CREATE SET r.enrolledAt = datetime()
             
             MERGE (c)-[:COVERS]->(t)
         """;
@@ -39,7 +39,7 @@ public class GraphSyncService {
             params.put("time", LocalDateTime.now().toString());
 
             neo4jClient.query(query).bindAll(params).run();
-            log.info("Neo4j: User {} enrolled in Class {}", profileId, classroomId);
+            log.info("Neo4j: User {} enrolled in Class {} with TopenId {}", profileId, classroomId, topicId);
         } catch (Exception e) {
             log.error("Lỗi đồng bộ Enrollment Neo4j: {}", e.getMessage());
         }

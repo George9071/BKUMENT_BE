@@ -1,15 +1,14 @@
 package vn.edu.hcmut.document.service;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import org.springframework.data.neo4j.core.Neo4jClient;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -26,18 +25,18 @@ public class GraphSyncService {
 
         String baseQuery =
                 """
-			MERGE (a:UserProfile {id: $profileId})
-			MERGE (d:Document {id: $documentId})
-			MERGE (a)-[r:DOWNLOADED]->(d)
-			ON CREATE SET r.firstDownloadedAt = datetime($time)
-			ON MATCH SET r.lastDownloadedAt = datetime($time)
-		""";
+				MERGE (a:UserProfile {id: $profileId})
+				MERGE (d:Document {id: $documentId})
+				MERGE (a)-[r:DOWNLOADED]->(d)
+				ON CREATE SET r.firstDownloadedAt = datetime($time)
+				ON MATCH SET r.lastDownloadedAt = datetime($time)
+				""";
 
         String topicQuery = """
-			WITH d
-			MERGE (t:Topic {id: $topicId})
-			MERGE (d)-[:HAS_TOPIC]->(t)
-		""";
+				WITH d
+				MERGE (t:Topic {id: $topicId})
+				MERGE (d)-[:HAS_TOPIC]->(t)
+				""";
 
         String finalQuery = (topicId != null && !topicId.isBlank()) ? baseQuery + topicQuery : baseQuery;
 
@@ -59,21 +58,24 @@ public class GraphSyncService {
         }
     }
 
-    public Collection<String> getCollaborativeRecommendations(String profileId, int page, int size) {
-        long skip = (long) page * size;
-
+    public List<String> getCollaborativeRecommendations(String profileId) {
         String cypherQuery =
                 """
 			CALL {
 				WITH $profileId AS pid
-				MATCH (me:UserProfile {id: pid})-[:ENROLLED_IN]->(:ClassRoom)-[:COVERS]->(:Topic)<-[:HAS_TOPIC]-(d:Document)
+				MATCH (me:UserProfile {id: pid})
+					-[:ENROLLED_IN]->(:ClassRoom)
+					-[:COVERS]->(:Topic)
+					<-[:HAS_TOPIC]-(d:Document)
 				WHERE NOT (me)-[:DOWNLOADED]->(d)
 				RETURN d, 3 AS score
 
 				UNION ALL
 
 				WITH $profileId AS pid
-				MATCH (me:UserProfile {id: pid})-[:DOWNLOADED]->(:Document)<-[:DOWNLOADED]-(other:UserProfile)
+				MATCH (me:UserProfile {id: pid})
+					-[:DOWNLOADED]->(:Document)
+					<-[:DOWNLOADED]-(other:UserProfile)
 				WHERE other.id <> pid
 				MATCH (other)-[:DOWNLOADED]->(d:Document)
 				WHERE NOT (me)-[:DOWNLOADED]->(d)
@@ -81,27 +83,38 @@ public class GraphSyncService {
 			}
 
 			WITH d, sum(score) AS totalScore
-			RETURN d.id AS documentId
 			ORDER BY totalScore DESC
-			SKIP $skip
-			LIMIT $limit
-		""";
+			LIMIT 150 // Lấy tối đa 150 ID gợi ý tốt nhất
+			RETURN collect(d.id) AS allIds
+			""";
 
         try {
-            return neo4jClient
+            Optional<Map<String, Object>> result = neo4jClient
                     .query(cypherQuery)
                     .bind(profileId)
                     .to("profileId")
-                    .bind(skip)
-                    .to("skip")
-                    .bind(size)
-                    .to("limit")
-                    .fetchAs(String.class)
-                    .mappedBy((typeSystem, record) -> record.get("documentId").asString())
-                    .all();
+                    .fetch()
+                    .one();
+
+            if (result.isEmpty()) {
+                return List.of();
+            }
+
+            @SuppressWarnings("unchecked")
+            List<String> ids = (List<String>) result.get().get("allIds");
+            return ids != null ? ids : List.of();
+
         } catch (Exception e) {
             log.error("Lỗi lấy gợi ý từ Neo4j: {}", e.getMessage());
-            return Collections.emptyList();
+            return List.of();
         }
+    }
+
+    // TODO: move this to entity
+    @Getter
+    @AllArgsConstructor
+    public static class RecommendationResult {
+        private long total;
+        private List<String> ids;
     }
 }

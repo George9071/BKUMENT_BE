@@ -4,6 +4,10 @@ import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.hcmut.communication.dto.request.ChatMessageRequest;
 import vn.edu.hcmut.communication.dto.response.APIResponse;
@@ -28,10 +32,14 @@ public class ChatMessageController {
     }
 
     @GetMapping
-    APIResponse<List<ChatMessageResponse>> getMessages(
-            @RequestParam("conversationId") String conversationId) {
-        return APIResponse.<List<ChatMessageResponse>>builder()
-                .result(chatMessageService.getMessages(conversationId))
+    APIResponse<Page<ChatMessageResponse>> getMessages(
+            @RequestParam("conversationId") String conversationId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        return APIResponse.<Page<ChatMessageResponse>>builder()
+                .result(chatMessageService.getMessages(conversationId, pageable))
                 .build();
     }
 }

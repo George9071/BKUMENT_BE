@@ -151,7 +151,7 @@ public class ClassRoomService {
             List<ClassRoom> tutorClasses = entry.getValue();
 
             // Get the tutor from the first class (all classes in this list share the same tutor).
-            var tutor = tutorClasses.getFirst().getTutor();
+            var tutor = tutorClasses.get(0).getTutor();
 
             TutorResponse response = TutorResponse.builder()
                     .id(tutor.getId())

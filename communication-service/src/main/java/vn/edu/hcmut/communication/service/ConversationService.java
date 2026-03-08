@@ -4,6 +4,10 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -64,18 +68,23 @@ public class ConversationService {
         return toConversationResponse(conversationRepository.save(conversation));
     }
 
-    public List<ConversationResponse> myConversations() {
+    public Page<ConversationResponse> myConversations(Pageable pageable) {
         String userId = getProfileIdFromToken();
-        List<Conversation> conversations = conversationRepository.findAllByParticipantIdsContains(userId);
 
-        return conversations.stream()
+        List<Conversation> allConversations = conversationRepository.findAllByParticipantIdsContains(userId);
+
+        List<ConversationResponse> pagedResponses = allConversations.stream()
                 .sorted((c1, c2) -> {
                     Instant t1 = c1.getLastMessageTime() != null ? c1.getLastMessageTime() : c1.getCreatedDate();
                     Instant t2 = c2.getLastMessageTime() != null ? c2.getLastMessageTime() : c2.getCreatedDate();
                     return t2.compareTo(t1);
                 })
+                .skip(pageable.getOffset())
+                .limit(pageable.getPageSize()) 
                 .map(this::toConversationResponse)
                 .toList();
+
+        return new PageImpl<>(pagedResponses, pageable, allConversations.size());
     }
 
     public ConversationResponse create(ConversationRequest request) {

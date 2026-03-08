@@ -19,6 +19,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.blog.dto.request.BlogMetadataRequest;
+import vn.edu.hcmut.blog.dto.response.APIResponse;
+import vn.edu.hcmut.blog.dto.response.BlogMetadataResponse;
+import vn.edu.hcmut.blog.dto.response.ProfileResponse;
 import vn.edu.hcmut.blog.entity.Post;
 import vn.edu.hcmut.blog.entity.PostAsset;
 import vn.edu.hcmut.blog.entity.Resource;
@@ -27,6 +30,7 @@ import vn.edu.hcmut.blog.exception.ErrorCode;
 import vn.edu.hcmut.blog.repository.PostAssetRepository;
 import vn.edu.hcmut.blog.repository.PostRepository;
 import vn.edu.hcmut.blog.repository.ResourceRepository;
+import vn.edu.hcmut.blog.repository.httpclient.ProfileClient;
 
 @Slf4j
 @Service
@@ -37,17 +41,50 @@ public class PostService {
     PostRepository postRepository;
     ResourceRepository resourceRepository;
     PostAssetRepository postAssetRepository;
+    ProfileClient profileClient;
 
-    public Page<Post> search(String keyword, Pageable pageable) {
+    public Page<BlogMetadataResponse> search(String keyword, Pageable pageable) {
+        Page<Post> posts;
+        boolean isUuidQuery = false;
+
         if (keyword == null || keyword.isBlank()) {
-            return postRepository.findAll(pageable);
-        }
-        if (isUUID(keyword)) {
+            posts = postRepository.findAll(pageable);
+        } else if (isUUID(keyword)) {
             Optional<Post> optionalPost = postRepository.findById(keyword);
-            return new PageImpl<>(List.of(optionalPost.get()), pageable, 1);
+            posts = optionalPost
+                    .map(post -> new PageImpl<>(List.of(post), pageable, 1L))
+                    .orElseGet(() -> new PageImpl<>(List.of(), pageable, 0L));
+            isUuidQuery = true;
+        } else {
+            posts = postRepository.findByTitleContainingIgnoreCase(keyword, pageable);
         }
 
-        return postRepository.findByTitleContainingIgnoreCase(keyword, pageable);
+        final boolean finalIsUuidQuery = isUuidQuery;
+
+        return posts.map(post -> {
+            APIResponse<ProfileResponse> apiResponse = profileClient.findUserProfileById(post.getOwnerId());
+            ProfileResponse profile = apiResponse.getResult();
+
+            BlogMetadataResponse.Author authorDto = null;
+            if (profile != null) {
+                authorDto = BlogMetadataResponse.Author.builder()
+                        .id(profile.getId())
+                        .name(profile.getFullName())
+                        .avatarUrl(profile.getAvatarUrl())
+                        .build();
+            }
+
+            String processedContent = finalIsUuidQuery ? post.getContent() : htmlToTextWithoutImages(post.getContent());
+
+            return BlogMetadataResponse.builder()
+                    .id(post.getId())
+                    .name(post.getTitle())
+                    .author(authorDto)
+                    .content(processedContent)
+                    .coverImage(post.getCoverImage())
+                    .createdAt(post.getCreatedAt())
+                    .build();
+        });
     }
 
     public boolean isUUID(String value) {

@@ -13,7 +13,7 @@ import lombok.experimental.FieldDefaults;
 public class DocumentMetadataResponse {
     String id;
     String title;
-    String authorId;
+    Author author;
     String documentType;
     String university;
     String course;
@@ -26,8 +26,18 @@ public class DocumentMetadataResponse {
     String summary;
     boolean downloadable;
 
-    // ID fields for relationships
     String universityId;
     String courseId;
     String topicId;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @FieldDefaults(level = AccessLevel.PRIVATE)
+    public static class Author {
+        String id;
+        String name;
+        String avatarUrl;
+    }
 }
