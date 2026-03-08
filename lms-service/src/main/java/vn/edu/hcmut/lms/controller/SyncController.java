@@ -11,10 +11,15 @@ import vn.edu.hcmut.lms.service.SyncService;
 @RequiredArgsConstructor
 public class SyncController {
     private final SyncService syncService;
-    @PostMapping("/partial")
+    @PostMapping("/subject-topic")
+    public String syncData() {
+        syncService.syncAllMetadata();
+        return "Sync process triggered";
+    }
 
-    public String syncSpecificData() {
-        syncService.syncSubjects();
-        return "Sync process triggered for specific subjects/topics.";
+    @PostMapping("/subject-tutor")
+    public String syncTutorSubject() {
+        syncService.syncAllTutorSubjects();
+        return "Sync process triggered";
     }
 }

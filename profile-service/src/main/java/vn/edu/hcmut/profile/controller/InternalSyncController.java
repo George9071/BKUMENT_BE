@@ -10,6 +10,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.profile.dto.sync.SubjectSyncRequest;
 import vn.edu.hcmut.profile.dto.sync.TopicSyncRequest;
+import vn.edu.hcmut.profile.dto.sync.TutorSubjectSyncRequest;
 import vn.edu.hcmut.profile.service.SyncService;
 
 @RestController
@@ -42,5 +43,10 @@ public class InternalSyncController {
     public void syncTopics(@RequestBody List<TopicSyncRequest> requests) {
         syncService.syncTopics(requests);
         log.info("Successfully synced {} topics.", requests.size());
+    }
+
+    @PostMapping("/tutor-subjects")
+    public void syncTutorSubjects(@RequestBody List<TutorSubjectSyncRequest> requests) {
+        syncService.syncTutorSubjects(requests);
     }
 }

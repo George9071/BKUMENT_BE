@@ -7,6 +7,7 @@ import vn.edu.hcmut.lms.dto.response.APIResponse;
 import vn.edu.hcmut.lms.dto.response.ProfileResponse;
 import vn.edu.hcmut.lms.dto.sync.SubjectSyncRequest;
 import vn.edu.hcmut.lms.dto.sync.TopicSyncRequest;
+import vn.edu.hcmut.lms.dto.sync.TutorSubjectSyncRequest;
 
 import java.util.List;
 import java.util.Set;
@@ -16,8 +17,11 @@ public interface ProfileClient {
     @GetMapping(value = "/internal/users/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     APIResponse<ProfileResponse> getProfile(@PathVariable("id") String id);
 
-    @PutMapping("/internal/users/{id}/tutor-register")
-    void addRole(@PathVariable("id") String id, @RequestParam String role);
+    @PutMapping("/internal/users/{profileId}/roles/{roleName}")
+    void addRole(@PathVariable("profileId") String id, @PathVariable("roleName") String role);
+
+    @DeleteMapping("/internal/users/{profileId}/roles/{roleName}")
+    void removeRole(@PathVariable("profileId") String profileId, @PathVariable("roleName") String role);
 
     @PostMapping("/internal/users/batch")
     APIResponse<List<ProfileResponse>> getProfiles(@RequestBody List<String> profileIds);
@@ -30,4 +34,7 @@ public interface ProfileClient {
 
     @PostMapping("/internal/metadata/topics")
     void syncTopics(@RequestBody List<TopicSyncRequest> topics);
+
+    @PostMapping("/internal/metadata/tutor-subjects")
+    void syncTutorSubjects(@RequestBody List<TutorSubjectSyncRequest> requests);
 }

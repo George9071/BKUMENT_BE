@@ -5,10 +5,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import vn.edu.hcmut.lms.dto.sync.SubjectSyncRequest;
 import vn.edu.hcmut.lms.dto.sync.TopicSyncRequest;
-import vn.edu.hcmut.lms.entity.Subject;
-import vn.edu.hcmut.lms.entity.Topic;
+import vn.edu.hcmut.lms.dto.sync.TutorSubjectSyncRequest;
 import vn.edu.hcmut.lms.repository.SubjectRepository;
 import vn.edu.hcmut.lms.repository.TopicRepository;
+import vn.edu.hcmut.lms.repository.TutorRepository;
 import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
 
 import java.util.List;
@@ -19,33 +19,28 @@ import java.util.List;
 public class SyncService {
     private final SubjectRepository subjectRepository;
     private final TopicRepository topicRepository;
+    private final TutorRepository tutorRepository;
     private final ProfileClient profileClient;
 
-    public void syncSubjects() {
-        List<String> targetSubjectIds = List.of("AI1014", "INT1005");
 
-        List<Subject> subjects = subjectRepository.findAllById(targetSubjectIds);
-
-        // Map sang DTO
-        List<SubjectSyncRequest> subjectDtos = subjects.stream()
+    public void syncAllMetadata() {
+        List<SubjectSyncRequest> subjects =  subjectRepository
+                .findAll()
+                .stream()
                 .map(s -> SubjectSyncRequest.builder()
                         .id(s.getId())
                         .name(s.getName())
                         .build())
                 .toList();
 
-        // Gửi sang Profile Service (Neo4j)
-        if (!subjectDtos.isEmpty()) {
-            profileClient.syncSubjects(subjectDtos);
-            System.out.println("Synced Subjects: " + targetSubjectIds);
+        if (!subjects.isEmpty()) {
+            profileClient.syncSubjects(subjects);
+            log.info("Successfully requested sync for {} subjects", subjects.size());
         }
 
-        // 3. Lấy Topic thuộc các Subject này từ Postgres
-        // Bạn cần viết thêm hàm findBySubjectIdIn trong TopicRepository
-        List<Topic> topics = topicRepository.findBySubjectIdIn(targetSubjectIds);
-
-        // Map sang DTO
-        List<TopicSyncRequest> topicDtos = topics.stream()
+        List<TopicSyncRequest> topics = topicRepository
+                .findAll()
+                .stream()
                 .map(t -> TopicSyncRequest.builder()
                         .id(t.getId())
                         .name(t.getName())
@@ -53,10 +48,26 @@ public class SyncService {
                         .build())
                 .toList();
 
-        // Gửi sang Profile Service (Neo4j)
-        if (!topicDtos.isEmpty()) {
-            profileClient.syncTopics(topicDtos);
-            System.out.println("Synced Topics count: " + topicDtos.size());
+        if (!topics.isEmpty()) {
+            profileClient.syncTopics(topics);
+            log.info("Successfully requested sync for {} topics", topics.size());
+        }
+    }
+
+    public void syncAllTutorSubjects() {
+        var tutors = tutorRepository.findAll();
+
+        List<TutorSubjectSyncRequest> requests = tutors.stream()
+                .filter(t -> t.getSubjectIds() != null && !t.getSubjectIds().isEmpty())
+                .map(t -> TutorSubjectSyncRequest.builder()
+                        .tutorId(t.getId())
+                        .subjectIds(t.getSubjectIds())
+                        .build())
+                .toList();
+
+        if (!requests.isEmpty()) {
+            profileClient.syncTutorSubjects(requests);
+            log.info("Requested sync for {} tutors and their subjects", requests.size());
         }
     }
 }

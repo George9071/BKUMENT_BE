@@ -63,7 +63,6 @@ public class ClassRoomService {
         classRoom.setTutor(tutor);
         classRoom.setStatus(ClassStatus.ENROLLING);
 
-
         // assign TOPIC if provided
         if (request.getTopicId() != null) {
             Topic topic = topicRepository.findById(request.getTopicId())

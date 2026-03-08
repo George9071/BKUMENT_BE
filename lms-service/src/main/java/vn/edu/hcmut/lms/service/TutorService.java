@@ -107,8 +107,24 @@ public class TutorService {
     public void deleteTutor(String profileId) {
         if (tutorRepository.existsById(profileId)) {
             tutorRepository.deleteById(profileId);
-            // TODO: Send request to IdentityClient & ProfileClient to remove the "TUTOR" role from this person
             log.info("Deleted Tutor profile for id: {}", profileId);
+
+            try {
+                var profile = profileClient.getProfile(profileId).getResult();
+
+                if (profile != null && profile.getAccountId() != null) {
+                    String accountId = profile.getAccountId();
+                    identityClient.removeRole(accountId, "TUTOR");
+                } else {
+                    log.warn("Could not find accountId for profile: {}", profileId);
+                    throw new AppException(ErrorCode.PROFILE_NOT_FOUND);
+                }
+                profileClient.removeRole(profileId, "TUTOR");
+
+            } catch (Exception e) {
+                log.error("Failed to remove tutor role for user {} in external services", profileId, e);
+                throw new AppException(ErrorCode.SYNC_FAILED);
+            }
         }
     }
 
@@ -207,6 +223,4 @@ public class TutorService {
         }
         throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
-
-
 }

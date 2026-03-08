@@ -194,6 +194,20 @@ public class ProfileService {
         });
     }
 
+    @Transactional
+    public void removeRole(String profileId, String role) {
+        UserProfileNode profile = neo4jRepository.findById(profileId)
+                .orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
+
+        if (profile.getRoles() != null && profile.getRoles().contains(role)) {
+            profile.getRoles().remove(role);
+            neo4jRepository.save(profile);
+            log.info("Successfully removed role '{}' from profile '{}'", role, profileId);
+        } else {
+            log.info("Profile '{}' does not have role '{}', skipping removal", profileId, role);
+        }
+    }
+
     /**
      * BATCH GET: Retrieves multiple profiles at once without pagination.
      * Used primarily by other microservices (via FeignClient) to aggregate data.
@@ -323,21 +337,20 @@ public class ProfileService {
     public void updateTutorSubjects(String profileId, Set<String> subjectIds) {
         String query =
                 """
-				MATCH (u:UserProfile {id: $profileId})
-				OPTIONAL MATCH (u)-[r:TEACHES]->()
-				DELETE r
-				WITH u
-				UNWIND $subjectIds AS subId
-				MATCH (s:Subject {id: subId})
-				MERGE (u)-[:TEACHES]->(s)
-				""";
+                MATCH (u:UserProfile {id: $profileId})
+                OPTIONAL MATCH (u)-[r:TEACHES]->()
+                DELETE r
+                WITH u
+                UNWIND $subjectIds AS subId
 
-        neo4jClient
-                .query(query)
-                .bindAll(Map.of(
-                        "profileId", profileId,
-                        "subjectIds", subjectIds))
-                .run();
+                MERGE (s:Subject {id: subId})
+                MERGE (u)-[:TEACHES]->(s)
+                """;
+
+        neo4jClient.query(query).bindAll(Map.of(
+                "profileId", profileId,
+                "subjectIds", subjectIds != null ? subjectIds : Collections.emptySet()
+        )).run();
     }
 
     private String getCurrentAccountId() {

@@ -184,4 +184,19 @@ public class AccountService {
             throw new AppException(ErrorCode.INVALID_ROLE);
         }
     }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void removeRole(String accountId, String roleName) {
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new RuntimeException("Account not found"));
+
+        boolean isRemoved = account.getRoles().removeIf(role -> role.name().equals(roleName));
+
+        if (isRemoved) {
+            accountRepository.save(account);
+            log.info("Successfully removed role '{}' from account '{}'", roleName, accountId);
+        } else {
+            log.info("Account '{}' does not have role '{}', skipping removal", accountId, roleName);
+        }
+    }
 }

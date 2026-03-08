@@ -1,5 +1,6 @@
 package vn.edu.hcmut.profile.service;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.profile.dto.sync.SubjectSyncRequest;
 import vn.edu.hcmut.profile.dto.sync.TopicSyncRequest;
+import vn.edu.hcmut.profile.dto.sync.TutorSubjectSyncRequest;
 
 /**
  * Temporary utility service to synchronize Subject and Topic data
@@ -86,5 +88,36 @@ public class SyncService {
 
         neo4jClient.query(query).bindAll(Map.of("data", parameters)).run();
         log.info("Successfully synced {} topics and their relationships to Neo4j.", topics.size());
+    }
+
+    @Transactional
+    public void syncTutorSubjects(List<TutorSubjectSyncRequest> requests) {
+        if (requests == null || requests.isEmpty()) return;
+
+        String query = """
+                UNWIND $data AS row
+                MATCH (u:UserProfile {id: row.tutorId})
+                
+                OPTIONAL MATCH (u)-[r:TEACHES]->()
+                DELETE r
+                
+                WITH u, row
+                WHERE row.subjectIds IS NOT NULL AND size(row.subjectIds) > 0
+                
+                UNWIND row.subjectIds AS subId
+                
+                MERGE (s:Subject {id: subId})
+                MERGE (u)-[:TEACHES]->(s)
+                """;
+
+        List<Map<String, Object>> parameters = requests.stream()
+                .map(req -> Map.of(
+                        "tutorId", req.getTutorId(),
+                        "subjectIds", req.getSubjectIds() != null ? req.getSubjectIds() : Collections.emptySet()
+                ))
+                .toList();
+
+        neo4jClient.query(query).bindAll(Map.of("data", parameters)).run();
+        log.info("Successfully synced {} tutor-subject relationships to Neo4j.", requests.size());
     }
 }
