@@ -23,7 +23,6 @@ public class EnrollmentController {
                 .build();
     }
 
-    // Gia sư xóa học viên khỏi lớp (Kick)
     @DeleteMapping("/{enrollmentId}")
     APIResponse<String> removeStudent(@PathVariable String enrollmentId) {
         enrollmentService.removeStudent(enrollmentId);

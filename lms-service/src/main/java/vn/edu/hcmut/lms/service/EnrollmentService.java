@@ -43,6 +43,9 @@ public class EnrollmentService {
     EnrollmentMapper enrollmentMapper;
     ClassRoomMapper classMapper;
 
+    /**
+     * Student enrolls in a class. Handles re-enrolling for rejected requests.
+     */
     @Transactional
     public EnrollmentResponse enrollClass(String classId) {
         String userId = getProfileIdFromToken();
@@ -87,12 +90,16 @@ public class EnrollmentService {
         }
         enrollment = enrollmentRepository.save(enrollment);
 
+        // Sync to Neo4j Graph DB
         String topicId = classRoom.getTopic() != null ? classRoom.getTopic().getId() : null;
         graphSyncService.handleEnrollmentEvent(userId, classId, topicId);
 
         return enrollmentMapper.toResponse(enrollment, userProfile);
     }
 
+    /**
+     * Tutor approves or rejects an enrollment request.
+     */
     @Transactional
     public void approveEnrollment(String enrollmentId, boolean isApproved) {
         String tutorId = getProfileIdFromToken();
@@ -101,39 +108,58 @@ public class EnrollmentService {
                 .orElseThrow(() -> new AppException(ErrorCode.ENROLLMENT_NOT_FOUND));
 
         if (!enrollment.getClassRoom().getTutor().getId().equals(tutorId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED_ACTION);
+            throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
         enrollment.setStatus(isApproved ? EnrollmentStatus.APPROVED : EnrollmentStatus.REJECTED);
         enrollmentRepository.save(enrollment);
     }
 
-    public List<EnrollmentResponse> getPendingRequestsOfClass(String classId) {
+    public PageResponse<EnrollmentResponse> getPendingRequestsOfClass(String classId, int page, int size) {
         String currentUserId = getProfileIdFromToken();
 
         ClassRoom classRoom = classRoomRepository.findById(classId)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
 
         if (!classRoom.getTutor().getId().equals(currentUserId))
-            throw new AppException(ErrorCode.UNAUTHORIZED_ACCESS);
+            throw new AppException(ErrorCode.ACCESS_DENIED);
 
-        List<Enrollment> enrollments =
-                enrollmentRepository.findByClassRoomIdAndStatus(classId, EnrollmentStatus.PENDING);
+        Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
 
-        if (enrollments.isEmpty()) return Collections.emptyList();
+        Page<Enrollment> enrollments =
+                enrollmentRepository.findByClassRoomIdAndStatus(classId, EnrollmentStatus.PENDING, pageable);
 
-        return toEnrollmentResponses(enrollments);
+        List<EnrollmentResponse> responses = toEnrollmentResponses(enrollments.getContent());
+
+        return PageResponse.<EnrollmentResponse>builder()
+                .currentPage(page)
+                .totalPages(enrollments.getTotalPages())
+                .pageSize(enrollments.getSize())
+                .totalElements(enrollments.getTotalElements())
+                .data(responses)
+                .build();
     }
 
-    public List<EnrollmentResponse> getClassMembers(String classId) {
-        List<Enrollment> enrollments =
-                enrollmentRepository.findByClassRoomIdAndStatus(classId, EnrollmentStatus.APPROVED);
+    public PageResponse<EnrollmentResponse> getClassMembers(String classId, int page, int size) {
+        Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
 
-        if (enrollments.isEmpty()) return new ArrayList<>();
+        Page<Enrollment> enrollments =
+                enrollmentRepository.findByClassRoomIdAndStatus(classId, EnrollmentStatus.APPROVED, pageable);
 
-        return toEnrollmentResponses(enrollments);
+        List<EnrollmentResponse> responses = toEnrollmentResponses(enrollments.getContent());
+
+        return PageResponse.<EnrollmentResponse>builder()
+                .currentPage(page)
+                .totalPages(enrollments.getTotalPages())
+                .pageSize(enrollments.getSize())
+                .totalElements(enrollments.getTotalElements())
+                .data(responses)
+                .build();
     }
 
+    /**
+     * Retrieves a paginated list of classes the student has enrolled in.
+     */
     public PageResponse<ClassRoomResponse> getMyClassesByEnrollmentStatus(EnrollmentStatus status, int page, int size) {
         Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
 
@@ -161,7 +187,7 @@ public class EnrollmentService {
                 .orElseThrow(() -> new AppException(ErrorCode.ENROLLMENT_NOT_FOUND));
 
         if (!enrollment.getClassRoom().getTutor().getId().equals(tutorId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED_ACTION);
+            throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
         enrollmentRepository.delete(enrollment);
@@ -173,10 +199,15 @@ public class EnrollmentService {
         return jwt.getClaimAsString("profile_id");
     }
 
+    /**
+     * Batch retrieves student profiles.
+     */
     private List<EnrollmentResponse> toEnrollmentResponses(List<Enrollment> enrollments) {
         Set<String> studentIds = enrollments.stream()
                 .map(Enrollment::getStudentProfileId)
                 .collect(Collectors.toSet());
+
+        if (studentIds.isEmpty()) return new ArrayList<>();
 
         var profiles = profileClient.getProfiles(new ArrayList<>(studentIds)).getResult();
 

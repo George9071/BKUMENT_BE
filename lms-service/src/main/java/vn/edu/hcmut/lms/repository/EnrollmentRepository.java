@@ -16,25 +16,32 @@ import java.util.Optional;
 
 @Repository
 public interface EnrollmentRepository extends JpaRepository<Enrollment, String> {
-    boolean existsByClassRoomIdAndStudentProfileId(String classId, String studentProfileId);
 
     Optional<Enrollment> findByClassRoomIdAndStudentProfileId(String classId, String studentId);
-    List<Enrollment> findByClassRoomIdAndStatus(String classRoomId, EnrollmentStatus status);
 
+    Page<Enrollment> findByClassRoomIdAndStatus(String classRoomId, EnrollmentStatus status, Pageable pageable);
     @Query("""
-        SELECT e.classRoom FROM Enrollment e\s
-        WHERE e.studentProfileId = :studentId\s
+        SELECT c FROM Enrollment e 
+        JOIN e.classRoom c 
+        LEFT JOIN FETCH c.schedules 
+        WHERE e.studentProfileId = :studentId 
         AND e.status = :enrollmentStatus
-        AND e.classRoom.status IN :classStatuses
-   \s""")
+        AND c.status IN :classStatuses
+    """)
     List<ClassRoom> findActiveClassesByStudent(
             @Param("studentId") String studentId,
             @Param("enrollmentStatus") EnrollmentStatus enrollmentStatus,
             @Param("classStatuses") List<ClassStatus> classStatuses
     );
 
-    @Query("SELECT e FROM Enrollment e WHERE e.studentProfileId = :profileId " +
-            "AND (:status IS NULL OR e.status = :status)")
+    @Query(value = "SELECT e FROM Enrollment e " +
+            "JOIN FETCH e.classRoom c " +
+            "JOIN FETCH c.tutor " +
+            "WHERE e.studentProfileId = :profileId " +
+            "AND (:status IS NULL OR e.status = :status)",
+            countQuery = "SELECT count(e) FROM Enrollment e " +
+                    "WHERE e.studentProfileId = :profileId " +
+                    "AND (:status IS NULL OR e.status = :status)")
     Page<Enrollment> findByStudentProfileIdAndStatus(
             @Param("profileId") String profileId,
             @Param("status") EnrollmentStatus status,

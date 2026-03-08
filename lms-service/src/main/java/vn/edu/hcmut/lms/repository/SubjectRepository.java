@@ -1,14 +1,20 @@
 package vn.edu.hcmut.lms.repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import vn.edu.hcmut.lms.entity.Subject;
 
-import java.util.List;
+import java.util.Collection;
 
 @Repository
 public interface SubjectRepository extends JpaRepository<Subject, String> {
-    @Query("SELECT DISTINCT s FROM Subject s LEFT JOIN FETCH s.topics")
-    List<Subject> findAllWithTopics();
+    @EntityGraph(attributePaths = {"topics"})
+    @Query("SELECT s FROM Subject s")
+    Page<Subject> findAllWithTopics(Pageable pageable);
+
+    Page<Subject> findByIdIn(Collection<String> ids, Pageable pageable);
 }

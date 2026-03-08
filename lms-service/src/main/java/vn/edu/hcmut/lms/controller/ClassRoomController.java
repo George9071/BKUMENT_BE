@@ -16,8 +16,6 @@ import vn.edu.hcmut.lms.dto.response.*;
 import vn.edu.hcmut.lms.service.ClassRoomService;
 import vn.edu.hcmut.lms.service.EnrollmentService;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/classes")
 @RequiredArgsConstructor
@@ -80,20 +78,24 @@ public class ClassRoomController {
     @Operation(summary = "Get pending enrollments for a class",
             description = "Tutor views students waiting for approval to join the class.")
     @GetMapping("/{classId}/enrollments/pending")
-    public APIResponse<List<EnrollmentResponse>> getPendingEnrollments(
-            @PathVariable String classId) {
-        return APIResponse.<List<EnrollmentResponse>>builder()
-                .result(enrollmentService.getPendingRequestsOfClass(classId))
+    public APIResponse<PageResponse<EnrollmentResponse>> getPendingEnrollments(
+            @PathVariable String classId,
+            @Parameter(description = "Page number") @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
+        return APIResponse.<PageResponse<EnrollmentResponse>>builder()
+                .result(enrollmentService.getPendingRequestsOfClass(classId, page, size))
                 .build();
     }
 
     @Operation(summary = "Get class members",
-            description = "Retrieves a list of students who are currently approved members of the class.")
+            description = "Retrieves a paginated list of students who are currently approved members of the class.")
     @GetMapping("/{classId}/members")
-    public APIResponse<List<EnrollmentResponse>> getClassMembers(
-            @PathVariable String classId) {
-        return APIResponse.<List<EnrollmentResponse>>builder()
-                .result(enrollmentService.getClassMembers(classId))
+    public APIResponse<PageResponse<EnrollmentResponse>> getClassMembers(
+            @PathVariable String classId,
+            @Parameter(description = "Page number") @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
+        return APIResponse.<PageResponse<EnrollmentResponse>>builder()
+                .result(enrollmentService.getClassMembers(classId, page, size))
                 .build();
     }
 

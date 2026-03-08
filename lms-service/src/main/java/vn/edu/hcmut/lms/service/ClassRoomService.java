@@ -140,7 +140,7 @@ public class ClassRoomService {
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
 
         if (!classRoom.getTutor().getId().equals(profileId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED_ACTION);
+            throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
         classMapper.updateClass(classRoom, request);
@@ -166,7 +166,7 @@ public class ClassRoomService {
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
 
         if (!classRoom.getTutor().getId().equals(profileId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED_ACTION);
+            throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
         classRoom.setStatus(ClassStatus.CANCELLED);

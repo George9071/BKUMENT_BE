@@ -25,12 +25,17 @@ public class ValidationService {
     EnrollmentRepository enrollmentRepository;
     ClassRoomRepository classRoomRepository;
 
+    /**
+     * Checks if two classes have overlapping dates AND overlapping time slots.
+     */
     public boolean isScheduleConflict(ClassRoom newClass, ClassRoom existingClass) {
+        // check for date overlap
         boolean isDateOverlap = !newClass.getStartDate().isAfter(existingClass.getEndDate()) &&
-                !newClass.getEndDate().isBefore(existingClass.getStartDate());
+                                !newClass.getEndDate().isBefore(existingClass.getStartDate());
 
         if (!isDateOverlap) return false;
 
+        // check for time slot overlap on the same day of the week
         for (ClassSchedule newSch : newClass.getSchedules()) {
             for (ClassSchedule existingSch : existingClass.getSchedules()) {
                 if (isTimeSlotConflict(newSch, existingSch)) return true;
@@ -40,6 +45,9 @@ public class ValidationService {
         return false;
     }
 
+    /**
+     * Checks if two specific schedules conflict (same day, overlapping hours).
+     */
     private boolean isTimeSlotConflict(ClassSchedule sch1, ClassSchedule sch2) {
         if (sch1.getDayOfWeek() != sch2.getDayOfWeek()) return false;
 
@@ -47,12 +55,18 @@ public class ValidationService {
                 sch1.getEndTime().isAfter(sch2.getStartTime());
     }
 
+    /**
+     * Validates if the proposed class conflicts with any of the user's current teaching or studying schedules.
+     * Throws an exception if a conflict is detected.
+     */
     public void validateBusySchedule(String userId, ClassRoom proposedClass) {
         List<ClassStatus> activeStatuses = List.of(ClassStatus.ENROLLING, ClassStatus.ONGOING);
 
+        // Fetch classes the user is teaching
         List<ClassRoom> teachingClasses = classRoomRepository.findActiveClassesByTutor(userId, activeStatuses);
         List<ClassRoom> busyClasses = new ArrayList<>(teachingClasses);
 
+        // Fetch classes the user is studying
         List<ClassRoom> studyingClasses = enrollmentRepository.findActiveClassesByStudent(
                 userId,
                 EnrollmentStatus.APPROVED,
@@ -60,6 +74,7 @@ public class ValidationService {
         );
         busyClasses.addAll(studyingClasses);
 
+        // Verify conflicts against all active classes
         for (ClassRoom existingClass : busyClasses) {
             if (isScheduleConflict(proposedClass, existingClass)) {
                 String role = teachingClasses.contains(existingClass) ? "lịch dạy" : "lịch học";
