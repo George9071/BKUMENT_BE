@@ -172,6 +172,13 @@ public class ClassRoomService {
         classRoomRepository.save(classRoom);
     }
 
+    public ClassRoomResponse getClassRoomById(String classId) {
+        ClassRoom classRoom = classRoomRepository.findClassRoomById(classId)
+                .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
+
+        return classMapper.toResponse(classRoom);
+    }
+
     /**
      * Searches for available classes based on various filters and groups the results by Tutor.
      */

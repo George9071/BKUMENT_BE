@@ -11,6 +11,7 @@ import vn.edu.hcmut.lms.constant.LearningFormat;
 import vn.edu.hcmut.lms.entity.ClassRoom;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
@@ -52,4 +53,11 @@ public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
             @Param("keyword") String keyword
     );
 
+    @Query("SELECT c FROM ClassRoom c " +
+            "JOIN FETCH c.tutor " +
+            "LEFT JOIN FETCH c.topic t " +
+            "LEFT JOIN FETCH t.subject s " +
+            "LEFT JOIN FETCH c.schedules " +
+            "WHERE c.id = :classId")
+    Optional<ClassRoom> findClassRoomById(@Param("classId") String classId);
 }

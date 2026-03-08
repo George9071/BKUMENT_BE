@@ -138,6 +138,17 @@ public class ClassRoomController {
     // ================================== //
     //              PUBLIC APIs
     // ================================== //
+    @Operation(summary = "Get class details by ID",
+            description = "Retrieves the full details of a specific class including tutor, topic, and schedules.")
+    @GetMapping("/{classId}")
+    public APIResponse<ClassRoomResponse> getClassRoomById(
+            @Parameter(description = "ID of the class") @PathVariable String classId) {
+
+        return APIResponse.<ClassRoomResponse>builder()
+                .result(classRoomService.getClassRoomById(classId))
+                .build();
+    }
+
     @Operation(summary = "Search available classes",
             description = "Searches classes by subject, topic, format, and keyword, grouped by Tutor.")
     @GetMapping("/search")
