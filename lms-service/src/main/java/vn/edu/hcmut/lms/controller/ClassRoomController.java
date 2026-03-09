@@ -52,13 +52,12 @@ public class ClassRoomController {
                 .build();
     }
 
-
     @Operation(summary = "Update class details",
             description = "Updates an existing class. Only the owning tutor can perform this action.")
-    @PutMapping("/{classId}")
+    @PatchMapping("/{classId}")
     APIResponse<ClassRoomResponse> updateClass(
             @PathVariable String classId,
-            @RequestBody @Valid ClassRoomUpdateRequest request) {
+            @RequestBody ClassRoomUpdateRequest request) {
         return APIResponse.<ClassRoomResponse>builder()
                 .result(classRoomService.updateClass(classId, request))
                 .build();
@@ -67,7 +66,7 @@ public class ClassRoomController {
     @Operation(summary = "Cancel a class",
             description = "Soft deletes a class by changing its status to CANCELLED.")
     @DeleteMapping("/{classId}")
-    APIResponse<String> deleteClass(
+    public APIResponse<String> deleteClass(
             @PathVariable String classId) {
         classRoomService.deleteClass(classId);
         return APIResponse.<String>builder()
@@ -96,6 +95,24 @@ public class ClassRoomController {
             @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
         return APIResponse.<PageResponse<EnrollmentResponse>>builder()
                 .result(enrollmentService.getClassMembers(classId, page, size))
+                .build();
+    }
+
+    @Operation(
+            summary = "Tutor removes a student",
+            description = "The tutor removes a student from their class."
+    )
+    @DeleteMapping("/{classId}/students/{studentId}")
+    public APIResponse<Void> removeStudent(
+            @Parameter(required = true)
+            @PathVariable("classId") String classId,
+            @Parameter(required = true)
+            @PathVariable("studentId") String studentId) {
+
+        classRoomService.removeStudent(classId, studentId);
+
+        return APIResponse.<Void>builder()
+                .message("Student removed successfully")
                 .build();
     }
 
@@ -132,6 +149,19 @@ public class ClassRoomController {
             @RequestParam(defaultValue = "10") int size) {
         return APIResponse.<PageResponse<ClassRoomResponse>>builder()
                 .result(classRoomService.getMyClassesByEnrollmentStatus(EnrollmentStatus.PENDING, page, size))
+                .build();
+    }
+
+    @Operation(
+            summary = "Student leaves a class",
+            description = "The student voluntarily left the classroom."
+    )
+    @DeleteMapping("/{classId}/leave")
+    public APIResponse<Void> leaveClass(@PathVariable("classId") String classId) {
+        classRoomService.leaveClass(classId);
+
+        return APIResponse.<Void>builder()
+                .message("Successfully left the class")
                 .build();
     }
 

@@ -36,6 +36,7 @@ public enum ErrorCode {
     CANNOT_ENROLL_OWN_CLASS(3004, "You cannot enroll in your own class", HttpStatus.BAD_REQUEST),
     ENROLLMENT_PENDING(3005, "Your enrollment request is still pending approval", HttpStatus.BAD_REQUEST),
     SCHEDULE_CONFLICT(3006, "Schedule conflict detected", HttpStatus.BAD_REQUEST),
+    ENROLLMENT_COOLDOWN(3006, "You were previously denied entry to this class; try again in 1 day.", HttpStatus.BAD_REQUEST)
     ;
 
     private final int code;

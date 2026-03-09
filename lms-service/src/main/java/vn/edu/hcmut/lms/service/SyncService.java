@@ -3,19 +3,14 @@ package vn.edu.hcmut.lms.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import vn.edu.hcmut.lms.dto.sync.ClassRoomSyncRequest;
-import vn.edu.hcmut.lms.dto.sync.SubjectSyncRequest;
-import vn.edu.hcmut.lms.dto.sync.TopicSyncRequest;
-import vn.edu.hcmut.lms.dto.sync.TutorSubjectSyncRequest;
+import vn.edu.hcmut.lms.constant.EnrollmentStatus;
+import vn.edu.hcmut.lms.dto.sync.*;
 import vn.edu.hcmut.lms.entity.ClassRoom;
-import vn.edu.hcmut.lms.repository.ClassRoomRepository;
-import vn.edu.hcmut.lms.repository.SubjectRepository;
-import vn.edu.hcmut.lms.repository.TopicRepository;
-import vn.edu.hcmut.lms.repository.TutorRepository;
+import vn.edu.hcmut.lms.entity.Enrollment;
+import vn.edu.hcmut.lms.repository.*;
 import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
 
 import java.util.List;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +20,7 @@ public class SyncService {
     private final TopicRepository topicRepository;
     private final TutorRepository tutorRepository;
     private final ClassRoomRepository classRoomRepository;
+    private final EnrollmentRepository enrollmentRepository;
     private final ProfileClient profileClient;
 
     public void syncAllMetadata() {
@@ -93,6 +89,25 @@ public class SyncService {
             log.info("Requested bulk sync for {} classes to Neo4j", requests.size());
         } else {
             log.info("No class found in JPA to sync.");
+        }
+    }
+
+    public void syncAllEnrollments() {
+        List<Enrollment> enrollments = enrollmentRepository.findAll();
+
+        List<EnrollmentSyncRequest> requests = enrollments.stream()
+                .filter(e -> e.getStatus() == EnrollmentStatus.APPROVED)
+                .map(e -> EnrollmentSyncRequest.builder()
+                        .studentId(e.getStudentProfileId())
+                        .classId(e.getClassRoom().getId())
+                        .build())
+                .toList();
+
+        if (!requests.isEmpty()) {
+            profileClient.syncAllEnrollments(requests);
+            log.info("Requested bulk sync for {} Enrollments to Neo4j", requests.size());
+        } else {
+            log.info("No approved enrollments found in Postgres to sync.");
         }
     }
 }

@@ -28,4 +28,10 @@ public class SyncController {
         syncService.syncAllClasses();
         return "Sync process triggered";
     }
+
+    @PostMapping("/enrollments")
+    public String syncEnrollments() {
+        syncService.syncAllEnrollments();
+        return "Sync process triggered";
+    }
 }

@@ -5,10 +5,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.hcmut.lms.dto.response.APIResponse;
 import vn.edu.hcmut.lms.dto.response.ProfileResponse;
-import vn.edu.hcmut.lms.dto.sync.ClassRoomSyncRequest;
-import vn.edu.hcmut.lms.dto.sync.SubjectSyncRequest;
-import vn.edu.hcmut.lms.dto.sync.TopicSyncRequest;
-import vn.edu.hcmut.lms.dto.sync.TutorSubjectSyncRequest;
+import vn.edu.hcmut.lms.dto.sync.*;
 
 import java.util.List;
 import java.util.Set;
@@ -44,4 +41,18 @@ public interface ProfileClient {
 
     @PostMapping("/internal/metadata/classrooms/batch")
     void syncClasses(@RequestBody List<ClassRoomSyncRequest> requests);
+
+    @PostMapping("/internal/metadata/enrollments/batch")
+    void syncAllEnrollments(@RequestBody List<EnrollmentSyncRequest> requests);
+
+    @PostMapping("/internal/metadata/enrollments")
+    void addEnrollment(@RequestBody EnrollmentSyncRequest request);
+
+    @DeleteMapping("/internal/metadata/enrollments/students/{studentId}/classes/{classId}")
+    void removeEnrollment(
+            @PathVariable("studentId") String studentId,
+            @PathVariable("classId") String classId);
+
+    @DeleteMapping("/internal/metadata/classrooms/{classId}")
+    void deleteClassRoom(@PathVariable("classId") String classId);
 }

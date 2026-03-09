@@ -250,15 +250,60 @@ public class ClassRoomService {
     public void deleteClass(String classId) {
         String profileId = getProfileIdFromToken();
 
-        ClassRoom classRoom = classRoomRepository.findById(classId)
+        ClassRoom classroom = classRoomRepository.findById(classId)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
 
-        if (!classRoom.getTutor().getId().equals(profileId)) {
+        if (!classroom.getTutor().getId().equals(profileId)) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
-        classRoom.setStatus(ClassStatus.CANCELLED);
-        classRoomRepository.save(classRoom);
+        classRoomRepository.delete(classroom);
+
+        try {
+            profileClient.deleteClassRoom(classId);
+        } catch (Exception e) {
+            log.error("Failed to delete ClassRoom {} from Neo4j.", classId, e);
+            throw new AppException(ErrorCode.SYNC_FAILED);
+            // TODO: Kafka/Message Queue here if require integrity.
+        }
+    }
+
+    @Transactional
+    public void leaveClass(String classId) {
+        String userId = getProfileIdFromToken();
+
+        Enrollment enrollment = enrollmentRepository.findByClassRoomIdAndStudentProfileId(classId, userId)
+                .orElseThrow(() -> new AppException(ErrorCode.ENROLLMENT_NOT_FOUND));
+
+        enrollmentRepository.delete(enrollment);
+
+        try {
+            profileClient.removeEnrollment(userId, classId);
+        } catch (Exception e) {
+            log.error("Failed to remove enrollment from Neo4j when student left. " +
+                    "Student: {}, Class: {}", userId, classId, e);
+        }
+    }
+
+    @Transactional
+    public void removeStudent(String classId, String studentId) {
+        String tutorId = getProfileIdFromToken();
+
+        Enrollment enrollment = enrollmentRepository.findByClassRoomIdAndStudentProfileId(classId, studentId)
+                .orElseThrow(() -> new AppException(ErrorCode.ENROLLMENT_NOT_FOUND));
+
+        if (!enrollment.getClassRoom().getTutor().getId().equals(tutorId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        enrollmentRepository.delete(enrollment);
+
+        try {
+            profileClient.removeEnrollment(studentId, classId);
+        } catch (Exception e) {
+            log.error("Failed to remove enrollment from Neo4j. Student: {}, Class: {}", studentId, classId, e);
+            throw new AppException(ErrorCode.SYNC_FAILED);
+        }
     }
 
     public ClassRoomResponse getClassRoomById(String classId) {

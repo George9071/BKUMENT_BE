@@ -10,10 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import vn.edu.hcmut.profile.dto.sync.ClassRoomSyncRequest;
-import vn.edu.hcmut.profile.dto.sync.SubjectSyncRequest;
-import vn.edu.hcmut.profile.dto.sync.TopicSyncRequest;
-import vn.edu.hcmut.profile.dto.sync.TutorSubjectSyncRequest;
+import vn.edu.hcmut.profile.dto.sync.*;
 
 /**
  * Temporary utility service to synchronize Subject and Topic data
@@ -194,5 +191,72 @@ public class SyncService {
 
         neo4jClient.query(query).bindAll(Map.of("data", parameters)).run();
         log.info("Successfully bulk synced {} classrooms to Neo4j.", requests.size());
+    }
+
+    @Transactional
+    public void syncAllEnrollments(List<EnrollmentSyncRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            log.info("No enrollments to sync.");
+            return;
+        }
+
+        neo4jClient.query("MATCH ()-[r:ENROLLED_IN]->() DELETE r").run();
+
+        String query = """
+                UNWIND $data AS row
+
+                MERGE (u:UserProfile {id: row.studentId})
+                MERGE (c:ClassRoom {id: row.classRoomId})
+                MERGE (u)-[:ENROLLED_IN]->(c)
+                """;
+
+        List<Map<String, Object>> parameters = requests.stream()
+                .map(req -> Map.<String, Object>of(
+                        "studentId", req.getStudentId(),
+                        "classRoomId", req.getClassId()
+                ))
+                .toList();
+
+        neo4jClient.query(query).bindAll(Map.of("data", parameters)).run();
+        log.info("Successfully bulk synced {} ENROLLED_IN relationships to Neo4j.", requests.size());
+    }
+
+    @Transactional
+    public void addEnrollment(EnrollmentSyncRequest request) {
+        String query = """
+                MERGE (u:UserProfile {id: $studentId})
+                MERGE (c:ClassRoom {id: $classId})
+                MERGE (u)-[:ENROLLED_IN]->(c)
+                """;
+        neo4jClient.query(query).bindAll(Map.of(
+                "studentId", request.getStudentId(),
+                "classId", request.getClassId()
+        )).run();
+        log.info("Created ENROLLED_IN relation for student {} and class {}",
+                request.getStudentId(), request.getClassId());
+    }
+
+    @Transactional
+    public void removeEnrollment(String studentId, String classId) {
+        String query = """
+                MATCH (u:UserProfile {id: $studentId})-[r:ENROLLED_IN]->(c:ClassRoom {id: $classId})
+                DELETE r
+                """;
+        neo4jClient.query(query).bindAll(Map.of(
+                "studentId", studentId,
+                "classId", classId
+        )).run();
+        log.info("Removed ENROLLED_IN relation for student {} and class {}", studentId, classId);
+    }
+
+    @Transactional
+    public void deleteClassRoom(String classId) {
+        String query = """
+                MATCH (c:ClassRoom {id: $id})
+                DETACH DELETE c
+                """;
+
+        neo4jClient.query(query).bindAll(Map.of("id", classId)).run();
+        log.info("Successfully deleted classroom {} and its relationships from Neo4j.", classId);
     }
 }

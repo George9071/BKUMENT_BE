@@ -3,6 +3,7 @@ package vn.edu.hcmut.lms.service;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -12,14 +13,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.hcmut.lms.constant.ClassStatus;
 import vn.edu.hcmut.lms.constant.EnrollmentStatus;
-import vn.edu.hcmut.lms.dto.response.ClassRoomResponse;
 import vn.edu.hcmut.lms.dto.response.EnrollmentResponse;
 import vn.edu.hcmut.lms.dto.response.PageResponse;
 import vn.edu.hcmut.lms.dto.response.ProfileResponse;
+import vn.edu.hcmut.lms.dto.sync.EnrollmentSyncRequest;
 import vn.edu.hcmut.lms.entity.ClassRoom;
 import vn.edu.hcmut.lms.entity.Enrollment;
 import vn.edu.hcmut.lms.exception.*;
-import vn.edu.hcmut.lms.mapper.ClassRoomMapper;
 import vn.edu.hcmut.lms.mapper.EnrollmentMapper;
 import vn.edu.hcmut.lms.repository.ClassRoomRepository;
 import vn.edu.hcmut.lms.repository.EnrollmentRepository;
@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@Slf4j
 public class EnrollmentService {
 
     ValidationService validationService;
@@ -41,7 +42,6 @@ public class EnrollmentService {
     ClassRoomRepository classRoomRepository;
     ProfileClient profileClient;
     EnrollmentMapper enrollmentMapper;
-    ClassRoomMapper classMapper;
 
     /**
      * Student enrolls in a class. Handles re-enrolling for rejected requests.
@@ -77,6 +77,12 @@ public class EnrollmentService {
                 throw new AppException(ErrorCode.ENROLLMENT_PENDING);
             }
             if (enrollment.getStatus() == EnrollmentStatus.REJECTED) {
+
+                // avoid spamming
+                if (enrollment.getEnrolledAt().plusDays(1).isAfter(LocalDateTime.now())) {
+                    throw new AppException(ErrorCode.ENROLLMENT_COOLDOWN); // "Vui lòng thử lại sau 7 ngày"
+                }
+
                 enrollment.setStatus(EnrollmentStatus.PENDING);
                 enrollment.setEnrolledAt(LocalDateTime.now());
             }
@@ -91,8 +97,8 @@ public class EnrollmentService {
         enrollment = enrollmentRepository.save(enrollment);
 
         // Sync to Neo4j Graph DB
-        String topicId = classRoom.getTopic() != null ? classRoom.getTopic().getId() : null;
-        graphSyncService.handleEnrollmentEvent(userId, classId, topicId);
+//        String topicId = classRoom.getTopic() != null ? classRoom.getTopic().getId() : null;
+//        graphSyncService.handleEnrollmentEvent(userId, classId, topicId);
 
         return enrollmentMapper.toResponse(enrollment, userProfile);
     }
@@ -111,8 +117,26 @@ public class EnrollmentService {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
-        enrollment.setStatus(isApproved ? EnrollmentStatus.APPROVED : EnrollmentStatus.REJECTED);
-        enrollmentRepository.save(enrollment);
+        if (isApproved) {
+            enrollment.setStatus(EnrollmentStatus.APPROVED);
+            enrollmentRepository.save(enrollment);
+
+            try {
+                EnrollmentSyncRequest sync = EnrollmentSyncRequest.builder()
+                        .studentId(enrollment.getStudentProfileId())
+                        .classId(enrollment.getClassRoom().getId())
+                        .build();
+                profileClient.addEnrollment(sync);
+            } catch (Exception e) {
+                log.error("Failed to sync new enrollment to Neo4j. Student: {}, Class: {}",
+                        enrollment.getStudentProfileId(),
+                        enrollment.getClassRoom().getId(), e);
+
+                throw new AppException(ErrorCode.SYNC_FAILED);
+            }
+        } else {
+            enrollment.setStatus(EnrollmentStatus.REJECTED);
+        }
     }
 
     public PageResponse<EnrollmentResponse> getPendingRequestsOfClass(String classId, int page, int size) {
@@ -157,24 +181,26 @@ public class EnrollmentService {
                 .build();
     }
 
-    @Transactional
-    public void removeStudent(String enrollmentId) {
-        String tutorId = getProfileIdFromToken();
-
-        Enrollment enrollment = enrollmentRepository.findById(enrollmentId)
-                .orElseThrow(() -> new AppException(ErrorCode.ENROLLMENT_NOT_FOUND));
-
-        if (!enrollment.getClassRoom().getTutor().getId().equals(tutorId)) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
-
-        enrollmentRepository.delete(enrollment);
-    }
-
     // --- Helper Methods ---
     private String getProfileIdFromToken() {
-        var jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        return jwt.getClaimAsString("profile_id");
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null ||
+                !authentication.isAuthenticated() ||
+                authentication.getPrincipal().equals("anonymousUser")) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        if (authentication.getPrincipal() instanceof Jwt jwt) {
+            String profileId = jwt.getClaimAsString("profile_id");
+
+            if (profileId == null) {
+                throw new AppException(ErrorCode.INVALID_TOKEN_CLAIMS);
+            }
+            return profileId;
+        }
+
+        throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
 
     /**

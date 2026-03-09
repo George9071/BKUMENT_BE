@@ -8,10 +8,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
-import vn.edu.hcmut.profile.dto.sync.ClassRoomSyncRequest;
-import vn.edu.hcmut.profile.dto.sync.SubjectSyncRequest;
-import vn.edu.hcmut.profile.dto.sync.TopicSyncRequest;
-import vn.edu.hcmut.profile.dto.sync.TutorSubjectSyncRequest;
+import vn.edu.hcmut.profile.dto.sync.*;
 import vn.edu.hcmut.profile.service.SyncService;
 
 @RestController
@@ -59,5 +56,25 @@ public class InternalSyncController {
     @PostMapping("/classrooms/batch")
     public void syncClasses(@RequestBody List<ClassRoomSyncRequest> requests) {
         syncService.syncClasses(requests);
+    }
+
+    @PostMapping("/enrollments/batch")
+    public void syncAllEnrollments(@RequestBody List<EnrollmentSyncRequest> requests) {
+        syncService.syncAllEnrollments(requests);
+    }
+
+    @PostMapping("/enrollments")
+    public void addEnrollment(@RequestBody EnrollmentSyncRequest request) {
+        syncService.addEnrollment(request);
+    }
+
+    @DeleteMapping("/enrollments/students/{studentId}/classes/{classId}")
+    public void removeEnrollment(@PathVariable("studentId") String studentId, @PathVariable("classId") String classId) {
+        syncService.removeEnrollment(studentId, classId);
+    }
+
+    @DeleteMapping("/classrooms/{classId}")
+    public void deleteClassRoom(@PathVariable("classId") String classId) {
+        syncService.deleteClassRoom(classId);
     }
 }
