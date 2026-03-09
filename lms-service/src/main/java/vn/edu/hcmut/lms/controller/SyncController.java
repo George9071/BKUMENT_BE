@@ -22,4 +22,10 @@ public class SyncController {
         syncService.syncAllTutorSubjects();
         return "Sync process triggered";
     }
+
+    @PostMapping("/class-topic")
+    public String syncClassTopic() {
+        syncService.syncAllClasses();
+        return "Sync process triggered";
+    }
 }

@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
+import vn.edu.hcmut.identity.constant.UserRole;
 import vn.edu.hcmut.identity.dto.request.AuthenticationRequest;
 import vn.edu.hcmut.identity.dto.request.IntrospectRequest;
 import vn.edu.hcmut.identity.dto.request.LogoutRequest;
@@ -94,11 +95,18 @@ public class AuthenticationService {
 
         if (!authenticated) throw new AppException(ErrorCode.UNAUTHENTICATED);
 
+        boolean isAdmin = account.getRoles().stream()
+                .anyMatch(role -> role.equals(UserRole.ADMIN));
+
         ProfileResponse profile = null;
-        try {
-            profile = profileClient.getProfileByAccountId(account.getId()).getResult();
-        } catch (Exception e) {
-            log.error("Cannot fetch profile for account {}", account.getId(), e);
+
+        if (!isAdmin) {
+            try {
+                profile = profileClient.getProfileByAccountId(account.getId()).getResult();
+            } catch (Exception e) {
+                log.error("CRITICAL: Cannot fetch profile for account {}", account.getId(), e);
+                throw new AppException(ErrorCode.PROFILE_NOT_FOUND);
+            }
         }
 
         var token = generateToken(account, profile);

@@ -32,6 +32,8 @@ public class ClassRoomResponse {
     String topicName;
     String subjectName;
 
+    String userStatus;
+
     @Data
     @Builder
     @NoArgsConstructor

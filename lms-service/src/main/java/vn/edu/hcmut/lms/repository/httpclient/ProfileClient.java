@@ -5,6 +5,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.hcmut.lms.dto.response.APIResponse;
 import vn.edu.hcmut.lms.dto.response.ProfileResponse;
+import vn.edu.hcmut.lms.dto.sync.ClassRoomSyncRequest;
 import vn.edu.hcmut.lms.dto.sync.SubjectSyncRequest;
 import vn.edu.hcmut.lms.dto.sync.TopicSyncRequest;
 import vn.edu.hcmut.lms.dto.sync.TutorSubjectSyncRequest;
@@ -37,4 +38,10 @@ public interface ProfileClient {
 
     @PostMapping("/internal/metadata/tutor-subjects")
     void syncTutorSubjects(@RequestBody List<TutorSubjectSyncRequest> requests);
+
+    @PostMapping("/internal/metadata/classrooms")
+    void syncClassRoom(@RequestBody ClassRoomSyncRequest request);
+
+    @PostMapping("/internal/metadata/classrooms/batch")
+    void syncClasses(@RequestBody List<ClassRoomSyncRequest> requests);
 }

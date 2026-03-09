@@ -157,28 +157,6 @@ public class EnrollmentService {
                 .build();
     }
 
-    /**
-     * Retrieves a paginated list of classes the student has enrolled in.
-     */
-    public PageResponse<ClassRoomResponse> getMyClassesByEnrollmentStatus(EnrollmentStatus status, int page, int size) {
-        Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
-
-        Page<Enrollment> enrollments = enrollmentRepository
-                .findByStudentProfileIdAndStatus(getProfileIdFromToken(), status, pageable);
-
-        List<ClassRoomResponse> responses = enrollments.getContent().stream()
-                .map(enrollment -> classMapper.toResponse(enrollment.getClassRoom()))
-                .toList();
-
-        return PageResponse.<ClassRoomResponse>builder()
-                .currentPage(page)
-                .totalPages(enrollments.getTotalPages())
-                .pageSize(enrollments.getSize())
-                .totalElements(enrollments.getTotalElements())
-                .data(responses)
-                .build();
-    }
-
     @Transactional
     public void removeStudent(String enrollmentId) {
         String tutorId = getProfileIdFromToken();

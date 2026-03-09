@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import vn.edu.hcmut.profile.dto.sync.ClassRoomSyncRequest;
 import vn.edu.hcmut.profile.dto.sync.SubjectSyncRequest;
 import vn.edu.hcmut.profile.dto.sync.TopicSyncRequest;
 import vn.edu.hcmut.profile.dto.sync.TutorSubjectSyncRequest;
@@ -119,5 +120,79 @@ public class SyncService {
 
         neo4jClient.query(query).bindAll(Map.of("data", parameters)).run();
         log.info("Successfully synced {} tutor-subject relationships to Neo4j.", requests.size());
+    }
+
+    @Transactional
+    public void syncClass(ClassRoomSyncRequest request) {
+        String query = """
+                MERGE (c:ClassRoom {id: $id})
+                SET c.name = $name,
+                    c.status = $status,
+                    c.format = $format
+                WITH c
+                
+                OPTIONAL MATCH (c)-[r:COVERS]->()
+                DELETE r
+                
+                WITH c
+                UNWIND (CASE WHEN $topicId IS NOT NULL THEN [$topicId] ELSE [] END) AS tId
+                
+                MERGE (t:Topic {id: tId})
+                MERGE (c)-[:COVERS]->(t)
+                """;
+
+        neo4jClient.query(query).bindAll(Map.of(
+                "id", request.getId(),
+                "name", request.getName(),
+                "status", request.getStatus() != null ? request.getStatus() : "",
+                "format", request.getFormat() != null ? request.getFormat() : "",
+                "topicId", request.getTopicId()
+        )).run();
+
+        log.info("Successfully synced classroom {} to Neo4j.", request.getId());
+    }
+
+    @Transactional
+    public void syncClasses(List<ClassRoomSyncRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            log.info("No classrooms to sync.");
+            return;
+        }
+
+        String query = """
+                UNWIND $data AS row
+               \s
+                MERGE (c:ClassRoom {id: row.id})
+                SET c.name = row.name,
+                    c.status = row.status,
+                    c.format = row.format
+                   \s
+                WITH c, row
+               \s
+                OPTIONAL MATCH (c)-[r:COVERS]->()
+                DELETE r
+               \s
+                WITH c, row
+               \s
+                UNWIND (CASE WHEN row.topicId IS NOT NULL THEN [row.topicId] ELSE [] END) AS tId
+               \s
+                MERGE (t:Topic {id: tId})
+                MERGE (c)-[:COVERS]->(t)
+               \s""";
+
+        List<Map<String, Object>> parameters = requests.stream()
+                .map(req -> {
+                    Map<String, Object> map = new java.util.HashMap<>();
+                    map.put("id", req.getId());
+                    map.put("name", req.getName() != null ? req.getName() : "");
+                    map.put("status", req.getStatus() != null ? req.getStatus() : "");
+                    map.put("format", req.getFormat() != null ? req.getFormat() : "");
+                    map.put("topicId", req.getTopicId()); // Có thể null
+                    return map;
+                })
+                .toList();
+
+        neo4jClient.query(query).bindAll(Map.of("data", parameters)).run();
+        log.info("Successfully bulk synced {} classrooms to Neo4j.", requests.size());
     }
 }

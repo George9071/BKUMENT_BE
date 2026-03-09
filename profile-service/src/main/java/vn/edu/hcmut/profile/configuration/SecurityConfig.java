@@ -29,6 +29,7 @@ public class SecurityConfig {
         "/swagger-ui.html",
         "/actuator/health",
         "/internal/**", // internal microservice-to-microservice communication
+        "/universities/**",
         "/error"
     };
 

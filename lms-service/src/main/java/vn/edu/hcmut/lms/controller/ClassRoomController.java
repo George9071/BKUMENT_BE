@@ -120,7 +120,7 @@ public class ClassRoomController {
             @Parameter(description = "Page number") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
         return APIResponse.<PageResponse<ClassRoomResponse>>builder()
-                .result(enrollmentService.getMyClassesByEnrollmentStatus(EnrollmentStatus.APPROVED, page, size))
+                .result(classRoomService.getMyClassesByEnrollmentStatus(EnrollmentStatus.APPROVED, page, size))
                 .build();
     }
 
@@ -131,7 +131,7 @@ public class ClassRoomController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
         return APIResponse.<PageResponse<ClassRoomResponse>>builder()
-                .result(enrollmentService.getMyClassesByEnrollmentStatus(EnrollmentStatus.PENDING, page, size))
+                .result(classRoomService.getMyClassesByEnrollmentStatus(EnrollmentStatus.PENDING, page, size))
                 .build();
     }
 

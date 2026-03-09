@@ -8,6 +8,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import vn.edu.hcmut.profile.dto.sync.ClassRoomSyncRequest;
 import vn.edu.hcmut.profile.dto.sync.SubjectSyncRequest;
 import vn.edu.hcmut.profile.dto.sync.TopicSyncRequest;
 import vn.edu.hcmut.profile.dto.sync.TutorSubjectSyncRequest;
@@ -48,5 +49,15 @@ public class InternalSyncController {
     @PostMapping("/tutor-subjects")
     public void syncTutorSubjects(@RequestBody List<TutorSubjectSyncRequest> requests) {
         syncService.syncTutorSubjects(requests);
+    }
+
+    @PostMapping("/classroom")
+    public void syncClassroom(@RequestBody ClassRoomSyncRequest request) {
+        syncService.syncClass(request);
+    }
+
+    @PostMapping("/classrooms/batch")
+    public void syncClasses(@RequestBody List<ClassRoomSyncRequest> requests) {
+        syncService.syncClasses(requests);
     }
 }

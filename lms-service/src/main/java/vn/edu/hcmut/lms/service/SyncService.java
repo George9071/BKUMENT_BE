@@ -3,15 +3,19 @@ package vn.edu.hcmut.lms.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import vn.edu.hcmut.lms.dto.sync.ClassRoomSyncRequest;
 import vn.edu.hcmut.lms.dto.sync.SubjectSyncRequest;
 import vn.edu.hcmut.lms.dto.sync.TopicSyncRequest;
 import vn.edu.hcmut.lms.dto.sync.TutorSubjectSyncRequest;
+import vn.edu.hcmut.lms.entity.ClassRoom;
+import vn.edu.hcmut.lms.repository.ClassRoomRepository;
 import vn.edu.hcmut.lms.repository.SubjectRepository;
 import vn.edu.hcmut.lms.repository.TopicRepository;
 import vn.edu.hcmut.lms.repository.TutorRepository;
 import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -20,8 +24,8 @@ public class SyncService {
     private final SubjectRepository subjectRepository;
     private final TopicRepository topicRepository;
     private final TutorRepository tutorRepository;
+    private final ClassRoomRepository classRoomRepository;
     private final ProfileClient profileClient;
-
 
     public void syncAllMetadata() {
         List<SubjectSyncRequest> subjects =  subjectRepository
@@ -68,6 +72,27 @@ public class SyncService {
         if (!requests.isEmpty()) {
             profileClient.syncTutorSubjects(requests);
             log.info("Requested sync for {} tutors and their subjects", requests.size());
+        }
+    }
+
+    public void syncAllClasses() {
+        List<ClassRoom> classes = classRoomRepository.findAll();
+
+        List<ClassRoomSyncRequest> requests = classes.stream()
+                .map(c -> ClassRoomSyncRequest.builder()
+                        .id(c.getId())
+                        .name(c.getName())
+                        .status(c.getStatus() != null ? c.getStatus().name() : null)
+                        .format(c.getFormat() != null ? c.getFormat().name() : null)
+                        .topicId(c.getTopic() != null ? c.getTopic().getId() : null)
+                        .build())
+                .toList();
+
+        if (!requests.isEmpty()) {
+            profileClient.syncClasses(requests);
+            log.info("Requested bulk sync for {} classes to Neo4j", requests.size());
+        } else {
+            log.info("No class found in JPA to sync.");
         }
     }
 }
