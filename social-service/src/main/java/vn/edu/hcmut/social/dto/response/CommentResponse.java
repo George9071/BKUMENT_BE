@@ -15,7 +15,8 @@ public class CommentResponse {
     String replyId;
     String content;
     String resourceId;
-    Author author; // Reused pattern from Document Metadata
+    int numberOfChildComment;
+    Author author;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
 

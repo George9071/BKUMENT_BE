@@ -9,17 +9,21 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import vn.edu.hcmut.social.dto.request.CommentRequest;
+import vn.edu.hcmut.social.dto.response.APIResponse;
 import vn.edu.hcmut.social.dto.response.CommentResponse;
+import vn.edu.hcmut.social.dto.response.ProfileResponse;
 import vn.edu.hcmut.social.entity.Comment;
 import vn.edu.hcmut.social.exception.AppException;
 import vn.edu.hcmut.social.exception.ErrorCode;
 import vn.edu.hcmut.social.repository.CommentRepository;
+import vn.edu.hcmut.social.repository.httpclient.ProfileClient;
 
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class CommentService {
     CommentRepository commentRepository;
+    ProfileClient profileClient;
 
     @Transactional
     public CommentResponse createComment(CommentRequest request, String profileId) {
@@ -65,18 +69,23 @@ public class CommentService {
     }
 
     private CommentResponse toCommentResponse(Comment comment) {
-        // Mock Author for now
-        CommentResponse.Author author = CommentResponse.Author.builder()
-                .id(comment.getProfileId())
-                .name("Unknown")
+        APIResponse<ProfileResponse> apiResponse = profileClient.findUserProfileById(comment.getProfileId());
+        ProfileResponse profile = apiResponse.getResult();
+        CommentResponse.Author authorDto = CommentResponse.Author.builder()
+                .id(profile.getId())
+                .name(profile.getFullName())
+                .avatarUrl(profile.getAvatarUrl())
                 .build();
+
+        int childCount = commentRepository.countByReplyId(comment.getId());
 
         return CommentResponse.builder()
                 .id(comment.getId())
                 .replyId(comment.getReplyId())
                 .content(comment.getContent())
                 .resourceId(comment.getResourceId())
-                .author(author)
+                .author(authorDto)
+                .numberOfChildComment(childCount)
                 .createdAt(comment.getCreatedAt())
                 .updatedAt(comment.getUpdatedAt())
                 .build();

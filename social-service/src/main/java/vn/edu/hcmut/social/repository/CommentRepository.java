@@ -12,4 +12,6 @@ public interface CommentRepository extends JpaRepository<Comment, String> {
     Page<Comment> findByResourceIdAndReplyIdIsNull(String resourceId, Pageable pageable);
 
     Page<Comment> findByReplyId(String replyId, Pageable pageable);
+
+    int countByReplyId(String replyId);
 }
