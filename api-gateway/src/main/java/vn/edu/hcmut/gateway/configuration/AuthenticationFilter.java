@@ -42,6 +42,7 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
     private String[] publicEndpoints = {
             "/identity/auth/.*",
             "/identity/accounts/registration",
+            "/profile/universities(?:/.*)?"
     };
 
     @Value("${app.api-prefix}")

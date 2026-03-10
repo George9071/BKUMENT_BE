@@ -35,10 +35,7 @@ import vn.edu.hcmut.lms.repository.TutorRepository;
 import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
 
 import java.text.Normalizer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -307,10 +304,25 @@ public class ClassRoomService {
     }
 
     public ClassRoomResponse getClassRoomById(String classId) {
-        ClassRoom classRoom = classRoomRepository.findClassRoomById(classId)
+        ClassRoom classroom = classRoomRepository.findClassRoomById(classId)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
 
-        return classMapper.toResponse(classRoom);
+        ClassRoomResponse response = classMapper.toResponse(classroom);
+        String userId = getSafeProfileIdFromToken();
+
+        if (userId == null) {
+            response.setUserStatus("NONE");
+        } else if (classroom.getTutor() != null && classroom.getTutor().getId().equals(userId)) {
+            response.setUserStatus("OWNER");
+        } else {
+            Optional<Enrollment> enrollmentOpt = enrollmentRepository
+                    .findByClassRoomIdAndStudentProfileId(classId, userId);
+
+            if (enrollmentOpt.isPresent()) response.setUserStatus(enrollmentOpt.get().getStatus().name());
+            else response.setUserStatus("NONE");
+        }
+
+        return response;
     }
 
     /**
