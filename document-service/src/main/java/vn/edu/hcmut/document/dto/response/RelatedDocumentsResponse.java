@@ -14,7 +14,9 @@ import lombok.experimental.FieldDefaults;
 public class RelatedDocumentsResponse {
     String id;
     String title;
-    String authorId;
+
+    Author author;
+
     String documentType;
     String university;
     String course;
@@ -26,4 +28,15 @@ public class RelatedDocumentsResponse {
     String summary;
     boolean downloadable;
     List<String> keywords;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @FieldDefaults(level = AccessLevel.PRIVATE)
+    public static class Author {
+        String id;
+        String name;
+        String avatarUrl;
+    }
 }

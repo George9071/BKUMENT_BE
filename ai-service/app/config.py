@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     APP_NAME: str
     APP_VERSION: str
     MAX_FILE_SIZE: int = 50 * 1024 * 1024
+    
+    PROFILE_SERVICE_URL: str
 
     DB_HOST: str
     DB_PORT: int

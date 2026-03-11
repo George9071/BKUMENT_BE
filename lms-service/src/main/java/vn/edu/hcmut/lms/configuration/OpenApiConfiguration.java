@@ -15,7 +15,7 @@ import io.swagger.v3.oas.models.servers.Server;
 
 @Configuration
 public class OpenApiConfiguration {
-    private static final String SECURITY_SCHEME_NAME = "bearerAuth";
+	private static final String SECURITY_SCHEME_NAME = "bearerAuth";
 
     // the "public" group (excludes internal paths)
     @Bean

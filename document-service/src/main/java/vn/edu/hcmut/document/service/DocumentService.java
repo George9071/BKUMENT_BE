@@ -5,7 +5,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.Arrays;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -43,6 +43,7 @@ import vn.edu.hcmut.document.repository.DocumentDownloadRepository;
 import vn.edu.hcmut.document.repository.DocumentRepository;
 import vn.edu.hcmut.document.repository.ResourceRepository;
 import vn.edu.hcmut.document.repository.httpclient.AiClient;
+import vn.edu.hcmut.document.repository.httpclient.ProfileClient;
 import vn.edu.hcmut.document.utils.StreamMultipartFile;
 
 @Slf4j
@@ -57,6 +58,7 @@ public class DocumentService {
 
     MinioService minioService;
     GraphSyncService graphSyncService;
+    ProfileClient profileClient;
     AiClient aiClient;
     DocumentAsyncService documentAsyncService;
 
@@ -178,7 +180,6 @@ public class DocumentService {
         document.setDownloadable(Boolean.TRUE.equals(request.getDownloadable()));
         document.setAssetId(request.getAssetId());
 
-        // Set ID fields for relationships
         document.setUniversityId(request.getUniversityId());
         document.setCourseId(request.getCourseId());
         if (request.getTopicId() != null) {
@@ -196,12 +197,10 @@ public class DocumentService {
         Document document =
                 documentRepository.findById(docId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
 
-        // Update Resource base fields
         resource.setTitle(request.getTitle());
         resource.setVisibility(request.getVisibility());
         resourceRepository.save(resource);
 
-        // Update Document specific fields
         document.setDescription(request.getDescription());
         document.setDocumentType(request.getDocumentType());
         document.setUniversity(request.getUniversity());
@@ -209,7 +208,6 @@ public class DocumentService {
         document.setSummary(request.getSummary());
         document.setDownloadable(Boolean.TRUE.equals(request.getDownloadable()));
 
-        // Update ID fields for relationships
         document.setUniversityId(request.getUniversityId());
         document.setCourseId(request.getCourseId());
         if (request.getTopicId() != null) {
@@ -236,10 +234,18 @@ public class DocumentService {
         String viewUrl =
                 gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/resource/download/asset/" + docId;
 
+        APIResponse<ProfileResponse> apiResponse = profileClient.findUserProfileById(document.getOwnerId());
+        ProfileResponse profile = apiResponse.getResult();
+        DocumentMetadataResponse.Author authorDto = DocumentMetadataResponse.Author.builder()
+                .id(profile.getId())
+                .name(profile.getFullName())
+                .avatarUrl(profile.getAvatarUrl())
+                .build();
+
         return DocumentMetadataResponse.builder()
                 .id(document.getId())
                 .title(resource.getTitle())
-                .authorId(document.getOwnerId())
+                .author(authorDto)
                 .documentType(document.getDocumentType())
                 .university(document.getUniversity())
                 .course(document.getCourse())
@@ -325,30 +331,50 @@ public class DocumentService {
     }
 
     public Page<RelatedDocumentsResponse> getRecommendedDocuments(String userId, Pageable pageable) {
-        int page = pageable.getPageNumber();
-        int size = pageable.getPageSize();
+        List<String> allDocIds = graphSyncService.getCollaborativeRecommendations(userId);
 
-        Collection<String> docIds = graphSyncService.getCollaborativeRecommendations(userId, page, size);
-        log.info("[Recommended] Số tài liệu gợi ý: {}", docIds.size());
-
-        if (docIds.isEmpty()) {
+        if (allDocIds.isEmpty()) {
             return Page.empty(pageable);
         }
 
-        List<Document> documents = documentRepository.findAllById(docIds);
+        List<Document> realDocuments = documentRepository.findAllById(allDocIds);
+        Map<String, Document> docMap = realDocuments.stream().collect(Collectors.toMap(Document::getId, d -> d));
 
-        Map<String, Document> docMap =
-                documents.stream().collect(Collectors.toMap(Document::getId, Function.identity()));
+        List<String> validIds = allDocIds.stream().filter(docMap::containsKey).toList();
 
-        List<RelatedDocumentsResponse> dtos = docIds.stream()
-                .filter(docMap::containsKey)
-                .map(docMap::get)
-                .map(this::toRelatedDocument)
+        int page = pageable.getPageNumber();
+        int size = pageable.getPageSize();
+        int start = Math.min(page * size, validIds.size());
+        int end = Math.min((page + 1) * size, validIds.size());
+
+        List<String> pagedIds = validIds.subList(start, end);
+
+        if (pagedIds.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, validIds.size());
+        }
+
+        List<String> ownerIds = pagedIds.stream()
+                .map(id -> docMap.get(id).getOwnerId())
+                .distinct()
                 .toList();
 
-        long estimatedTotal = (long) page * size + dtos.size() + (dtos.size() == size ? 1 : 0);
+        Map<String, ProfileResponse> profileMap = new HashMap<>();
+        for (String ownerId : ownerIds) {
+            APIResponse<ProfileResponse> res = profileClient.findUserProfileById(ownerId);
+            if (res.getResult() != null) {
+                profileMap.put(ownerId, res.getResult());
+            }
+        }
 
-        return new PageImpl<>(dtos, pageable, estimatedTotal);
+        List<RelatedDocumentsResponse> dtos = pagedIds.stream()
+                .map(id -> {
+                    Document doc = docMap.get(id);
+                    ProfileResponse profile = profileMap.get(doc.getOwnerId());
+                    return toRelatedDocument(doc, profile);
+                })
+                .toList();
+
+        return new PageImpl<>(dtos, pageable, validIds.size());
     }
 
     public Page<RelatedDocumentsResponse> getRelatedDocuments(String docId, Pageable pageable) {
@@ -381,22 +407,50 @@ public class DocumentService {
         Map<String, Document> docMap = documentRepository.findAllById(docIds).stream()
                 .collect(Collectors.toMap(Document::getId, Function.identity()));
 
+        List<String> ownerIds = docIds.stream()
+                .map(docMap::get)
+                .filter(doc -> doc != null)
+                .map(Document::getOwnerId)
+                .distinct()
+                .toList();
+
+        Map<String, ProfileResponse> profileMap = new HashMap<>();
+        for (String ownerId : ownerIds) {
+            APIResponse<ProfileResponse> res = profileClient.findUserProfileById(ownerId);
+            if (res.getResult() != null) {
+                profileMap.put(ownerId, res.getResult());
+            }
+        }
+
         List<RelatedDocumentsResponse> dtos = docIds.stream()
                 .map(docMap::get)
                 .filter(doc -> doc != null)
-                .map(this::toRelatedDocument)
+                .map(doc -> {
+                    ProfileResponse profile = profileMap.get(doc.getOwnerId());
+                    return toRelatedDocument(doc, profile);
+                })
                 .toList();
 
         return new PageImpl<>(dtos, pageable, docIdsPage.getTotalElements());
     }
 
-    private RelatedDocumentsResponse toRelatedDocument(Document document) {
+    private RelatedDocumentsResponse toRelatedDocument(Document document, ProfileResponse profile) {
         String downloadUrl = gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()
                 + "/resource/download/asset/" + document.getId();
+
+        RelatedDocumentsResponse.Author authorDto = null;
+        if (profile != null) {
+            authorDto = RelatedDocumentsResponse.Author.builder()
+                    .id(profile.getId())
+                    .name(profile.getFullName())
+                    .avatarUrl(profile.getAvatarUrl())
+                    .build();
+        }
+
         return RelatedDocumentsResponse.builder()
                 .id(document.getId())
                 .title(document.getTitle())
-                .authorId(document.getOwnerId())
+                .author(authorDto)
                 .documentType(document.getDocumentType())
                 .university(document.getUniversity())
                 .course(document.getCourse())

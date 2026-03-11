@@ -13,9 +13,20 @@ import lombok.experimental.FieldDefaults;
 public class BlogMetadataResponse {
     String id;
     String name;
-    String authorId;
+    Author author;
     String coverImage;
 
     String content;
     LocalDateTime createdAt;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @FieldDefaults(level = AccessLevel.PRIVATE)
+    public static class Author {
+        String id;
+        String name;
+        String avatarUrl;
+    }
 }

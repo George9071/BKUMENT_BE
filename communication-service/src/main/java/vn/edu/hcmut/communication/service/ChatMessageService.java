@@ -5,6 +5,9 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -48,8 +51,7 @@ public class ChatMessageService {
     ObjectMapper objectMapper;
     ChatMessageMapper chatMessageMapper;
 
-    public List<ChatMessageResponse> getMessages(String conversationId) {
-        // Validate conversationId
+    public Page<ChatMessageResponse> getMessages(String conversationId, Pageable pageable) {
         String userId = getProfileIdFromToken();
         conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND))
@@ -59,11 +61,11 @@ public class ChatMessageService {
                 .findAny()
                 .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
 
-        var messages = chatMessageRepository.findAllByConversationIdOrderByCreatedDateDesc(conversationId);
+        Page<ChatMessage> messagesPage = chatMessageRepository
+                .findAllByConversationIdOrderByCreatedDateDesc(conversationId, pageable);
 
-        return messages.stream().map(this::toChatMessageResponse).toList();
+        return messagesPage.map(this::toChatMessageResponse);
     }
-
 
     /**
      * Handles the flow of creating new messages in a conversation

@@ -38,3 +38,7 @@ gateway:
 # Swagger Configuration
 swagger:
   host-url: http://localhost:8085/blog
+
+app:
+  services:
+    profile: http://localhost:8081/profile

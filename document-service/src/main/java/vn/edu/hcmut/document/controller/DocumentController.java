@@ -71,27 +71,43 @@ public class DocumentController {
             @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
+
         Pageable pageable = PageRequest.of(page, size);
         Page<Document> documents = documentService.search(q, pageable);
 
-        Page<DocumentMetadataResponse> result = documents.map(doc -> DocumentMetadataResponse.builder()
-                .id(doc.getId())
-                .title(doc.getTitle())
-                .authorId(doc.getOwnerId())
-                .documentType(doc.getDocumentType())
-                .university(doc.getUniversity())
-                .course(doc.getCourse())
-                .description(doc.getDescription())
-                .downloadable(doc.isDownloadable())
-                .downloadUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/document/download/"
-                        + doc.getId())
-                .viewUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/resource/download/asset/"
-                        + doc.getAssetId())
-                .downloadCount(doc.getDownloadCount())
-                .previewImageUrl(doc.getPreviewImageUrl())
-                .createdAt(doc.getCreatedAt())
-                .summary(doc.getSummary())
-                .build());
+        Page<DocumentMetadataResponse> result = documents.map(doc -> {
+            APIResponse<ProfileResponse> apiResponse = profileClient.findUserProfileById(doc.getOwnerId());
+            ProfileResponse profile = apiResponse.getResult();
+            String authorId = getProfileIdFromToken();
+
+            DocumentMetadataResponse.Author authorDto = null;
+            if (profile != null) {
+                authorDto = DocumentMetadataResponse.Author.builder()
+                        .id(profile.getId())
+                        .name(profile.getFullName())
+                        .avatarUrl(profile.getAvatarUrl())
+                        .build();
+            }
+
+            return DocumentMetadataResponse.builder()
+                    .id(doc.getId())
+                    .title(doc.getTitle())
+                    .author(authorDto)
+                    .documentType(doc.getDocumentType())
+                    .university(doc.getUniversity())
+                    .course(doc.getCourse())
+                    .description(doc.getDescription())
+                    .downloadable(doc.isDownloadable())
+                    .downloadUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()
+                            + "/document/download/" + doc.getId())
+                    .viewUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()
+                            + "/resource/download/asset/" + doc.getAssetId())
+                    .downloadCount(doc.getDownloadCount())
+                    .previewImageUrl(doc.getPreviewImageUrl())
+                    .createdAt(doc.getCreatedAt())
+                    .summary(doc.getSummary())
+                    .build();
+        });
 
         return APIResponse.<Page<DocumentMetadataResponse>>builder()
                 .result(result)

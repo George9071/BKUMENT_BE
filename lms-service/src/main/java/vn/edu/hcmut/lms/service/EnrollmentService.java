@@ -31,6 +31,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
@@ -95,10 +96,10 @@ public class EnrollmentService {
                     .build();
         }
         enrollment = enrollmentRepository.save(enrollment);
-
-        // Sync to Neo4j Graph DB
-//        String topicId = classRoom.getTopic() != null ? classRoom.getTopic().getId() : null;
-//        graphSyncService.handleEnrollmentEvent(userId, classId, topicId);
+        
+        log.info("Before handleEnrollmentEvent....");
+        String topicId = classRoom.getTopic() != null ? classRoom.getTopic().getId() : null;
+        graphSyncService.handleEnrollmentEvent(userId, classId, topicId);
 
         return enrollmentMapper.toResponse(enrollment, userProfile);
     }
