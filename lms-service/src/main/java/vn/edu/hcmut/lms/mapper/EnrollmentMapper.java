@@ -22,6 +22,12 @@ public interface EnrollmentMapper {
     @Mapping(target = "enrolledAt", source = "enrollment.enrolledAt")
     EnrollmentResponse toResponse(Enrollment enrollment, ProfileResponse profile);
 
+    @Mapping(target = "studentId", source = "studentProfileId")
+    @Mapping(target = "studentName", ignore = true)
+    @Mapping(target = "studentEmail", ignore = true)
+    @Mapping(target = "studentAvatar", ignore = true)
+    EnrollmentResponse toResponse(Enrollment enrollment);
+
     default List<EnrollmentResponse> toResponseList(
             List<Enrollment> enrollments,
             Map<String, ProfileResponse> profileMap) {

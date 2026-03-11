@@ -7,18 +7,36 @@ import lombok.Getter;
 
 @Getter
 public enum ErrorCode {
-    UNCATEGORIZED_EXCEPTION(9999, "Uncategorized error", HttpStatus.INTERNAL_SERVER_ERROR),
-    INVALID_KEY(1001, "Uncategorized error", HttpStatus.BAD_REQUEST),
-    ACCOUNT_EXISTED(1002, "Account existed", HttpStatus.BAD_REQUEST),
-    //    USERNAME_INVALID(1003, "Username must be at least {min} characters", HttpStatus.BAD_REQUEST),
-    //    INVALID_PASSWORD(1004, "Password must be at least {min} characters", HttpStatus.BAD_REQUEST),
-    ACCOUNT_NOT_EXISTED(1005, "Account not existed", HttpStatus.NOT_FOUND),
-    UNAUTHENTICATED(1006, "Unauthenticated", HttpStatus.UNAUTHORIZED),
-    UNAUTHORIZED(1007, "You do not have permission", HttpStatus.FORBIDDEN),
-    //    INVALID_DOB(1008, "Your age must be at least {min}", HttpStatus.BAD_REQUEST),
 
-    UNIVERSITY_NOT_FOUND(9001, "University not found", HttpStatus.NOT_FOUND),
-    PROFILE_NOT_FOUND(9002, "Profile not found", HttpStatus.NOT_FOUND);
+    // ----------------------------------------------------------------------
+    // 1xxx: VALIDATION ERRORS
+    // ----------------------------------------------------------------------
+    INVALID_KEY(1001, "Invalid request parameter", HttpStatus.BAD_REQUEST),
+    REQUIRED_FIELD(1002, "This field is required and cannot be empty", HttpStatus.BAD_REQUEST),
+    INVALID_EMAIL(1003, "The email format is invalid", HttpStatus.BAD_REQUEST),
+    INVALID_PHONE(1004, "Phone number must be between 10 and 11 digits", HttpStatus.BAD_REQUEST),
+    INVALID_DOB(1005, "Date of birth must be a valid date in the past", HttpStatus.BAD_REQUEST),
+    BIO_LENGTH_INVALID(1006, "Bio length must not exceed {max} characters", HttpStatus.BAD_REQUEST),
+
+    // ----------------------------------------------------------------------
+    // 2xxx: AUTHENTICATION and AUTHORIZATION
+    // ----------------------------------------------------------------------
+    UNAUTHENTICATED(2001, "Unauthenticated access. Please log in", HttpStatus.UNAUTHORIZED),
+    ACCESS_DENIED(2002, "You do not have permission to access this resource", HttpStatus.FORBIDDEN),
+
+    // ----------------------------------------------------------------------
+    // 3xxx: PROFILE BUSINESS LOGIC
+    // ----------------------------------------------------------------------
+    ACCOUNT_ALREADY_EXISTS(3001, "Account already exists", HttpStatus.BAD_REQUEST), // Fixed grammar
+    ACCOUNT_NOT_FOUND(3002, "Account not found", HttpStatus.NOT_FOUND), // Fixed grammar
+    UNIVERSITY_NOT_FOUND(3003, "University not found", HttpStatus.NOT_FOUND),
+    PROFILE_NOT_FOUND(3004, "Profile not found", HttpStatus.NOT_FOUND),
+    CANNOT_FOLLOW_YOURSELF(3005, "Profile not found", HttpStatus.BAD_REQUEST),
+
+    // ----------------------------------------------------------------------
+    // 9xxx: SYSTEM ERRORS
+    // ----------------------------------------------------------------------
+    UNCATEGORIZED_EXCEPTION(9999, "Uncategorized system error", HttpStatus.INTERNAL_SERVER_ERROR);
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {
         this.code = code;

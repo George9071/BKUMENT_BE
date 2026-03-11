@@ -14,20 +14,11 @@ import vn.edu.hcmut.lms.service.EnrollmentService;
 public class EnrollmentController {
     EnrollmentService enrollmentService;
 
-    @PutMapping("/{enrollmentId}/approval")
+    @PatchMapping("/{enrollmentId}/approval")
     APIResponse<String> approveEnrollment(@PathVariable String enrollmentId, @RequestParam boolean approved) {
         enrollmentService.approveEnrollment(enrollmentId, approved);
         return APIResponse.<String>builder()
                 .result(approved ? "Enrollment approved" : "Enrollment rejected")
-                .build();
-    }
-
-    // Gia sư xóa học viên khỏi lớp (Kick)
-    @DeleteMapping("/{enrollmentId}")
-    APIResponse<String> removeStudent(@PathVariable String enrollmentId) {
-        enrollmentService.removeStudent(enrollmentId);
-        return APIResponse.<String>builder()
-                .result("Student removed from class")
                 .build();
     }
 }

@@ -7,24 +7,74 @@ import org.springframework.web.bind.annotation.*;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import vn.edu.hcmut.profile.dto.sync.SubjectSyncRequest;
-import vn.edu.hcmut.profile.dto.sync.TopicSyncRequest;
+import lombok.extern.slf4j.Slf4j;
+import vn.edu.hcmut.profile.dto.sync.*;
 import vn.edu.hcmut.profile.service.SyncService;
 
 @RestController
 @RequestMapping("/internal/metadata")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@Slf4j
 public class InternalSyncController {
     SyncService syncService;
 
+    /**
+     * Synchronizes the list of Subjects into the system.
+     * Usually called once when the system is initialized or when there is a large data set that needs patching.
+     *
+     * @param requests  List of subject data to be synchronized.
+     */
     @PostMapping("/subjects")
     public void syncSubjects(@RequestBody List<SubjectSyncRequest> requests) {
         syncService.syncSubjects(requests);
+        log.info("Successfully synced {} subjects.", requests.size());
     }
 
+    /**
+     * Synchronize the list of Topics and associate them with their corresponding Subjects.
+     * NOTE: Ensure the syncSubjects API is running beforehand to avoid the Topic not finding its parent Subject.
+     *
+     * @param requests  List of topic data to synchronize.
+     */
     @PostMapping("/topics")
     public void syncTopics(@RequestBody List<TopicSyncRequest> requests) {
         syncService.syncTopics(requests);
+        log.info("Successfully synced {} topics.", requests.size());
+    }
+
+    @PostMapping("/tutor-subjects")
+    public void syncTutorSubjects(@RequestBody List<TutorSubjectSyncRequest> requests) {
+        syncService.syncTutorSubjects(requests);
+    }
+
+    @PostMapping("/classroom")
+    public void syncClassroom(@RequestBody ClassRoomSyncRequest request) {
+        syncService.syncClass(request);
+    }
+
+    @PostMapping("/classrooms/batch")
+    public void syncClasses(@RequestBody List<ClassRoomSyncRequest> requests) {
+        syncService.syncClasses(requests);
+    }
+
+    @PostMapping("/enrollments/batch")
+    public void syncAllEnrollments(@RequestBody List<EnrollmentSyncRequest> requests) {
+        syncService.syncAllEnrollments(requests);
+    }
+
+    @PostMapping("/enrollments")
+    public void addEnrollment(@RequestBody EnrollmentSyncRequest request) {
+        syncService.addEnrollment(request);
+    }
+
+    @DeleteMapping("/enrollments/students/{studentId}/classes/{classId}")
+    public void removeEnrollment(@PathVariable("studentId") String studentId, @PathVariable("classId") String classId) {
+        syncService.removeEnrollment(studentId, classId);
+    }
+
+    @DeleteMapping("/classrooms/{classId}")
+    public void deleteClassRoom(@PathVariable("classId") String classId) {
+        syncService.deleteClassRoom(classId);
     }
 }

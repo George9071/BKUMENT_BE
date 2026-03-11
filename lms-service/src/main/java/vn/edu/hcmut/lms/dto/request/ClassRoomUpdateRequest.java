@@ -2,6 +2,7 @@ package vn.edu.hcmut.lms.dto.request;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import vn.edu.hcmut.lms.constant.ClassStatus;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -15,19 +16,27 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ClassRoomUpdateRequest {
     String name;
+
     String description;
+
     LocalDate startDate;
+
     LocalDate endDate;
+
     String topicId;
 
-    List<ClassRoomCreationRequest.ScheduleRequest> schedules;
+    ClassStatus status;
+
+    List<ScheduleRequest> schedules;
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ScheduleRequest {
         DayOfWeek dayOfWeek; // MONDAY, TUESDAY...
+
         LocalTime startTime; // 19:00:00
+
         LocalTime endTime;   // 21:00:00
     }
 }

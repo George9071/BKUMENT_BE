@@ -6,25 +6,37 @@ import org.springframework.http.HttpStatusCode;
 
 @Getter
 public enum ErrorCode {
+    // ==========================================
+    // SYSTEM & AUTHENTICATION (1000 - 1999)
+    // ==========================================
     UNCATEGORIZED_EXCEPTION(9999, "Uncategorized error", HttpStatus.INTERNAL_SERVER_ERROR),
-    TUTOR_ALREADY_REGISTERED(1001, "User is already a tutor", HttpStatus.BAD_REQUEST),
-    PROFILE_NOT_FOUND(1002, "Profile not found", HttpStatus.NOT_FOUND),
-    UNAUTHENTICATED(1003, "Unauthenticated", HttpStatus.UNAUTHORIZED),
-    INVALID_TOKEN_CLAIMS(9001, "Invalid token", HttpStatus.UNAUTHORIZED),
-    TUTOR_NOT_FOUND(9002, "Tutor not found", HttpStatus.NOT_FOUND),
-    CLASS_NOT_FOUND(9003, "Class not found", HttpStatus.NOT_FOUND),
-    TOPIC_NOT_FOUND(9004, "Topic not found", HttpStatus.NOT_FOUND),
-    UNAUTHORIZED_ACTION(9005, "unauthorized action", HttpStatus.UNAUTHORIZED),
-    CLASS_NOT_AVAILABLE(9006, "class not available", HttpStatus.BAD_REQUEST),
-    ALREADY_ENROLLED(9007, "you already enrolled this class", HttpStatus.BAD_REQUEST),
-    CANNOT_ENROLL_OWN_CLASS(9008, "you cannot enroll your own class", HttpStatus.BAD_REQUEST),
-    ENROLLMENT_NOT_FOUND(9009, "enrollment not found", HttpStatus.NOT_FOUND),
-    SYNC_FAILED(9998, "An error occurred during the synchronization process", HttpStatus.INTERNAL_SERVER_ERROR),
-    SCHEDULE_CONFLICT(9010, "Schedule conflict", HttpStatus.BAD_REQUEST),
-    UNAUTHORIZED(1007, "You do not have permission", HttpStatus.FORBIDDEN),
-    INVALID_KEY(1001, "Uncategorized error", HttpStatus.BAD_REQUEST),
-    UNAUTHORIZED_ACCESS(9011, "you are not the owner of this class", HttpStatus.FORBIDDEN),
-    ENROLLMENT_PENDING(9012, "you already request for this class, please wait for the response of the owner of this class", HttpStatus.BAD_REQUEST),
+    INVALID_KEY(1001, "Invalid message key", HttpStatus.BAD_REQUEST),
+    INVALID_FORMAT(1002, "Invalid input format", HttpStatus.BAD_REQUEST),
+    REQUIRED_FIELD(1003, "This field is required", HttpStatus.BAD_REQUEST),
+    UNAUTHENTICATED(1004, "Unauthenticated", HttpStatus.UNAUTHORIZED),
+    INVALID_TOKEN_CLAIMS(1005, "Invalid token", HttpStatus.UNAUTHORIZED),
+    ACCESS_DENIED(1006, "You do not have permission to perform this action", HttpStatus.FORBIDDEN),
+    SYNC_FAILED(1007, "An error occurred during the synchronization process", HttpStatus.INTERNAL_SERVER_ERROR),
+
+    // ==========================================
+    // ENTITY NOT FOUND (2000 - 2999)
+    // ==========================================
+    PROFILE_NOT_FOUND(2001, "Profile not found", HttpStatus.NOT_FOUND),
+    TUTOR_NOT_FOUND(2002, "Tutor not found", HttpStatus.NOT_FOUND),
+    CLASS_NOT_FOUND(2003, "Class not found", HttpStatus.NOT_FOUND),
+    TOPIC_NOT_FOUND(2004, "Topic not found", HttpStatus.NOT_FOUND),
+    ENROLLMENT_NOT_FOUND(2005, "Enrollment not found", HttpStatus.NOT_FOUND),
+
+    // ==========================================
+    // BUSINESS LOGIC & CONFLICTS (3000 - 3999)
+    // ==========================================
+    TUTOR_ALREADY_REGISTERED(3001, "User is already a tutor", HttpStatus.BAD_REQUEST),
+    CLASS_NOT_AVAILABLE(3002, "Class is not available for enrollment", HttpStatus.BAD_REQUEST),
+    ALREADY_ENROLLED(3003, "You have already enrolled in this class", HttpStatus.BAD_REQUEST),
+    CANNOT_ENROLL_OWN_CLASS(3004, "You cannot enroll in your own class", HttpStatus.BAD_REQUEST),
+    ENROLLMENT_PENDING(3005, "Your enrollment request is still pending approval", HttpStatus.BAD_REQUEST),
+    SCHEDULE_CONFLICT(3006, "Schedule conflict detected", HttpStatus.BAD_REQUEST),
+    ENROLLMENT_COOLDOWN(3006, "You were previously denied entry to this class; try again in 1 day.", HttpStatus.BAD_REQUEST)
     ;
 
     private final int code;

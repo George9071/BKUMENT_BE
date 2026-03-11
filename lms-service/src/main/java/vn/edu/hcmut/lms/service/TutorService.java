@@ -4,12 +4,16 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.hcmut.lms.dto.request.TutorRegistrationRequest;
 import vn.edu.hcmut.lms.dto.request.TutorUpdateRequest;
+import vn.edu.hcmut.lms.dto.response.PageResponse;
 import vn.edu.hcmut.lms.dto.response.SubjectResponse;
 import vn.edu.hcmut.lms.dto.response.TutorResponse;
 import vn.edu.hcmut.lms.entity.Subject;
@@ -26,7 +30,6 @@ import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -40,7 +43,12 @@ public class TutorService {
     ProfileClient profileClient;
     IdentityClient identityClient;
 
-    @Transactional
+    /**
+     * Register to become a tutor.
+     * WARNING: calling multiple FeignClients in one Transaction.
+     * Consider Message Queue / Saga Pattern for the future
+     */
+    @Transactional(rollbackFor = Exception.class)
     public TutorResponse registerTutor(TutorRegistrationRequest request) {
         String profileId = getProfileIdFromToken();
         if (tutorRepository.existsById(profileId)) {
@@ -73,7 +81,7 @@ public class TutorService {
         return tutorMapper.toResponse(tutor);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public TutorResponse updateTutorProfile(TutorUpdateRequest request) {
         String profileId = getProfileIdFromToken();
 
@@ -95,27 +103,84 @@ public class TutorService {
         return tutorMapper.toResponse(tutor);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteTutor(String profileId) {
         if (tutorRepository.existsById(profileId)) {
-            // REMOVE CLASSROOM
             tutorRepository.deleteById(profileId);
             log.info("Deleted Tutor profile for id: {}", profileId);
+
+            try {
+                var profile = profileClient.getProfile(profileId).getResult();
+
+                if (profile != null && profile.getAccountId() != null) {
+                    String accountId = profile.getAccountId();
+                    identityClient.removeRole(accountId, "TUTOR");
+                } else {
+                    log.warn("Could not find accountId for profile: {}", profileId);
+                    throw new AppException(ErrorCode.PROFILE_NOT_FOUND);
+                }
+                profileClient.removeRole(profileId, "TUTOR");
+
+            } catch (Exception e) {
+                log.error("Failed to remove tutor role for user {} in external services", profileId, e);
+                throw new AppException(ErrorCode.SYNC_FAILED);
+            }
         }
     }
 
-    public List<TutorResponse> getTutors(String subjectId) {
-        List<Tutor> tutors;
+    public PageResponse<TutorResponse> getTutors(String subjectId, int page, int size) {
+        Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
+        Page<Tutor> tutors;
 
-        if (subjectId != null && !subjectId.isBlank()) {
-            tutors = tutorRepository.findBySubjectId(subjectId);
-        } else {
-            tutors = tutorRepository.findByStatus("ACTIVE");
-        }
+        if (subjectId != null && !subjectId.isBlank()) tutors = tutorRepository.findBySubjectId(subjectId, pageable);
+        else tutors = tutorRepository.findByStatus("ACTIVE", pageable);
 
-        return tutors.stream()
+        List<TutorResponse> responses = tutors.getContent().stream()
                 .map(tutorMapper::toResponse)
                 .toList();
+
+        return PageResponse.<TutorResponse>builder()
+                .currentPage(page)
+                .totalPages(tutors.getTotalPages())
+                .pageSize(tutors.getSize())
+                .totalElements(tutors.getTotalElements())
+                .data(responses)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<SubjectResponse> getTutorSubjects(int page, int size) {
+        String id = getProfileIdFromToken();
+        Tutor tutor = tutorRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.TUTOR_NOT_FOUND));
+
+        Set<String> subjectIds = tutor.getSubjectIds();
+
+        if (subjectIds == null || subjectIds.isEmpty()) {
+            return PageResponse.<SubjectResponse>builder()
+                    .currentPage(page)
+                    .totalPages(0)
+                    .pageSize(size)
+                    .totalElements(0L)
+                    .data(new ArrayList<>())
+                    .build();
+        }
+
+        Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
+
+        Page<Subject> subjectPage = subjectRepository.findByIdIn(subjectIds, pageable);
+
+        List<SubjectResponse> responses = subjectPage.getContent().stream()
+                .map(subjectMapper::toSubjectResponse)
+                .toList();
+
+        return PageResponse.<SubjectResponse>builder()
+                .currentPage(page)
+                .totalPages(subjectPage.getTotalPages())
+                .pageSize(subjectPage.getSize())
+                .totalElements(subjectPage.getTotalElements())
+                .data(responses)
+                .build();
     }
 
     public TutorResponse getMyTutorProfile() {
@@ -157,24 +222,5 @@ public class TutorService {
             return jwt.getSubject();
         }
         throw new AppException(ErrorCode.UNAUTHENTICATED);
-    }
-
-    @Transactional(readOnly = true)
-    public List<SubjectResponse> getTutorSubjects() {
-        String id = getProfileIdFromToken();
-        Tutor tutor = tutorRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.TUTOR_NOT_FOUND));
-
-        Set<String> subjectIds = tutor.getSubjectIds();
-
-        if (subjectIds == null || subjectIds.isEmpty()) {
-            return new ArrayList<>();
-        }
-
-        List<Subject> subjects = subjectRepository.findAllById(subjectIds);
-
-        return subjects.stream()
-                .map(subjectMapper::toSubjectResponse)
-                .collect(Collectors.toList());
     }
 }

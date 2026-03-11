@@ -4,7 +4,9 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -12,7 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.edu.hcmut.lms.constant.ClassStatus;
 import vn.edu.hcmut.lms.constant.EnrollmentStatus;
 import vn.edu.hcmut.lms.dto.response.EnrollmentResponse;
+import vn.edu.hcmut.lms.dto.response.PageResponse;
 import vn.edu.hcmut.lms.dto.response.ProfileResponse;
+import vn.edu.hcmut.lms.dto.sync.EnrollmentSyncRequest;
 import vn.edu.hcmut.lms.entity.ClassRoom;
 import vn.edu.hcmut.lms.entity.Enrollment;
 import vn.edu.hcmut.lms.exception.*;
@@ -30,6 +34,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@Slf4j
 public class EnrollmentService {
 
     ValidationService validationService;
@@ -39,6 +44,9 @@ public class EnrollmentService {
     ProfileClient profileClient;
     EnrollmentMapper enrollmentMapper;
 
+    /**
+     * Student enrolls in a class. Handles re-enrolling for rejected requests.
+     */
     @Transactional
     public EnrollmentResponse enrollClass(String classId) {
         String userId = getProfileIdFromToken();
@@ -70,6 +78,12 @@ public class EnrollmentService {
                 throw new AppException(ErrorCode.ENROLLMENT_PENDING);
             }
             if (enrollment.getStatus() == EnrollmentStatus.REJECTED) {
+
+                // avoid spamming
+                if (enrollment.getEnrolledAt().plusDays(1).isAfter(LocalDateTime.now())) {
+                    throw new AppException(ErrorCode.ENROLLMENT_COOLDOWN); // "Vui lòng thử lại sau 7 ngày"
+                }
+
                 enrollment.setStatus(EnrollmentStatus.PENDING);
                 enrollment.setEnrolledAt(LocalDateTime.now());
             }
@@ -90,6 +104,9 @@ public class EnrollmentService {
         return enrollmentMapper.toResponse(enrollment, userProfile);
     }
 
+    /**
+     * Tutor approves or rejects an enrollment request.
+     */
     @Transactional
     public void approveEnrollment(String enrollmentId, boolean isApproved) {
         String tutorId = getProfileIdFromToken();
@@ -98,63 +115,104 @@ public class EnrollmentService {
                 .orElseThrow(() -> new AppException(ErrorCode.ENROLLMENT_NOT_FOUND));
 
         if (!enrollment.getClassRoom().getTutor().getId().equals(tutorId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED_ACTION);
+            throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
-        enrollment.setStatus(isApproved ? EnrollmentStatus.APPROVED : EnrollmentStatus.REJECTED);
-        enrollmentRepository.save(enrollment);
+        if (isApproved) {
+            enrollment.setStatus(EnrollmentStatus.APPROVED);
+            enrollmentRepository.save(enrollment);
+
+            try {
+                EnrollmentSyncRequest sync = EnrollmentSyncRequest.builder()
+                        .studentId(enrollment.getStudentProfileId())
+                        .classId(enrollment.getClassRoom().getId())
+                        .build();
+                profileClient.addEnrollment(sync);
+            } catch (Exception e) {
+                log.error("Failed to sync new enrollment to Neo4j. Student: {}, Class: {}",
+                        enrollment.getStudentProfileId(),
+                        enrollment.getClassRoom().getId(), e);
+
+                throw new AppException(ErrorCode.SYNC_FAILED);
+            }
+        } else {
+            enrollment.setStatus(EnrollmentStatus.REJECTED);
+        }
     }
 
-    public List<EnrollmentResponse> getPendingRequestsOfClass(String classId) {
+    public PageResponse<EnrollmentResponse> getPendingRequestsOfClass(String classId, int page, int size) {
         String currentUserId = getProfileIdFromToken();
 
         ClassRoom classRoom = classRoomRepository.findById(classId)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
 
         if (!classRoom.getTutor().getId().equals(currentUserId))
-            throw new AppException(ErrorCode.UNAUTHORIZED_ACCESS);
+            throw new AppException(ErrorCode.ACCESS_DENIED);
 
-        List<Enrollment> enrollments =
-                enrollmentRepository.findByClassRoomIdAndStatus(classId, EnrollmentStatus.PENDING);
+        Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
 
-        if (enrollments.isEmpty()) return Collections.emptyList();
+        Page<Enrollment> enrollments =
+                enrollmentRepository.findByClassRoomIdAndStatus(classId, EnrollmentStatus.PENDING, pageable);
 
-        return toEnrollmentResponses(enrollments);
+        List<EnrollmentResponse> responses = toEnrollmentResponses(enrollments.getContent());
+
+        return PageResponse.<EnrollmentResponse>builder()
+                .currentPage(page)
+                .totalPages(enrollments.getTotalPages())
+                .pageSize(enrollments.getSize())
+                .totalElements(enrollments.getTotalElements())
+                .data(responses)
+                .build();
     }
 
-    public List<EnrollmentResponse> getClassMembers(String classId) {
-        List<Enrollment> enrollments =
-                enrollmentRepository.findByClassRoomIdAndStatus(classId, EnrollmentStatus.APPROVED);
+    public PageResponse<EnrollmentResponse> getClassMembers(String classId, int page, int size) {
+        Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
 
-        if (enrollments.isEmpty()) return new ArrayList<>();
+        Page<Enrollment> enrollments =
+                enrollmentRepository.findByClassRoomIdAndStatus(classId, EnrollmentStatus.APPROVED, pageable);
 
-        return toEnrollmentResponses(enrollments);
-    }
+        List<EnrollmentResponse> responses = toEnrollmentResponses(enrollments.getContent());
 
-    @Transactional
-    public void removeStudent(String enrollmentId) {
-        String tutorId = getProfileIdFromToken();
-
-        Enrollment enrollment = enrollmentRepository.findById(enrollmentId)
-                .orElseThrow(() -> new AppException(ErrorCode.ENROLLMENT_NOT_FOUND));
-
-        if (!enrollment.getClassRoom().getTutor().getId().equals(tutorId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED_ACTION);
-        }
-
-        enrollmentRepository.delete(enrollment);
+        return PageResponse.<EnrollmentResponse>builder()
+                .currentPage(page)
+                .totalPages(enrollments.getTotalPages())
+                .pageSize(enrollments.getSize())
+                .totalElements(enrollments.getTotalElements())
+                .data(responses)
+                .build();
     }
 
     // --- Helper Methods ---
     private String getProfileIdFromToken() {
-        var jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        return jwt.getClaimAsString("profile_id");
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null ||
+                !authentication.isAuthenticated() ||
+                authentication.getPrincipal().equals("anonymousUser")) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        if (authentication.getPrincipal() instanceof Jwt jwt) {
+            String profileId = jwt.getClaimAsString("profile_id");
+
+            if (profileId == null) {
+                throw new AppException(ErrorCode.INVALID_TOKEN_CLAIMS);
+            }
+            return profileId;
+        }
+
+        throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
 
+    /**
+     * Batch retrieves student profiles.
+     */
     private List<EnrollmentResponse> toEnrollmentResponses(List<Enrollment> enrollments) {
         Set<String> studentIds = enrollments.stream()
                 .map(Enrollment::getStudentProfileId)
                 .collect(Collectors.toSet());
+
+        if (studentIds.isEmpty()) return new ArrayList<>();
 
         var profiles = profileClient.getProfiles(new ArrayList<>(studentIds)).getResult();
 

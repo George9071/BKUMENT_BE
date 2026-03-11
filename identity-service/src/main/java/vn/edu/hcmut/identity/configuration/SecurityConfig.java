@@ -23,12 +23,28 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import vn.edu.hcmut.identity.converter.CustomJwtGrantedAuthoritiesConverter;
 
+/**
+ * Main security configuration class for the application.
+ * Defines authentication, authorization rules, CORS, and JWT decoding mechanisms.
+ */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private static final String[] PUBLIC_ENDPOINTS = {"/auth/**", "/accounts/registration"};
+    private static final String[] PUBLIC_ENDPOINTS = {
+            "/auth/**",
+            "/accounts/registration"
+    };
+
+    private static final String[] PUBLIC_RESOURCES = {
+            "/swagger-ui/**",
+            "/v3/api-docs/**",
+            "/api-docs/**",
+            "/swagger-ui.html",
+            "/actuator/health",
+            "/internal/**" // internal microservice-to-microservice communication
+    };
 
     private final CustomJwtDecoder customJwtDecoder;
 
@@ -45,73 +61,74 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity
-                .cors(Customizer.withDefaults()) // Uses the corsConfigurationSource bean defined below
+                // CORS configuration source bean defined below
+                .cors(Customizer.withDefaults())
+
+                // Disable CSRF as using stateless JWT authentication
                 .csrf(AbstractHttpConfigurer::disable)
 
-                // Define authorization rules for incoming HTTP requests
+                // Define authorization rules
                 .authorizeHttpRequests(request -> request
-                        // Allow OPTIONS requests for preflight CORS checks
-                        .requestMatchers(HttpMethod.OPTIONS, PUBLIC_ENDPOINTS)
-                        .permitAll()
+                        // Allow OPTIONS requests for preflight CORS checks and specific POST requests
+                        .requestMatchers(HttpMethod.OPTIONS, PUBLIC_ENDPOINTS).permitAll()
+                        .requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS).permitAll()
 
-                        // Allow POST requests for authentication-related endpoints
-                        .requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS)
-                        .permitAll()
-
-                        // Allow unauthenticated access to certain public routes
-                        .requestMatchers("/swagger-ui/**")
-                        .permitAll()
-                        .requestMatchers("/v3/api-docs/**")
-                        .permitAll()
-                        .requestMatchers("/api-docs/**")
-                        .permitAll()
-                        .requestMatchers("/swagger-ui.html")
-                        .permitAll()
-                        .requestMatchers("/actuator/health")
-                        .permitAll()
-                        .requestMatchers("/internal/**")
-                        .permitAll()
+                        // Allow swagger documentation, actuator health checks, and internal API calls
+                        .requestMatchers(PUBLIC_RESOURCES).permitAll()
 
                         // All other endpoints require authentication
-                        .anyRequest()
-                        .authenticated())
+                        .anyRequest().authenticated())
 
-                // Configure JWT-based OAuth2 Resource Server authentication
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
-                                jwt.decoder(customJwtDecoder).jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                // Configure OAuth2 Resource Server to use custom JWT decoder and converter
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
+                                .decoder(customJwtDecoder)
+                                .jwtAuthenticationConverter(jwtAuthenticationConverter()))
 
-                        // Define custom entry point for unauthorized access handling
-                        .authenticationEntryPoint(new JwtAuthenticationEntryPoint()));
+                        // Handle unauthenticated access exceptions with custom JSON response
+                        .authenticationEntryPoint(new JwtAuthenticationEntryPoint())
+                );
+
         return httpSecurity.build();
     }
 
-    // --- NEW CORS CONFIGURATION BEAN ---
+    /**
+     * Global CORS configuration.
+     * Tells the browser which domains, methods, and headers are allowed to interact with this API.
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // 1. Add specific allowed origins
-        configuration.setAllowedOrigins(Arrays.asList(
+        configuration.setAllowedOriginPatterns(Arrays.asList(
                 "http://localhost:3000",
-                "https://bkument-fe-git-main-khoale2k4s-projects.vercel.app" // Removed trailing slash for exact Origin
-                // match
-                ));
+                "https://bkument-fe-*-khoale2k4s-projects.vercel.app",
+                "https://bkument-fe-git-main-khoale2k4s-projects.vercel.app"
+        ));
 
-        // 2. Add allowed methods (GET, POST, etc.)
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
+        // Specify allowed methods
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
 
-        // 3. Add allowed headers
-        configuration.setAllowedHeaders(List.of("*")); // Or specific headers like "Authorization", "Content-Type"
+        // Allow all headers from the client side
+        configuration.setAllowedHeaders(List.of("*"));
 
-        // 4. Allow credentials (cookies/auth headers) if needed
+        configuration.setExposedHeaders(List.of("X-Total-Count", "Authorization"));
+
+        // Allow credentials (cookies, authorization headers)
         configuration.setAllowCredentials(true);
 
+        // Cache the results of the OPTIONS (preflight) request
+        configuration.setMaxAge(3600L);
+
+        // Register this configuration for all application paths
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
-    // -----------------------------------
 
+    /**
+     * Configures the JWT to GrantedAuthority converter.
+     * This maps the "scope" or "role" claims inside the JWT payload into Spring Security Authorities.
+     */
     @Bean
     JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();

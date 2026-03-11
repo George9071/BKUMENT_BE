@@ -41,9 +41,18 @@ public class InternalProfileController {
                 .build();
     }
 
-    @PutMapping("/{id}/tutor-register")
-    void addRole(@PathVariable String id, @RequestBody String role) {
-        profileService.addRole(id, role);
+    @PutMapping("/{profileId}/roles/{roleName}")
+    void addRole(
+            @PathVariable("profileId") String profileId,
+            @PathVariable("roleName") String role) {
+        profileService.addRole(profileId, role);
+    }
+
+    @DeleteMapping("/{profileId}/roles/{roleName}")
+    public void removeRole(
+            @PathVariable("profileId") String profileId,
+            @PathVariable("roleName") String role) {
+        profileService.removeRole(profileId, role);
     }
 
     @PostMapping("/batch")

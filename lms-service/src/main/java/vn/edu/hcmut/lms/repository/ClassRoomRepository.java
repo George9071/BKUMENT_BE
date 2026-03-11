@@ -1,5 +1,7 @@
 package vn.edu.hcmut.lms.repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -9,11 +11,18 @@ import vn.edu.hcmut.lms.constant.LearningFormat;
 import vn.edu.hcmut.lms.entity.ClassRoom;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
-    List<ClassRoom> findByTutorId(String id);
+    /**
+     * Retrieves a paginated list of classes managed by a specific tutor.
+     */
+    Page<ClassRoom> findByTutorId(String tutorId, Pageable pageable);
 
+    /**
+     * Retrieves all active classes (e.g., ENROLLING, ONGOING) for a specific tutor.
+     */
     @Query("""
         SELECT c FROM ClassRoom c\s
         WHERE c.tutor.id = :tutorId\s
@@ -24,14 +33,18 @@ public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
             @Param("statuses") List<ClassStatus> statuses
     );
 
+    /**
+     * Searches for available enrolling classes with dynamic filters.
+     */
     @Query("SELECT c FROM ClassRoom c " +
-            "JOIN c.topic t " +
-            "JOIN t.subject s " +
+            "JOIN FETCH c.tutor tu " +
+            "LEFT JOIN c.topic t " +
+            "LEFT JOIN t.subject s " +
             "WHERE " +
             "(:subjectName IS NULL OR LOWER(FUNCTION('unaccent', s.name)) LIKE :subjectName) AND " +
             "(:topicName IS NULL OR LOWER(FUNCTION('unaccent', t.name)) LIKE :topicName) AND " +
             "(:format IS NULL OR c.format = :format) AND " +
-            "(:keyword IS NULL OR LOWER(FUNCTION('unaccent', c.name)) LIKE :keyword OR LOWER(FUNCTION('unaccent', c.tutor.name)) LIKE :keyword) AND " +
+            "(:keyword IS NULL OR LOWER(FUNCTION('unaccent', c.name)) LIKE :keyword OR LOWER(FUNCTION('unaccent', tu.name)) LIKE :keyword) AND " +
             "c.status = 'ENROLLING'")
     List<ClassRoom> searchAvailableClasses(
             @Param("subjectName") String subjectName,
@@ -40,4 +53,11 @@ public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
             @Param("keyword") String keyword
     );
 
+    @Query("SELECT c FROM ClassRoom c " +
+            "JOIN FETCH c.tutor " +
+            "LEFT JOIN FETCH c.topic t " +
+            "LEFT JOIN FETCH t.subject s " +
+            "LEFT JOIN FETCH c.schedules " +
+            "WHERE c.id = :classId")
+    Optional<ClassRoom> findClassRoomById(@Param("classId") String classId);
 }

@@ -10,8 +10,9 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 @Configuration
-@EnableTransactionManagement
+@EnableTransactionManagement // Enables annotation-driven transaction management capability (e.g., @Transactional)
 public class JpaConfig {
+    // The default name Spring Boot looks for when managing transactions.
     @Bean(name = "transactionManager")
     @Primary
     public PlatformTransactionManager transactionManager(EntityManagerFactory entityManagerFactory) {

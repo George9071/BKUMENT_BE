@@ -7,30 +7,39 @@ import org.springframework.lang.NonNull;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.util.StringUtils;
 
-public class CustomJwtGrantedAuthoritiesConverter implements Converter<Jwt, Collection<GrantedAuthority>> {
+/**
+ * Custom converter to extract authorities (privileges and roles) from a JWT token.
+ * It maps custom claims ("privilege" and "scope") into Spring Security's GrantedAuthority objects.
+ */
+public class CustomJwtGrantedAuthoritiesConverter
+        implements Converter<Jwt, Collection<GrantedAuthority>> {
+
+    // Standard Spring Security role prefix
+    private static final String ROLE_PREFIX = "ROLE_";
+
     @Override
     public @NonNull Collection<GrantedAuthority> convert(Jwt jwt) {
         Set<GrantedAuthority> authorities = new HashSet<>();
 
-        // 1. "privilege" claim -> action authorities
-        Object privilegeClaim = jwt.getClaim("privilege");
-        if (privilegeClaim instanceof String privilege) {
-            Arrays.stream(privilege.split(" ")) // Split by spaces
-                    .map(String::trim) // Remove extra whitespace
-                    .filter(s -> !s.isEmpty()) // Ignore empty strings
-                    .map(SimpleGrantedAuthority::new) // Convert to GrantedAuthority
-                    .forEach(authorities::add); // Add to the authority set
+        // "privilege" claim (e.g., "READ_CLASS WRITE_CLASS") -> Action-based authorities
+        String privileges = jwt.getClaimAsString("privilege");
+
+        if (StringUtils.hasText(privileges)){
+            // Split by one or more whitespace characters ("\\s+") to handle accidental double spaces
+            Arrays.stream(privileges.split("\\s+"))
+                    .map(SimpleGrantedAuthority::new)
+                    .forEach(authorities::add);
         }
 
-        // 2. "scope" claim → role-based authorities ("ADMIN" → [ROLE_ADMIN])
-        Object scopeClaim = jwt.getClaim("scope");
-        if (scopeClaim instanceof String scope) {
-            Arrays.stream(scope.split(" "))
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .map(role -> "ROLE_" + role)
-                    .map(SimpleGrantedAuthority::new)
+        // "scope" claim (e.g., "TUTOR USER") -> Role-based authorities
+        String scopes = jwt.getClaimAsString("scope");
+
+        if (StringUtils.hasText(scopes)) {
+            Arrays.stream(scopes.split("\\s+"))
+                    // Prefix with "ROLE_" and convert to uppercase to strictly follow Spring Security conventions
+                    .map(role -> new SimpleGrantedAuthority(ROLE_PREFIX + role.toUpperCase()))
                     .forEach(authorities::add);
         }
 
