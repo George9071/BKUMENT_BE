@@ -5,6 +5,10 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,6 +25,8 @@ import vn.edu.hcmut.blog.dto.request.BlogMetadataRequest;
 import vn.edu.hcmut.blog.dto.response.APIResponse;
 import vn.edu.hcmut.blog.dto.response.BlogMetadataResponse;
 import vn.edu.hcmut.blog.entity.Post;
+import vn.edu.hcmut.blog.exception.AppException;
+import vn.edu.hcmut.blog.exception.ErrorCode;
 import vn.edu.hcmut.blog.service.PostService;
 
 @RestController
@@ -33,6 +39,27 @@ public class BlogController {
     @GetMapping("/health")
     public String getMethodName() {
         return "Blog Service is running";
+    }
+
+    private String getProfileIdFromToken() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        if (authentication instanceof JwtAuthenticationToken jwtAuth) {
+            Jwt jwt = jwtAuth.getToken();
+
+            String profileId = jwt.getClaimAsString("profile_id");
+            if (profileId == null || profileId.isBlank()) {
+                throw new AppException(ErrorCode.INVALID_TOKEN_CLAIMS);
+            }
+
+            return profileId;
+        }
+
+        throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
 
     @GetMapping("/search")
@@ -53,12 +80,15 @@ public class BlogController {
 
     @PostMapping("")
     public APIResponse<BlogMetadataResponse> createResource(@RequestBody @Valid BlogMetadataRequest request) {
-        Post post = postService.createBlog(request, "5c240a33-aa0c-4d98-bd88-68c52dc86486");
+        String authorId = getProfileIdFromToken();
+        Post post = postService.createBlog(request, authorId);
 
         return APIResponse.<BlogMetadataResponse>builder()
                 .result(BlogMetadataResponse.builder()
                         .id(post.getId())
                         .name(post.getTitle())
+                        .content(post.getContent())
+                        .coverImage(post.getCoverImage())
                         .build())
                 .message("Blog created successfully")
                 .build();

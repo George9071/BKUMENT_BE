@@ -78,6 +78,7 @@ public class DocumentController {
         Page<DocumentMetadataResponse> result = documents.map(doc -> {
             APIResponse<ProfileResponse> apiResponse = profileClient.findUserProfileById(doc.getOwnerId());
             ProfileResponse profile = apiResponse.getResult();
+            String authorId = getProfileIdFromToken();
 
             DocumentMetadataResponse.Author authorDto = null;
             if (profile != null) {
