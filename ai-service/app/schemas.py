@@ -26,9 +26,14 @@ class SearchRequest(BaseModel):
     page: int = Field(1, ge=1)
     limit: int = Field(10, ge=1)
 
+class Author(BaseModel):
+    name: str
+    avatarUrl: Optional[str] = None
+    
 class SearchResultItem(BaseModel):
     id: str                 
     title: Optional[str] = None 
+    author: Optional[Author] = None
     score: float            
     vector_score: float     
     keyword_score: float    

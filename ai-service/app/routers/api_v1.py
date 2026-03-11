@@ -122,21 +122,25 @@ async def endpoint_vectorize(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/search", response_model=SearchResponse)
+@router.get("/search")
 async def endpoint_search(
     service: Annotated[VectorService, Depends(get_vector_service)],
 
     query: str = Query(..., description="Từ khóa tìm kiếm"), 
     page: int = Query(1, ge=1, description="Số trang, bắt đầu từ 1"), 
-    limit: int = Query(5, ge=1, le=50, description="Số lượng kết quả mỗi trang"),
+    size: int = Query(10, ge=1, le=50, description="Số lượng kết quả mỗi trang"),
 ):
     try:
-        results = await service.search_documents(
+        page_data = await service.search_documents(
             query_text=query, 
             page=page, 
-            limit=limit
+            limit=size
         )
-        return SearchResponse(query=query, results=results)
+        return {
+            "code": 1000,
+            "message": "Search documents successfully",
+            "result": page_data
+        }
         
     except Exception as e:
         print(f"Endpoint Error: {e}")

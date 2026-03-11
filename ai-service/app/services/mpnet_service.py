@@ -2,8 +2,10 @@ import psycopg2
 from typing import List, Dict, Any
 import numpy as np
 from typing import List
+import asyncio
 from app.config import get_settings
 import math
+from app.repository.httpClient.ProfileClient import ProfileClient
 
 settings = get_settings()
 
@@ -46,12 +48,11 @@ class VectorService:
             
         return avg_vector.tolist()
     
-    async def search_documents(self, query_text: str, page: int = 1, limit: int = 10) -> List[Dict[str, Any]]:
-        """Tìm kiếm ngữ nghĩa có phân trang"""
+    async def search_documents(self, query_text: str, page: int = 1, limit: int = 10) -> Dict[str, Any]:
+        """Tìm kiếm ngữ nghĩa có phân trang chuẩn Spring Boot"""
         conn = None
         try:
             offset = (page - 1) * limit
-            # Đảm bảo vector là list thuần Python
             query_vector = self.get_embedding(query_text, True)
             if hasattr(query_vector, "tolist"):
                 query_vector = query_vector.tolist()
@@ -73,6 +74,7 @@ class VectorService:
                         d.description,
                         r.created_at,
                         r.title,
+                        r.owner_id,
                         (1 - (d.embedding <=> %s::vector)) AS vector_score,
                         ts_rank_cd(
                             to_tsvector('simple', COALESCE(r.title, '') || ' ' || COALESCE(d.keywords, '')), 
@@ -90,7 +92,9 @@ class VectorService:
                     created_at,         -- index 4
                     vector_score,       -- index 5
                     keyword_score,      -- index 6
-                    final_score         -- index 7 (tổng điểm)
+                    final_score,        -- index 7
+                    owner_id,           -- index 8
+                    COUNT(*) OVER() AS total_count -- index 9
                 FROM (
                     SELECT *, (vector_score * 0.7) + (keyword_score * 0.3) AS final_score 
                     FROM hybrid_scores
@@ -110,21 +114,74 @@ class VectorService:
                     return f_val
                 except (ValueError, TypeError): return 0.0
 
-            # Map dữ liệu chính xác theo thứ tự cột trong câu lệnh SELECT
+            total_elements = rows[0][9] if rows else 0
+
             documents = [
                 {
                     "id": str(row[0]), 
                     "title": row[1],
                     "preview_image_url": row[2],
                     "description": row[3],
-                    "created_at": row[4], # Pydantic sẽ tự xử lý datetime object
+                    "createdAt": row[4],
                     "vector_score": safe_float(row[5]), 
                     "keyword_score": safe_float(row[6]),
-                    "score": safe_float(row[7]) # final_score
+                    "score": safe_float(row[7]),
+                    "owner_id": str(row[8]) if row[8] else None, 
+                    "author": None 
                 } 
                 for row in rows
             ]
-            return documents
+
+            profile_client = ProfileClient(base_url=settings.PROFILE_SERVICE_URL) 
+            
+            async def fetch_and_map_profile(doc: dict):
+                owner_id = doc.get("owner_id")
+                if not owner_id:
+                    return
+                try:
+                    profile_resp = await profile_client.find_user_profile_by_id(owner_id)
+                    if profile_resp and profile_resp.result:
+                        doc["author"] = {
+                            "id": profile_resp.result.id,
+                            "name": profile_resp.result.fullName,
+                            "avatarUrl": profile_resp.result.avatarUrl
+                        }
+                except Exception as e:
+                    print(f"Lỗi khi gọi profile-service cho user {owner_id}: {e}")
+                finally:
+                    doc.pop("owner_id", None)
+
+            try:
+                await asyncio.gather(*(fetch_and_map_profile(doc) for doc in documents))
+            finally:
+                await profile_client.close()
+
+            spring_page_number = page - 1 
+            total_pages = math.ceil(total_elements / limit) if limit > 0 else 0
+            current_elements = len(documents)
+
+            page_result = {
+                "content": documents,
+                "pageable": {
+                    "pageNumber": spring_page_number,
+                    "pageSize": limit,
+                    "sort": [],
+                    "offset": offset,
+                    "paged": True,
+                    "unpaged": False
+                },
+                "totalPages": total_pages,
+                "totalElements": total_elements,
+                "last": spring_page_number >= (total_pages - 1) if total_pages > 0 else True,
+                "numberOfElements": current_elements,
+                "first": spring_page_number == 0,
+                "size": limit,
+                "number": spring_page_number,
+                "sort": [],
+                "empty": current_elements == 0
+            }
+
+            return page_result
 
         except Exception as e:
             print(f"Hybrid Search Error: {e}")
