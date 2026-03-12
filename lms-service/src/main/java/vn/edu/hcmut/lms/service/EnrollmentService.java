@@ -7,10 +7,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.edu.hcmut.event.dto.EnrollmentNotificationEvent;
 import vn.edu.hcmut.lms.constant.ClassStatus;
 import vn.edu.hcmut.lms.constant.EnrollmentStatus;
 import vn.edu.hcmut.lms.dto.response.EnrollmentResponse;
@@ -25,13 +27,13 @@ import vn.edu.hcmut.lms.repository.ClassRoomRepository;
 import vn.edu.hcmut.lms.repository.EnrollmentRepository;
 import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
-@Slf4j
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
@@ -43,6 +45,10 @@ public class EnrollmentService {
     ClassRoomRepository classRoomRepository;
     ProfileClient profileClient;
     EnrollmentMapper enrollmentMapper;
+
+    KafkaTemplate<String, Object> kafkaTemplate;
+
+    String NOTIFICATION_TOPIC = "notification-events";
 
     /**
      * Student enrolls in a class. Handles re-enrolling for rejected requests.
@@ -101,6 +107,23 @@ public class EnrollmentService {
         String topicId = classRoom.getTopic() != null ? classRoom.getTopic().getId() : null;
         graphSyncService.handleEnrollmentEvent(userId, classId, topicId);
 
+        try {
+            var event = EnrollmentNotificationEvent.builder()
+                    .action("REQUESTED")
+                    .classId(classRoom.getId())
+                    .className(classRoom.getName())
+                    .studentId(userId)
+                    .studentName(userProfile.getLastName() + " " + userProfile.getFirstName())
+                    .tutorId(classRoom.getTutor().getId())
+                    .timestamp(Instant.now())
+                    .build();
+
+            // Use tutorId as the key to ensure that messages from the same tutor are placed on the same partition.
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event.getTutorId(), event);
+        } catch (Exception e) {
+            log.error("Failed to send REQUESTED notification to Kafka for class {}", classId, e);
+        }
+
         return enrollmentMapper.toResponse(enrollment, userProfile);
     }
 
@@ -114,7 +137,10 @@ public class EnrollmentService {
         Enrollment enrollment = enrollmentRepository.findById(enrollmentId)
                 .orElseThrow(() -> new AppException(ErrorCode.ENROLLMENT_NOT_FOUND));
 
-        if (!enrollment.getClassRoom().getTutor().getId().equals(tutorId)) {
+        var studentId = enrollment.getStudentProfileId();
+        var classroom = enrollment.getClassRoom();
+
+        if (!classroom.getTutor().getId().equals(tutorId)) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
@@ -124,19 +150,35 @@ public class EnrollmentService {
 
             try {
                 EnrollmentSyncRequest sync = EnrollmentSyncRequest.builder()
-                        .studentId(enrollment.getStudentProfileId())
-                        .classId(enrollment.getClassRoom().getId())
+                        .studentId(studentId)
+                        .classId(classroom.getId())
                         .build();
                 profileClient.addEnrollment(sync);
             } catch (Exception e) {
                 log.error("Failed to sync new enrollment to Neo4j. Student: {}, Class: {}",
-                        enrollment.getStudentProfileId(),
-                        enrollment.getClassRoom().getId(), e);
+                        studentId,
+                        classroom.getId(), e);
 
                 throw new AppException(ErrorCode.SYNC_FAILED);
             }
         } else {
             enrollment.setStatus(EnrollmentStatus.REJECTED);
+        }
+
+        try {
+            var event = EnrollmentNotificationEvent.builder()
+                    .action(isApproved ? "APPROVED" : "REJECTED")
+                    .classId(classroom.getId())
+                    .className(classroom.getName())
+                    .studentId(studentId)
+                    .tutorId(tutorId)
+                    .timestamp(Instant.now())
+                    .build();
+
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event.getStudentId(), event);
+        } catch (Exception e) {
+            log.error("Failed to send APPROVAL notification to Kafka for student {}",
+                    studentId, e);
         }
     }
 
