@@ -24,17 +24,21 @@ public class Conversation {
 
     String name;
 
-    @Indexed(unique = true)
+    String avatar;
+
+    @Indexed(unique = true, partialFilter = "{ type: 'DIRECT' }")
     String participantsHash;
 
-    String conversationAvatar;
+    @Indexed
+    List<String> participantIds;
 
     List<ParticipantInfo> participants;
 
-    Instant createdDate;
-    
     String lastMessage;
+
+    @Indexed
     Instant lastMessageTime;
 
+    Instant createdDate;
     Instant modifiedDate;
 }

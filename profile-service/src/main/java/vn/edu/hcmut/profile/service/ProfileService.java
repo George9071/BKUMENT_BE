@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.neo4j.core.Neo4jClient;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import vn.edu.hcmut.event.dto.ProfileUpdatedEvent;
 import vn.edu.hcmut.profile.dto.request.ProfileCreationRequest;
 import vn.edu.hcmut.profile.dto.request.ProfileUpdateRequest;
 import vn.edu.hcmut.profile.dto.response.PageResponse;
@@ -44,6 +46,8 @@ public class ProfileService {
     ProfileMapper profileMapper;
 
     Neo4jClient neo4jClient;
+
+    KafkaTemplate<String, ProfileUpdatedEvent> kafkaTemplate;
 
     /**
      * Creates a profile in both JPA and Neo4j
@@ -158,6 +162,15 @@ public class ProfileService {
                     .findById(user.getUniversityId())
                     .ifPresent(university -> response.setUniversity(university.getName()));
         }
+
+        ProfileUpdatedEvent event = ProfileUpdatedEvent.builder()
+                .profileId(user.getId())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .avatar(user.getAvatarUrl())
+                .build();
+
+        kafkaTemplate.send("profile-events", event.getProfileId(), event);
 
         return response;
     }
