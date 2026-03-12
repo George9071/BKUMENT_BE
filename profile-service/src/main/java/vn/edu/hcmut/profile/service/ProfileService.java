@@ -113,6 +113,18 @@ public class ProfileService {
         return getProfileByAccountId(accountId);
     }
 
+    public List<ProfileResponse> searchProfile(String keyword, int limit) {
+        if (keyword == null || keyword.trim().isEmpty()) return List.of();
+
+        Pageable pageable = PageRequest.of(0, limit);
+
+        return jpaRepository.search(keyword.trim(), pageable)
+                .getContent()
+                .stream()
+                .map(profileMapper::toProfileResponse)
+                .toList();
+    }
+
     /**
      * Updates profile data. If university changes, syncs the update to Neo4j.
      */

@@ -5,10 +5,10 @@ server:
 
 spring:
   datasource:
-    url: "jdbc:postgresql://206.189.92.152:5432/bkument_db"
+    url: "jdbc:postgresql://${POSTGRESQL:localhost}:5432/bkument_db"
     driverClassName: "org.postgresql.Driver"
-    username: bkument
-    password: bkument_thesis_252
+    username: ${POSTGRES_USERNAME:username}
+    password: ${POSTGRES_PASSWORD:password}
     hikari:
       maximum-pool-size: 5
       minimum-idle: 2
@@ -17,10 +17,10 @@ spring:
       ddl-auto: update
     show-sql: true
   neo4j:
-    uri: bolt://206.189.92.152:7687
+    uri: bolt://${NEO4J:localhost}:7687
     authentication:
-      username: neo4j
-      password: BKUMENT_THESIS_252
+      username: ${NEO4J_USERNAME:username}
+      password: ${NEO4J_PASSWORD:password}
   kafka:
     bootstrap-servers: localhost:9094
     producer:

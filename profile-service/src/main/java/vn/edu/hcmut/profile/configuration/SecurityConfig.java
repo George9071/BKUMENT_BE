@@ -29,8 +29,9 @@ public class SecurityConfig {
         "/swagger-ui.html",
         "/actuator/health",
         "/internal/**", // internal microservice-to-microservice communication
+        "/error",
+        "/search/**",
         "/universities/**",
-        "/error"
     };
 
     private final CustomJwtDecoder customJwtDecoder;

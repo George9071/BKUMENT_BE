@@ -14,12 +14,24 @@ import vn.edu.hcmut.profile.dto.response.PageResponse;
 import vn.edu.hcmut.profile.dto.response.ProfileResponse;
 import vn.edu.hcmut.profile.service.ProfileService;
 
+import java.util.List;
+
 @RestController
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Tag(name = "Profile management", description = "APIs for managing user profiles, searching, and graph relationships")
 public class ProfileController {
     ProfileService profileService;
+
+    @GetMapping("/search")
+    public APIResponse<List<ProfileResponse>> searchUsers(
+            @RequestParam("keyword") String keyword,
+            @RequestParam(value = "limit", defaultValue = "10") int limit) {
+
+        return APIResponse.<List<ProfileResponse>>builder()
+                .result(profileService.searchProfile(keyword, limit))
+                .build();
+    }
 
     // ========================= //
     // MANAGE YOUR OWN PROFILE

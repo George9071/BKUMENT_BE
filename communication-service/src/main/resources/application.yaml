@@ -3,7 +3,7 @@ spring:
     name: communication-service
   data:
     mongodb:
-      uri: mongodb://bkument_admin:bkument_thesis_252@127.0.0.1:27018/communication?authSource=admin
+      uri: mongodb://${MONGO:localhost}:27018/communication?authSource=admin
       auto-index-creation: true
   kafka:
     bootstrap-servers: localhost:9094
@@ -16,16 +16,16 @@ spring:
       properties:
         spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
         spring.json.value.default.type: vn.edu.hcmut.notification.event.EnrollmentNotificationEvent
-        spring.json.trusted.packages: vn.edu.hcmut.notification.event
-        spring.json.use.type.headers: false
+        spring.json.trusted.packages: "vn.edu.hcmut.notification.event, vn.edu.hcmut.event.dto"
+        spring.json.type.mapping: "vn.edu.hcmut.event.dto.EnrollmentNotificationEvent:vn.edu.hcmut.notification.event.EnrollmentNotificationEvent"
 
 ssh:
   tunnel:
     enabled: false
-    host: 206.189.92.152
+    host: ${SSH_HOST:localhost}
     port: 22
-    user: root
-    password: BKUMENT_THESIS_252
+    user: ${SSH_USERNAME:username}
+    password: ${SSH_PASSWORD:username}
     local-port: 27018
     remote-port: 27017
 

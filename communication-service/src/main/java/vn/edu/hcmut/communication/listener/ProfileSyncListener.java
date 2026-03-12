@@ -20,8 +20,9 @@ public class ProfileSyncListener {
     @KafkaListener(topics = "profile-events", groupId = "communication-group")
     public void onProfileUpdated(ProfileUpdatedEvent event) {
         log.info("Received profile update event for user: {}", event.getProfileId());
-
-        Query query = new Query(Criteria.where("participantIds").is(event.getProfileId()));
+        log.info("Received payload: last_name: {}, first_name: {}, avatar: {}",
+                event.getFirstName(), event.getLastName(), event.getAvatar());
+        Query query = new Query(Criteria.where("participants.userId").is(event.getProfileId()));
 
         Update update = new Update()
                 .set("participants.$[elem].firstName", event.getFirstName())
