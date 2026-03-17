@@ -221,8 +221,8 @@ public class ProfileService {
 
     @Transactional
     public void removeRole(String profileId, String role) {
-        UserProfileNode profile = neo4jRepository.findById(profileId)
-                .orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
+        UserProfileNode profile =
+                neo4jRepository.findById(profileId).orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
 
         if (profile.getRoles() != null && profile.getRoles().contains(role)) {
             profile.getRoles().remove(role);
@@ -362,20 +362,144 @@ public class ProfileService {
     public void updateTutorSubjects(String profileId, Set<String> subjectIds) {
         String query =
                 """
-                MATCH (u:UserProfile {id: $profileId})
-                OPTIONAL MATCH (u)-[r:TEACHES]->()
-                DELETE r
-                WITH u
-                UNWIND $subjectIds AS subId
+				MATCH (u:UserProfile {id: $profileId})
+				OPTIONAL MATCH (u)-[r:TEACHES]->()
+				DELETE r
+				WITH u
+				UNWIND $subjectIds AS subId
 
-                MERGE (s:Subject {id: subId})
-                MERGE (u)-[:TEACHES]->(s)
-                """;
+				MERGE (s:Subject {id: subId})
+				MERGE (u)-[:TEACHES]->(s)
+				""";
 
-        neo4jClient.query(query).bindAll(Map.of(
-                "profileId", profileId,
-                "subjectIds", subjectIds != null ? subjectIds : Collections.emptySet()
-        )).run();
+        neo4jClient
+                .query(query)
+                .bindAll(Map.of(
+                        "profileId", profileId, "subjectIds", subjectIds != null ? subjectIds : Collections.emptySet()))
+                .run();
+    }
+
+    public PageResponse<ProfileResponse> getPeopleYouMayKnow(String profileId, int page, int size) {
+        int actualPage = Math.max(0, page - 1);
+        int skip = actualPage * size;
+        int limit = Math.max(1, size);
+
+        String countQuery =
+                """
+			CALL {
+				WITH $profileId AS pid
+				MATCH (a:UserProfile {id: pid})-[:FOLLOW]->(b:UserProfile)-[:FOLLOW]->(c:UserProfile)
+				WHERE a <> c AND NOT (a)-[:FOLLOW]->(c)
+				RETURN c
+
+				UNION ALL
+
+				WITH $profileId AS pid
+				MATCH (a:UserProfile {id: pid})-[:ENROLLED_IN]->(:ClassRoom)<-[:ENROLLED_IN]-(c:UserProfile)
+				WHERE a <> c AND NOT (a)-[:FOLLOW]->(c)
+				RETURN c
+
+				UNION ALL
+
+				WITH $profileId AS pid
+				MATCH (a:UserProfile {id: pid})-[:STUDY_AT]->(:University)<-[:STUDY_AT]-(c:UserProfile)
+				WHERE a <> c AND NOT (a)-[:FOLLOW]->(c)
+				RETURN c
+			}
+			RETURN count(DISTINCT c) AS totalElements
+			""";
+
+        String idsQuery =
+                """
+			CALL {
+				WITH $profileId AS pid
+				MATCH (a:UserProfile {id: pid})-[:FOLLOW]->(b:UserProfile)-[:FOLLOW]->(c:UserProfile)
+				WHERE a <> c AND NOT (a)-[:FOLLOW]->(c)
+				RETURN c, 5 AS score
+
+				UNION ALL
+
+				WITH $profileId AS pid
+				MATCH (a:UserProfile {id: pid})-[:ENROLLED_IN]->(:ClassRoom)<-[:ENROLLED_IN]-(c:UserProfile)
+				WHERE a <> c AND NOT (a)-[:FOLLOW]->(c)
+				RETURN c, 3 AS score
+
+				UNION ALL
+
+				WITH $profileId AS pid
+				MATCH (a:UserProfile {id: pid})-[:STUDY_AT]->(:University)<-[:STUDY_AT]-(c:UserProfile)
+				WHERE a <> c AND NOT (a)-[:FOLLOW]->(c)
+				RETURN c, 1 AS score
+			}
+
+			WITH c, sum(score) AS totalScore
+			ORDER BY totalScore DESC
+			SKIP $skip
+			LIMIT $limit
+
+			RETURN collect(c.id) AS recommendedIds
+			""";
+
+        try {
+            Map<String, Object> params = Map.of(
+                    "profileId", profileId,
+                    "skip", skip,
+                    "limit", limit);
+
+            long totalElements = 0;
+            Optional<Map<String, Object>> countResult =
+                    neo4jClient.query(countQuery).bindAll(params).fetch().one();
+            if (countResult.isPresent() && countResult.get().get("totalElements") != null) {
+                totalElements = ((Number) countResult.get().get("totalElements")).longValue();
+            }
+
+            Optional<Map<String, Object>> result =
+                    neo4jClient.query(idsQuery).bindAll(params).fetch().one();
+
+            List<String> followerIds = new ArrayList<>();
+            if (result.isPresent() && result.get().get("recommendedIds") != null) {
+                followerIds = (List<String>) result.get().get("recommendedIds");
+            }
+
+            if (followerIds.isEmpty()) {
+                return PageResponse.<ProfileResponse>builder()
+                        .currentPage(page)
+                        .totalPages(0)
+                        .pageSize(size)
+                        .totalElements(0)
+                        .data(Collections.emptyList())
+                        .build();
+            }
+
+            Map<String, UserProfile> userProfilesMap = jpaRepository.findAllById(followerIds).stream()
+                    .collect(Collectors.toMap(UserProfile::getId, p -> p));
+
+            List<ProfileResponse> responses = followerIds.stream()
+                    .map(userProfilesMap::get)
+                    .filter(Objects::nonNull)
+                    .map(this::toProfileResponse)
+                    .toList();
+
+            int totalPages = (int) Math.ceil((double) totalElements / size);
+
+            return PageResponse.<ProfileResponse>builder()
+                    .currentPage(page)
+                    .totalPages(totalPages)
+                    .pageSize(size)
+                    .totalElements(totalElements)
+                    .data(responses)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Lỗi lấy gợi ý kết bạn từ Neo4j: {}", e.getMessage());
+            return PageResponse.<ProfileResponse>builder()
+                    .currentPage(page)
+                    .totalPages(0)
+                    .pageSize(size)
+                    .totalElements(0)
+                    .data(Collections.emptyList())
+                    .build();
+        }
     }
 
     private String getCurrentAccountId() {

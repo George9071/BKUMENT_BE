@@ -120,4 +120,14 @@ public class ProfileController {
                 .result(profileService.getFollowing(profileId, page, size))
                 .build();
     }
+
+    @GetMapping("/mayKnow")
+    public APIResponse<PageResponse<ProfileResponse>> getPeopleYouMayKnow(
+            @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "10") int size) {
+
+        String profileId = profileService.getMyProfile().getId();
+        return APIResponse.<PageResponse<ProfileResponse>>builder()
+                .result(profileService.getPeopleYouMayKnow(profileId, page, size))
+                .build();
+    }
 }
