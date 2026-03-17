@@ -62,21 +62,37 @@ public class GraphSyncService {
         String cypherQuery =
                 """
 			CALL {
+				// Gợi ý theo TẤT CẢ Topic của Môn học (thông qua màng lọc bắt cầu)
 				WITH $profileId AS pid
 				MATCH (me:UserProfile {id: pid})
 					-[:ENROLLED_IN]->(:ClassRoom)
-					-[:COVERS]->(:Topic)
+					-[:COVERS]->(t_current:Topic)
+					-[:BELONGS_TO]->(s:Subject)
+					<-[:BELONGS_TO]-(t_all:Topic)
 					<-[:HAS_TOPIC]-(d:Document)
 				WHERE NOT (me)-[:DOWNLOADED]->(d)
 				RETURN d, 3 AS score
 
 				UNION ALL
 
+				// 2. Collaborative Filtering (Điểm: 7)
 				WITH $profileId AS pid
+
+				// Tìm những người có chung lịch sử download
 				MATCH (me:UserProfile {id: pid})
 					-[:DOWNLOADED]->(:Document)
 					<-[:DOWNLOADED]-(other:UserProfile)
 				WHERE other.id <> pid
+
+				// 1 trong 3 điều kiện
+				AND (
+					EXISTS { (me)-[:ENROLLED_IN]->(:ClassRoom)<-[:ENROLLED_IN]-(other) } OR
+					EXISTS { (me)-[:FOLLOW]->(other) } OR
+					EXISTS { (me)-[:STUDY_AT]->(:University)<-[:STUDY_AT]-(other) }
+				)
+
+				WITH DISTINCT me, other
+
 				MATCH (other)-[:DOWNLOADED]->(d:Document)
 				WHERE NOT (me)-[:DOWNLOADED]->(d)
 				RETURN d, 7 AS score
@@ -84,7 +100,7 @@ public class GraphSyncService {
 
 			WITH d, sum(score) AS totalScore
 			ORDER BY totalScore DESC
-			LIMIT 150 // Lấy tối đa 150 ID gợi ý tốt nhất
+			LIMIT 150
 			RETURN collect(d.id) AS allIds
 			""";
 
