@@ -10,6 +10,7 @@ from app.schemas import (
     SearchRequest, SearchResponse
 )
 from app.services.gemini_service import GeminiService
+from app.services.open_router_service import OpenRouterService
 from app.services.mpnet_service import VectorService
 from app.services.unstructured_service import convert_pdf_to_text
 from app.services.workflow_service import DocumentWorkflowService
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/ai")
 logger = logging.getLogger("uvicorn.error")
 
 def get_ai_service():
-    return GeminiService()
+    return OpenRouterService()
 
 def get_vector_service(request: Request):
     return request.app.state.vector_service
@@ -29,7 +30,7 @@ def get_vector_service(request: Request):
 )
 async def quick_analyze(
     file: UploadFile = File(...),
-    ai_service: Annotated[GeminiService, Depends(get_ai_service)] = None
+    ai_service: Annotated[DocumentWorkflowService, Depends(get_ai_service)] = None
 ):
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="File phải là PDF")
@@ -61,7 +62,7 @@ async def quick_analyze(
     response_model=DocumentProcessResponse,
 )
 async def endpoint_process_document(
-    ai_service: Annotated[GeminiService, Depends(get_ai_service)],
+    ai_service: Annotated[DocumentWorkflowService, Depends(get_ai_service)],
     vector_service: Annotated[VectorService, Depends(get_vector_service)],
     file: UploadFile = File(...),
 ):
@@ -104,7 +105,7 @@ async def endpoint_convert_pdf(file: UploadFile = File(...)):
 @router.post("/extract-keywords", response_model=AnalysisResult)
 async def endpoint_analyze(
     req: AnalyzeRequest,
-    service: Annotated[GeminiService, Depends(get_ai_service)]
+    service: Annotated[DocumentWorkflowService, Depends(get_ai_service)]
 ):
     try:
         return await service.extract_keywords(req.text)

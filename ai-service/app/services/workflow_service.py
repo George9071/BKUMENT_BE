@@ -4,12 +4,13 @@ import logging
 
 from app.schemas import DocumentProcessResponse
 from app.services.gemini_service import GeminiService
+from app.services.open_router_service import OpenRouterService
 from app.services.mpnet_service import VectorService
 from app.services.unstructured_service import convert_pdf_to_text
 
 logger = logging.getLogger(__name__)
 class DocumentWorkflowService:
-    def __init__(self, ai_service: GeminiService, vector_service: VectorService):
+    def __init__(self, ai_service: OpenRouterService, vector_service: VectorService):
         self.ai_service = ai_service
         self.vector_service = vector_service
 

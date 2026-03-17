@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE: int = 50 * 1024 * 1024
     
     PROFILE_SERVICE_URL: str
+    
+    OPENROUTER_API_KEY: str
+    OPENROUTER_MODEL: str
 
     DB_HOST: str
     DB_PORT: int
