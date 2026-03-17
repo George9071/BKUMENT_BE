@@ -2,6 +2,7 @@ package vn.edu.hcmut.document.controller;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
 
 import jakarta.validation.Valid;
@@ -218,7 +219,13 @@ public class DocumentController {
 
     @GetMapping("/search-universities")
     public APIResponse<List<UniversityResponse>> getAllUniversitiesByQuery(@RequestParam(required = false) String q) {
-        List<UniversityResponse> universities = profileClient.searchUniversities(q);
+
+        ProfilePageResponse<UniversityResponse> profileResponse = profileClient.searchUniversities(q);
+
+        List<UniversityResponse> universities = (profileResponse != null && profileResponse.getData() != null)
+                ? profileResponse.getData()
+                : Collections.emptyList();
+
         return APIResponse.<List<UniversityResponse>>builder()
                 .result(universities)
                 .message("Get universities successfully")
