@@ -1,5 +1,6 @@
 package vn.edu.hcmut.gateway.configuration;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -10,10 +11,13 @@ import vn.edu.hcmut.gateway.repository.IdentityClient;
 @Configuration
 public class WebClientConfiguration {
 
+    @Value("${app.services.identity.url:http://localhost:8080/identity}")
+    private String identityServiceUrl;
+
     @Bean
     WebClient webClient(){
         return WebClient.builder()
-                .baseUrl("http://localhost:8080/identity")
+                .baseUrl("identityServiceUrl")
                 .build();
     }
 

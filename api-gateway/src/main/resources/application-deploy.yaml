@@ -1,28 +1,44 @@
-server:
-  port: 8888
-
-app:
-  api-prefix: /api/v1
-
 spring:
-  application:
-    name: api-gateway
-
   cloud:
     gateway:
       server:
         webflux:
           routes:
+            - id: internal_blocked
+              uri: no://op
+              order: -1
+              predicates:
+                - Path=${app.api-prefix}/*/internal/**
+              filters:
+                - SetStatus=404
+
             - id: identity_service
-              uri: ${IDENTITY_URI:https://bkment-identity-service-latest.onrender.com}
+              uri: http://identity-service:8080
               predicates:
                 - Path=${app.api-prefix}/identity/**
               filters:
                 - StripPrefix=2
-            - id: resource_service
-              uri: ${RESOURCE_URI:https://bkment-resource-service-latest.onrender.com/}
+                - RemoveRequestHeader=Origin
+
+            - id: profile_service
+              uri: http://profile-service:8081
               predicates:
-                - Path=${app.api-prefix}/resource/**
+                - Path=${app.api-prefix}/profile/**
+              filters:
+                - StripPrefix=2
+
+            - id: lms_service
+              uri: http://lms-service:8082
+              predicates:
+                - Path=${app.api-prefix}/lms/**
+              filters:
+                - StripPrefix=2
+                - RemoveRequestHeader=Origin
+
+            - id: communication_service
+              uri: http://communication-service:8083
+              predicates:
+                - Path=${app.api-prefix}/communication/**
               filters:
                 - StripPrefix=2
 
@@ -33,7 +49,16 @@ spring:
             allowedOrigins:
               - http://localhost:5173
               - http://localhost:3000
-              - https://bkument-fe.vercel.app/
+              - https://bkument-fe.vercel.app
+              - http://${PUBLIC_IP}:8888
             allowedMethods: "*"
             allowedHeaders: "*"
             allow-credentials: true
+
+swagger:
+  host-url: http://${PUBLIC_IP}:8888
+
+app:
+  services:
+    identity:
+      url: http://identity-service:8080/identity

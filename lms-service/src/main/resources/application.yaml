@@ -5,7 +5,7 @@ server:
 
 spring:
   datasource:
-    url: "jdbc:postgresql://${POSTGRESQL:localhost}:5432/bkument_db"
+    url: "jdbc:postgresql://${DB_HOST:localhost}:5432/bkument_db"
     driverClassName: "org.postgresql.Driver"
     username: ${POSTGRES_USERNAME:username}
     password: ${POSTGRES_PASSWORD:password}
@@ -17,7 +17,7 @@ spring:
       ddl-auto: update
     show-sql: true
   neo4j:
-    uri: bolt://${NEO4J:localhost}:7687
+    uri: bolt://${DB_HOST:localhost}:7687
     authentication:
       username: ${NEO4J_USERNAME:username}
       password: ${NEO4J_PASSWORD:password}

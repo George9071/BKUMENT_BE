@@ -1,64 +1,191 @@
 version: '3.8'
 
-services:
-  postgres:
-    image: postgres:17-alpine
-    container_name: postgres_db
-    restart: always
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=bkument
-      - POSTGRES_PASSWORD=bkument_thesis_252
-      - POSTGRES_DB=bkument_db
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bkument -d bkument_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+networks:
+  bkument-net:
+    driver: bridge
 
+services:
+  # ==========================================
+  # KAFKA
+  # ==========================================
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'controller,broker'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      KAFKA_HEAP_OPTS: "-Xmx256m -Xms256m"
+    networks:
+      - bkument-net
+    restart: unless-stopped
+
+  # ==========================================
+  # API GATEWAY
+  # ==========================================
   api-gateway:
-    build: api-gateway/.                          
-    container_name: bkument_api_gateway
-    restart: on-failure               
+    build: ./api-gateway
+    container_name: api-gateway
     ports:
-      - "8888:8888"      
+      - "8888:8888"
+    environment:
+      - SPRING_PROFILES_ACTIVE=deploy
+      - PUBLIC_IP=${PUBLIC_IP} # Lấy từ file .env
+    networks:
+      - bkument-net
+    restart: unless-stopped
     depends_on:
       - identity-service
-      - resource-service     
-    environment:
-      - SERVER_PORT=8888    
-      - IDENTITY_URI=http://identity-service:8080
-      - RESOURCE_URI=http://resource-service:8084
+      - profile-service
+      - lms-service
+      - communication-service
 
-  resource-service:
-    build: resource-service/.                          
-    container_name: bkument_resource_service
-    restart: on-failure                         
-    depends_on:
-      postgres:
-        condition: service_healthy    
-    environment:
-      - SERVER_PORT=8084 
-      - DB_HOST=postgres
-      - DB_NAME=bkument_db
-      - DB_USER=bkument
-      - DB_PASSWORD=bkument_thesis_252
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
-      - SERVER_PORT=8084
-    ports:
-      - "8084:8084"
-
+  # ==========================================
+  # MICROSERVICES
+  # ==========================================
   identity-service:
-    build: identity-service/.                      
-    container_name: bkument_identity_service
-    restart: on-failure                            
-    depends_on:
-      postgres:
-        condition: service_healthy    
+    build: ./identity-service
+    container_name: identity-service
     environment:
-      - DB_HOST=postgres
-      - DB_NAME=bkument_db
-      - DB_USER=bkument
-      - DB_PASSWORD=bkument_thesis_252
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_PROFILES_ACTIVE=deploy
+      - DB_HOST=${DB_HOST}
+      - PUBLIC_IP=${PUBLIC_IP}
+      - POSTGRES_USERNAME=${POSTGRES_USERNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - JWT_SIGNER_KEY=${JWT_SIGNER_KEY}
+    env_file:
+      - .env
+    networks:
+      - bkument-net
+    restart: unless-stopped
+    depends_on:
+      - kafka
+
+  profile-service:
+    build: ./profile-service
+    container_name: profile-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=deploy
+      - DB_HOST=${DB_HOST}
+      - PUBLIC_IP=${PUBLIC_IP}
+      - POSTGRES_USERNAME=${POSTGRES_USERNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - NEO4J_USERNAME=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - JWT_SIGNER_KEY=${JWT_SIGNER_KEY}
+    env_file:
+      - .env
+    networks:
+      - bkument-net
+    restart: unless-stopped
+    depends_on:
+      - kafka
+
+  lms-service:
+    build: ./lms-service
+    container_name: lms-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=deploy
+      - DB_HOST=${DB_HOST}
+      - PUBLIC_IP=${PUBLIC_IP}
+      - POSTGRES_USERNAME=${POSTGRES_USERNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - NEO4J_USERNAME=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - JWT_SIGNER_KEY=${JWT_SIGNER_KEY}
+    env_file:
+      - .env
+    networks:
+      - bkument-net
+    restart: unless-stopped
+    depends_on:
+      - kafka
+
+  communication-service:
+    build: ./communication-service
+    container_name: communication-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=deploy
+      - DB_HOST=${DB_HOST}
+      - PUBLIC_IP=${PUBLIC_IP}
+      - MONGO_USERNAME=${MONGO_USERNAME}
+      - MONGO_PASSWORD=${MONGO_PASSWORD}
+      - SSH_HOST=${SSH_HOST}
+      - SSH_USERNAME=${SSH_USERNAME}
+      - SSH_PASSWORD=${SSH_PASSWORD}
+    env_file:
+      - .env
+    networks:
+      - bkument-net
+    restart: unless-stopped
+    depends_on:
+      - kafka
+
+#  notification-service:
+#    build: ./notification-service
+#    container_name: notification-service
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=deploy
+#      - DB_HOST=${DB_HOST}
+#    networks:
+#      - bkument-net
+#    restart: unless-stopped
+#    depends_on:
+#      - kafka
+
+#  blog-service:
+#    build: ./blog-service
+#    container_name: blog-service
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=deploy
+#      - DB_HOST=${DB_HOST}
+#    networks:
+#      - bkument-net
+#    restart: unless-stopped
+#    depends_on:
+#      - kafka
+#
+#  document-service:
+#    build: ./document-service
+#    container_name: document-service
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=deploy
+#      - DB_HOST=${DB_HOST}
+#    networks:
+#      - bkument-net
+#    restart: unless-stopped
+#    depends_on:
+#      - kafka
+#
+#  ai-service:
+#    build: ./ai-service
+#    container_name: ai-service
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=deploy
+#      - DB_HOST=${DB_HOST}
+#    networks:
+#      - bkument-net
+#    restart: unless-stopped
+#    depends_on:
+#      - kafka
+#
+#  social-service:
+#    build: ./social-service
+#    container_name: social-service
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=deploy
+#      - DB_HOST=${DB_HOST}
+#    networks:
+#      - bkument-net
+#    restart: unless-stopped
+#    depends_on:
+#      - kafka
