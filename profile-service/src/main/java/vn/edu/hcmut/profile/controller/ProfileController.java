@@ -1,5 +1,7 @@
 package vn.edu.hcmut.profile.controller;
 
+import java.util.List;
+
 import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,8 +16,6 @@ import vn.edu.hcmut.profile.dto.response.PageResponse;
 import vn.edu.hcmut.profile.dto.response.ProfileResponse;
 import vn.edu.hcmut.profile.service.ProfileService;
 
-import java.util.List;
-
 @RestController
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -25,8 +25,7 @@ public class ProfileController {
 
     @GetMapping("/search")
     public APIResponse<List<ProfileResponse>> searchUsers(
-            @RequestParam("keyword") String keyword,
-            @RequestParam(value = "limit", defaultValue = "10") int limit) {
+            @RequestParam("keyword") String keyword, @RequestParam(value = "limit", defaultValue = "10") int limit) {
 
         return APIResponse.<List<ProfileResponse>>builder()
                 .result(profileService.searchProfile(keyword, limit))

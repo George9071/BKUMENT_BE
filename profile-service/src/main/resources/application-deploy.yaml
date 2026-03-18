@@ -2,15 +2,15 @@ spring:
   kafka:
     bootstrap-servers: kafka:9092
 
+  neo4j:
+    uri: bolt://${DB_HOST:localhost}:7687
+    authentication:
+      username: ${NEO4J_USERNAME}
+      password: ${NEO4J_PASSWORD}
   datasource:
     url: "jdbc:postgresql://${DB_HOST:localhost}:5432/bkument_db"
     username: ${POSTGRES_USERNAME}
     password: ${POSTGRES_PASSWORD}
 
-app:
-  services:
-    profile: http://profile-service:8081/profile
-    lms: http://lms-service:8082/lms
-
 swagger:
-  host-url: http://${PUBLIC_IP}:8888/api/v1/identity
+  host-url: http://${PUBLIC_IP}:8888/api/v1/profile

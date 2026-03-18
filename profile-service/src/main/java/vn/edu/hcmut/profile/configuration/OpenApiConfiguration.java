@@ -3,6 +3,7 @@ package vn.edu.hcmut.profile.configuration;
 import java.util.List;
 
 import org.springdoc.core.models.GroupedOpenApi;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,6 +17,9 @@ import io.swagger.v3.oas.models.servers.Server;
 @Configuration
 public class OpenApiConfiguration {
     private static final String SECURITY_SCHEME_NAME = "bearerAuth";
+
+    @Value("${swagger.host-url:http://localhost:8888/api/v1/profile}")
+    private String gateway;
 
     // the "public" group (excludes internal paths)
     @Bean
@@ -39,8 +43,8 @@ public class OpenApiConfiguration {
                 .info(new Info().title("BKUMENT").version("1.0").description("APIs for profile-service"))
                 // --- SERVER CONFIGURATION---
                 .servers(List.of(
-                        new Server().url("http://localhost:8081/profile").description("Local"),
-                        new Server().url("http://localhost:8888/api/v1/profile").description("Gateway")))
+                        new Server().url(gateway).description("API Gateway (Default)"),
+                        new Server().url("http://localhost:8081/profile").description("Direct Local (Bypass Gateway)")))
 
                 // --- SECURITY CONFIGURATION---
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
