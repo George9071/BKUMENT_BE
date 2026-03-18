@@ -3,7 +3,6 @@ package vn.edu.hcmut.identity.service;
 import java.util.HashSet;
 import java.util.List;
 
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -17,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.event.dto.NotificationEvent;
 import vn.edu.hcmut.identity.constant.UserRole;
 import vn.edu.hcmut.identity.dto.request.AccountUpdateRequest;
@@ -81,7 +81,7 @@ public class AccountService {
                 .build();
 
         // Publish message to kafka
-        kafkaTemplate.send("notification-delivery", noti);
+        //        kafkaTemplate.send("notification-delivery", noti);
 
         return accountMapper.toAccountResponse(account);
     }
@@ -89,9 +89,8 @@ public class AccountService {
     @Transactional
     @PostAuthorize("#accountId == authentication.name or hasRole('ADMIN')")
     public AccountResponse updateAccount(String accountId, AccountUpdateRequest request) {
-        Account account = accountRepository
-                .findById(accountId)
-                .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_FOUND));
+        Account account =
+                accountRepository.findById(accountId).orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_FOUND));
 
         accountMapper.updateAccount(account, request);
 
@@ -107,8 +106,7 @@ public class AccountService {
         Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
         Page<Account> accounts = accountRepository.findAll(pageable);
 
-        List<AccountResponse> accountResponses = accounts.getContent()
-                .stream()
+        List<AccountResponse> accountResponses = accounts.getContent().stream()
                 .map(accountMapper::toAccountResponse)
                 .toList();
 
@@ -123,9 +121,8 @@ public class AccountService {
 
     @PostAuthorize("returnObject.id == authentication.name or hasRole('ADMIN')")
     public AccountResponse getAccount(String accountId) {
-        Account account = accountRepository
-                .findById(accountId)
-                .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_FOUND));
+        Account account =
+                accountRepository.findById(accountId).orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_FOUND));
         return accountMapper.toAccountResponse(account);
     }
 
@@ -170,9 +167,8 @@ public class AccountService {
 
     @Transactional
     public void addRoleToUser(String accountId, String roleName) {
-        Account account = accountRepository
-                .findById(accountId)
-                .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_FOUND));
+        Account account =
+                accountRepository.findById(accountId).orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_FOUND));
         try {
             UserRole role = UserRole.valueOf(roleName.toUpperCase());
 
@@ -187,8 +183,8 @@ public class AccountService {
 
     @Transactional(rollbackFor = Exception.class)
     public void removeRole(String accountId, String roleName) {
-        Account account = accountRepository.findById(accountId)
-                .orElseThrow(() -> new RuntimeException("Account not found"));
+        Account account =
+                accountRepository.findById(accountId).orElseThrow(() -> new RuntimeException("Account not found"));
 
         boolean isRemoved = account.getRoles().removeIf(role -> role.name().equals(roleName));
 

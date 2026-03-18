@@ -95,8 +95,7 @@ public class AuthenticationService {
 
         if (!authenticated) throw new AppException(ErrorCode.UNAUTHENTICATED);
 
-        boolean isAdmin = account.getRoles().stream()
-                .anyMatch(role -> role.equals(UserRole.ADMIN));
+        boolean isAdmin = account.getRoles().stream().anyMatch(role -> role.equals(UserRole.ADMIN));
 
         ProfileResponse profile = null;
 
@@ -128,10 +127,8 @@ public class AuthenticationService {
             String jti = signToken.getJWTClaimsSet().getJWTID();
             Date expiryTime = signToken.getJWTClaimsSet().getExpirationTime();
 
-            InvalidatedToken invalidatedToken = InvalidatedToken.builder()
-                    .id(jti)
-                    .expiryTime(expiryTime)
-                    .build();
+            InvalidatedToken invalidatedToken =
+                    InvalidatedToken.builder().id(jti).expiryTime(expiryTime).build();
 
             invalidatedTokenRepository.save(invalidatedToken);
             log.info("Token {} successfully invalidated", jti);
@@ -144,19 +141,19 @@ public class AuthenticationService {
     /**
      * Issues a new token if the old token is within the refreshable duration.
      */
-    public AuthenticationResponse refreshToken(RefreshRequest request)
-            throws ParseException, JOSEException {
+    public AuthenticationResponse refreshToken(RefreshRequest request) throws ParseException, JOSEException {
         var signedJWT = verifyToken(request.getToken(), true);
 
         // Invalidate old token
         var jti = signedJWT.getJWTClaimsSet().getJWTID();
         var expiryTime = signedJWT.getJWTClaimsSet().getExpirationTime();
-        invalidatedTokenRepository.save(InvalidatedToken.builder().id(jti).expiryTime(expiryTime).build());
+        invalidatedTokenRepository.save(
+                InvalidatedToken.builder().id(jti).expiryTime(expiryTime).build());
 
         // Fetch account
         var accountId = signedJWT.getJWTClaimsSet().getSubject();
-        var account = accountRepository.findById(accountId)
-                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+        var account =
+                accountRepository.findById(accountId).orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
 
         ProfileResponse profile;
         try {
@@ -199,12 +196,13 @@ public class AuthenticationService {
             jwtClaimsSet.claim("profile_id", profile.getId());
             jwtClaimsSet.claim("email", profile.getEmail());
             jwtClaimsSet.claim("university_id", profile.getUniversityId());
-            String fullName = (profile.getLastName() != null ? profile.getLastName() : "") + " " +
-                    (profile.getFirstName() != null ? profile.getFirstName() : "");
+            String fullName = (profile.getLastName() != null ? profile.getLastName() : "") + " "
+                    + (profile.getFirstName() != null ? profile.getFirstName() : "");
             jwtClaimsSet.claim("name", fullName.trim());
         }
 
-        JWSObject jwsObject = new JWSObject(header, new Payload(jwtClaimsSet.build().toJSONObject()));
+        JWSObject jwsObject =
+                new JWSObject(header, new Payload(jwtClaimsSet.build().toJSONObject()));
 
         try {
             jwsObject.sign(new MACSigner(SIGNER_KEY.getBytes()));
@@ -218,8 +216,7 @@ public class AuthenticationService {
     /**
      * Verifies a JWT’s signature, expiration, and invalidation state.
      */
-    private SignedJWT verifyToken(String token, boolean isRefresh)
-            throws JOSEException, ParseException {
+    private SignedJWT verifyToken(String token, boolean isRefresh) throws JOSEException, ParseException {
 
         JWSVerifier verifier = new MACVerifier(SIGNER_KEY.getBytes());
         SignedJWT signedJWT = SignedJWT.parse(token);

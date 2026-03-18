@@ -32,10 +32,10 @@ public enum ErrorCode {
     // 9yxx: MICROSERVICE INTEGRATION and SYSTEM ERRORS (y is the last digit of the port number in the target service)
     // ----------------------------------------------------------------------
     DELETE_LMS_FAILED(9201, "Failed to delete LMS data during account removal", HttpStatus.INTERNAL_SERVER_ERROR),
-    DELETE_PROFILE_FAILED(9101, "Failed to delete user profile during account removal", HttpStatus.INTERNAL_SERVER_ERROR),
+    DELETE_PROFILE_FAILED(
+            9101, "Failed to delete user profile during account removal", HttpStatus.INTERNAL_SERVER_ERROR),
     PROFILE_NOT_FOUND(9102, "User profile not found in Profile Service", HttpStatus.NOT_FOUND),
-    UNCATEGORIZED_EXCEPTION(9999, "Uncategorized system error", HttpStatus.INTERNAL_SERVER_ERROR)
-    ;
+    UNCATEGORIZED_EXCEPTION(9999, "Uncategorized system error", HttpStatus.INTERNAL_SERVER_ERROR);
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {
         this.code = code;

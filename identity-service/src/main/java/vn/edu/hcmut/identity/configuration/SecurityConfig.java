@@ -32,18 +32,15 @@ import vn.edu.hcmut.identity.converter.CustomJwtGrantedAuthoritiesConverter;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private static final String[] PUBLIC_ENDPOINTS = {
-            "/auth/**",
-            "/accounts/registration"
-    };
+    private static final String[] PUBLIC_ENDPOINTS = {"/auth/**", "/accounts/registration"};
 
     private static final String[] PUBLIC_RESOURCES = {
-            "/swagger-ui/**",
-            "/v3/api-docs/**",
-            "/api-docs/**",
-            "/swagger-ui.html",
-            "/actuator/health",
-            "/internal/**" // internal microservice-to-microservice communication
+        "/swagger-ui/**",
+        "/v3/api-docs/**",
+        "/api-docs/**",
+        "/swagger-ui.html",
+        "/actuator/health",
+        "/internal/**" // internal microservice-to-microservice communication
     };
 
     private final CustomJwtDecoder customJwtDecoder;
@@ -70,23 +67,25 @@ public class SecurityConfig {
                 // Define authorization rules
                 .authorizeHttpRequests(request -> request
                         // Allow OPTIONS requests for preflight CORS checks and specific POST requests
-                        .requestMatchers(HttpMethod.OPTIONS, PUBLIC_ENDPOINTS).permitAll()
-                        .requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS).permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, PUBLIC_ENDPOINTS)
+                        .permitAll()
+                        .requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS)
+                        .permitAll()
 
                         // Allow swagger documentation, actuator health checks, and internal API calls
-                        .requestMatchers(PUBLIC_RESOURCES).permitAll()
+                        .requestMatchers(PUBLIC_RESOURCES)
+                        .permitAll()
 
                         // All other endpoints require authentication
-                        .anyRequest().authenticated())
+                        .anyRequest()
+                        .authenticated())
 
                 // Configure OAuth2 Resource Server to use custom JWT decoder and converter
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
-                                .decoder(customJwtDecoder)
-                                .jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
+                                jwt.decoder(customJwtDecoder).jwtAuthenticationConverter(jwtAuthenticationConverter()))
 
                         // Handle unauthenticated access exceptions with custom JSON response
-                        .authenticationEntryPoint(new JwtAuthenticationEntryPoint())
-                );
+                        .authenticationEntryPoint(new JwtAuthenticationEntryPoint()));
 
         return httpSecurity.build();
     }
@@ -102,8 +101,7 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(Arrays.asList(
                 "http://localhost:3000",
                 "https://bkument-fe-*-khoale2k4s-projects.vercel.app",
-                "https://bkument-fe-git-main-khoale2k4s-projects.vercel.app"
-        ));
+                "https://bkument-fe-git-main-khoale2k4s-projects.vercel.app"));
 
         // Specify allowed methods
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));

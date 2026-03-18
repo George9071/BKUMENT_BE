@@ -15,16 +15,12 @@ public class InternalAccountController {
     AccountService accountService;
 
     @PostMapping("/{accountId}/roles/{roleName}")
-    public void addRole(
-            @PathVariable("accountId") String accountId,
-            @PathVariable("roleName") String role) {
+    public void addRole(@PathVariable("accountId") String accountId, @PathVariable("roleName") String role) {
         accountService.addRoleToUser(accountId, role);
     }
 
     @DeleteMapping("/{accountId}/roles/{roleName}")
-    public void removeRole(
-            @PathVariable("accountId") String accountId,
-            @PathVariable("roleName") String role) {
+    public void removeRole(@PathVariable("accountId") String accountId, @PathVariable("roleName") String role) {
 
         accountService.removeRole(accountId, role);
     }

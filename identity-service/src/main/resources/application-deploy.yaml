@@ -1,0 +1,16 @@
+spring:
+  kafka:
+    bootstrap-servers: kafka:9092
+
+  datasource:
+    url: "jdbc:postgresql://${POSTGRESQL:localhost}:5432/bkument_db"
+    username: ${POSTGRES_USERNAME}
+    password: ${POSTGRES_PASSWORD}
+
+app:
+  services:
+    profile: http://profile-service:8081/profile
+    lms: http://lms-service:8082/lms
+
+swagger:
+  host-url: http://${PUBLIC_IP}:8888/api/v1/identity

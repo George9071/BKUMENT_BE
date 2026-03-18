@@ -7,8 +7,8 @@ spring:
   datasource:
     url: "jdbc:postgresql://${POSTGRESQL:localhost}:5432/bkument_db"
     driverClassName: "org.postgresql.Driver"
-    username: ${POSTGRES_USERNAME:username}
-    password: ${POSTGRES_PASSWORD:password}
+    username: ${POSTGRES_USERNAME}
+    password: ${POSTGRES_PASSWORD}
     hikari:
       maximum-pool-size: 5
       minimum-idle: 2
@@ -17,7 +17,7 @@ spring:
       ddl-auto: update
     show-sql: true
   kafka:
-    bootstrap-servers: localhost:9094
+    bootstrap-servers: localhost:9092
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -28,7 +28,7 @@ logging:
     com.zaxxer.hikari: INFO
 
 jwt:
-  signerKey: "5016f0096d30f88524edc817d00b36406e26788c87ea9c97d57c4b7758b5f033"
+  signerKey: ${JWT_SIGNER_KEY}
   valid-duration: 3600           #seconds -> 1 hour
   refreshable-duration: 86400   #seconds -> 1 day
 
@@ -42,5 +42,5 @@ app:
 
   init:
     admin:
-      username: "admin"
-      password: "admin"
+      username: ${INIT_ADMIN_USERNAME}
+      password: ${INIT_ADMIN_PASSWORD}

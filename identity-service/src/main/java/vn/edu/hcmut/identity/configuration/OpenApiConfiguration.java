@@ -3,6 +3,7 @@ package vn.edu.hcmut.identity.configuration;
 import java.util.List;
 
 import org.springdoc.core.models.GroupedOpenApi;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -17,6 +18,9 @@ import io.swagger.v3.oas.models.servers.Server;
 public class OpenApiConfiguration {
     private static final String SECURITY_SCHEME_NAME = "bearerAuth";
 
+    @Value("${swagger.host-url:http://localhost:8888/api/v1/identity}")
+    private String gateway;
+
     // the "public" group (excludes internal paths)
     @Bean
     public GroupedOpenApi publicApi() {
@@ -30,10 +34,7 @@ public class OpenApiConfiguration {
     // the "internal" group
     @Bean
     public GroupedOpenApi internalApi() {
-        return GroupedOpenApi.builder()
-                .group("internal")
-                .pathsToMatch("/**")
-                .build();
+        return GroupedOpenApi.builder().group("internal").pathsToMatch("/**").build();
     }
 
     @Bean
@@ -42,8 +43,10 @@ public class OpenApiConfiguration {
                 .info(new Info().title("BKUMENT").version("1.0").description("APIs for identity-service"))
                 // --- SERVER CONFIGURATION---
                 .servers(List.of(
-                        new Server().url("http://localhost:8080/identity").description("Local"),
-                        new Server().url("http://localhost:8888/api/v1/identity").description("Gateway")))
+                        new Server().url(gateway).description("API Gateway (Default)"),
+                        new Server()
+                                .url("http://localhost:8080/identity")
+                                .description("Direct Local (Bypass Gateway)")))
 
                 // --- SECURITY CONFIGURATION---
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
