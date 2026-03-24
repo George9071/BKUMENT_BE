@@ -4,10 +4,10 @@ spring:
     name: communication-service
   data:
     mongodb:
-      uri: mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@${DB_HOST:127.0.0.1}:27018/communication?authSource=admin
+      uri: mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@${DB_HOST:127.0.0.1}:27017/communication?authSource=admin
       auto-index-creation: true
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: localhost:9094
 
     consumer:
       group-id: communication-group
@@ -46,3 +46,4 @@ app:
 
 swagger:
   host-url: http://localhost:8083/communication
+  gateway-url: http://localhost:8888/api/v1/communication

@@ -29,6 +29,7 @@ spring:
 
 swagger:
   host-url: http://localhost:8082/lms
+  gateway-url: http://localhost:8888/api/v1/lms
 
 jwt:
   signerKey: ${JWT_SIGNER_KEY}

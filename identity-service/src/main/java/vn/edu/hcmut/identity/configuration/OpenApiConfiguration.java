@@ -18,8 +18,11 @@ import io.swagger.v3.oas.models.servers.Server;
 public class OpenApiConfiguration {
     private static final String SECURITY_SCHEME_NAME = "bearerAuth";
 
-    @Value("${swagger.host-url:http://localhost:8888/api/v1/identity}")
+    @Value("${swagger.gateway-url}")
     private String gateway;
+
+    @Value("${swagger.host-url}")
+    private String self_host;
 
     // the "public" group (excludes internal paths)
     @Bean
@@ -44,9 +47,7 @@ public class OpenApiConfiguration {
                 // --- SERVER CONFIGURATION---
                 .servers(List.of(
                         new Server().url(gateway).description("API Gateway (Default)"),
-                        new Server()
-                                .url("http://localhost:8080/identity")
-                                .description("Direct Local (Bypass Gateway)")))
+                        new Server().url(self_host).description("Direct Local (Bypass Gateway)")))
 
                 // --- SECURITY CONFIGURATION---
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
