@@ -19,8 +19,14 @@ jobs:
         distribution: 'temurin'
         cache: maven
         
-    - name: Build with Maven
-      run: mvn clean package -DskipTests
+    - name: Build all microservices
+      run: |
+        for dir in */ ; do
+          if [ -f "$dir/pom.xml" ]; then
+            echo "🚀 build service: $dir"
+            (cd "$dir" && mvn clean package -DskipTests)
+          fi
+        done
 
     - name: Copy JARs to DigitalOcean
       uses: appleboy/scp-action@v0.1.4
