@@ -35,9 +35,8 @@ jobs:
         username: ${{ secrets.DO_USERNAME }}
         password: ${{ secrets.DO_PASSWORD }}
         
-        source: "*/target/*.jar, docker-compose.yml, */Dockerfile"
+        source: "docker-compose.yml,*/Dockerfile,*/target/*.jar"
         target: "/root/bkument-backend" 
-        strip_components: 1
 
     - name: Execute SSH to restart Docker
       uses: appleboy/ssh-action@v1.0.0
