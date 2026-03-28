@@ -1,5 +1,5 @@
 server:
-  port: 8082
+  port: 8090
   servlet:
     context-path: /resource
 
@@ -13,4 +13,4 @@ minio:
 
 # Swagger Configuration
 swagger:
-  host-url: http://localhost:8082/resource
+  host-url: http://localhost:8090/resource
