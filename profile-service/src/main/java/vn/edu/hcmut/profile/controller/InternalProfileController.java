@@ -42,16 +42,12 @@ public class InternalProfileController {
     }
 
     @PutMapping("/{profileId}/roles/{roleName}")
-    void addRole(
-            @PathVariable("profileId") String profileId,
-            @PathVariable("roleName") String role) {
+    void addRole(@PathVariable("profileId") String profileId, @PathVariable("roleName") String role) {
         profileService.addRole(profileId, role);
     }
 
     @DeleteMapping("/{profileId}/roles/{roleName}")
-    public void removeRole(
-            @PathVariable("profileId") String profileId,
-            @PathVariable("roleName") String role) {
+    public void removeRole(@PathVariable("profileId") String profileId, @PathVariable("roleName") String role) {
         profileService.removeRole(profileId, role);
     }
 

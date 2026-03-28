@@ -1,5 +1,7 @@
 package vn.edu.hcmut.profile.service;
 
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -14,8 +16,6 @@ import vn.edu.hcmut.profile.dto.response.UniversityResponse;
 import vn.edu.hcmut.profile.entity.jpa.University;
 import vn.edu.hcmut.profile.mapper.UniversityMapper;
 import vn.edu.hcmut.profile.repository.UniversityRepository;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor

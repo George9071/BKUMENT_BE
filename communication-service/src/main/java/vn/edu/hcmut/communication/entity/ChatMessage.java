@@ -2,6 +2,7 @@ package vn.edu.hcmut.communication.entity;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.MongoId;
@@ -14,6 +15,7 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Document(collection = "chat_message")
+@CompoundIndex(name = "conv_date_idx", def = "{'conversationId': 1, 'createdDate': -1}")
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ChatMessage {
     @MongoId
@@ -22,11 +24,13 @@ public class ChatMessage {
     @Indexed
     String conversationId;
 
-    String type;
+    String type; // TEXT, IMAGE, FILE
+
+    String attachedUrl;
+
     String message;
 
     ParticipantInfo sender;
 
-    @Indexed
     Instant createdDate;
 }

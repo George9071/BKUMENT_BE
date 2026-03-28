@@ -16,7 +16,11 @@ public enum ErrorCode {
 
     USER_NOT_FOUND(5001, "User not found", HttpStatus.NOT_FOUND),
     CONVERSATION_NOT_FOUND(5002, "Conversation not found", HttpStatus.NOT_FOUND),
-    INVALID_PARTICIPANT(5003, "Invalid participant", HttpStatus.BAD_REQUEST)
+    INVALID_PARTICIPANT(5003, "Invalid participant", HttpStatus.BAD_REQUEST),
+    INVALID_DIRECT_CHAT_MEMBERS(5004, "Invalid number participant for direct chat", HttpStatus.BAD_REQUEST),
+    INVALID_MESSAGE_PAYLOAD(5005, "invalid message payload", HttpStatus.BAD_REQUEST),
+    NOTIFICATION_NOT_FOUND(5006, "Notification not found", HttpStatus.NOT_FOUND),
+    ACCESS_DENIED(5007, "access denied", HttpStatus.UNAUTHORIZED),
     ;
 
     private final int code;

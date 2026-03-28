@@ -5,15 +5,15 @@ server:
 
 spring:
   neo4j:
-    uri: bolt://206.189.92.152:7687
+    uri: bolt://${DB_HOST:localhost}:7687
     authentication:
-      username: neo4j
-      password: BKUMENT_THESIS_252
+      username: ${NEO4J_USERNAME}
+      password: ${NEO4J_PASSWORD}
   datasource:
-    url: "jdbc:postgresql://206.189.92.152:5432/bkument_db"
+    url: "jdbc:postgresql://${DB_HOST:localhost}:5432/bkument_db"
     driverClassName: "org.postgresql.Driver"
-    username: bkument
-    password: bkument_thesis_252
+    username: ${POSTGRES_USERNAME}
+    password: ${POSTGRES_PASSWORD}
     hikari:
       maximum-pool-size: 5
       minimum-idle: 2
@@ -21,9 +21,15 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
 swagger:
   host-url: http://localhost:8081/profile
+  gateway-url: http://localhost:8888/api/v1/profile
 
 jwt:
-  signerKey: "5016f0096d30f88524edc817d00b36406e26788c87ea9c97d57c4b7758b5f033"
+  signerKey: ${JWT_SIGNER_KEY}

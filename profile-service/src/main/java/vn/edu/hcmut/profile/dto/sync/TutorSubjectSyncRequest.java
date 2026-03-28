@@ -1,7 +1,8 @@
 package vn.edu.hcmut.profile.dto.sync;
 
-import lombok.*;
 import java.util.Set;
+
+import lombok.*;
 
 @Data
 @Builder

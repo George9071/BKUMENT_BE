@@ -1,18 +1,19 @@
 package vn.edu.hcmut.profile.controller;
 
+import java.util.List;
+
+import org.springframework.web.bind.annotation.*;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.springframework.web.bind.annotation.*;
 import vn.edu.hcmut.profile.dto.response.APIResponse;
 import vn.edu.hcmut.profile.dto.response.PageResponse;
 import vn.edu.hcmut.profile.dto.response.UniversityResponse;
 import vn.edu.hcmut.profile.service.UniversityService;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/universities")
@@ -22,7 +23,8 @@ import java.util.List;
 public class UniversityController {
     UniversityService universityService;
 
-    @Operation(summary = "Get all universities",
+    @Operation(
+            summary = "Get all universities",
             description = "Fetch a flat list of all universities without pagination.")
     @GetMapping
     public APIResponse<List<UniversityResponse>> getAllUniversities() {
@@ -31,10 +33,13 @@ public class UniversityController {
                 .build();
     }
 
-    @Operation(summary = "Search universities (Paginated)", description = "Search universities by name or abbreviation with pagination support.")
+    @Operation(
+            summary = "Search universities (Paginated)",
+            description = "Search universities by name or abbreviation with pagination support.")
     @GetMapping("/search")
     public APIResponse<PageResponse<UniversityResponse>> searchUniversities(
-            @Parameter(description = "Search keyword (name or abbreviation)") @RequestParam(required = false) String query,
+            @Parameter(description = "Search keyword (name or abbreviation)") @RequestParam(required = false)
+                    String query,
             @Parameter(description = "Page number (1-based index)") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "Number of records per page") @RequestParam(defaultValue = "10") int size) {
 

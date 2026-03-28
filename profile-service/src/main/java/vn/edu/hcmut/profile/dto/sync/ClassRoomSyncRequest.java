@@ -13,5 +13,5 @@ public class ClassRoomSyncRequest {
     String name;
     String status;
     String format;
-    String topicId; 
+    String topicId;
 }

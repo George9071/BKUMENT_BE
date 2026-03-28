@@ -3,8 +3,7 @@ package vn.edu.hcmut.communication.entity;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-@Setter
-@Getter
+@Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor

@@ -1,18 +1,32 @@
+
 spring:
   application:
     name: communication-service
   data:
     mongodb:
-      uri: mongodb://bkument_admin:bkument_thesis_252@127.0.0.1:27018/communication?authSource=admin
+      uri: mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@${DB_HOST:127.0.0.1}:27017/communication?authSource=admin
       auto-index-creation: true
+  kafka:
+    bootstrap-servers: localhost:9094
+
+    consumer:
+      group-id: communication-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.value.default.type: vn.edu.hcmut.notification.event.EnrollmentNotificationEvent
+        spring.json.trusted.packages: "vn.edu.hcmut.notification.event, vn.edu.hcmut.event.dto"
+        spring.json.type.mapping: "vn.edu.hcmut.event.dto.EnrollmentNotificationEvent:vn.edu.hcmut.notification.event.EnrollmentNotificationEvent"
 
 ssh:
   tunnel:
     enabled: false
-    host: 206.189.92.152
+    host: ${SSH_HOST:localhost}
     port: 22
-    user: root
-    password: BKUMENT_THESIS_252
+    user: ${SSH_USERNAME:username}
+    password: ${SSH_PASSWORD:username}
     local-port: 27018
     remote-port: 27017
 
@@ -32,3 +46,4 @@ app:
 
 swagger:
   host-url: http://localhost:8083/communication
+  gateway-url: http://localhost:8888/api/v1/communication

@@ -3,6 +3,7 @@ package vn.edu.hcmut.lms.configuration;
 import java.util.List;
 
 import org.springdoc.core.models.GroupedOpenApi;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,6 +17,12 @@ import io.swagger.v3.oas.models.servers.Server;
 @Configuration
 public class OpenApiConfiguration {
 	private static final String SECURITY_SCHEME_NAME = "bearerAuth";
+
+    @Value("${swagger.gateway-url}")
+    private String gateway;
+
+    @Value("${swagger.host-url}")
+    private String self_host;
 
     // the "public" group (excludes internal paths)
     @Bean
@@ -42,8 +49,9 @@ public class OpenApiConfiguration {
                 .info(new Info().title("BKUMENT").version("1.0").description("APIs for lms-service"))
                 // --- SERVER CONFIGURATION---
                 .servers(List.of(
-                        new Server().url("http://localhost:8082/lms").description("Local"),
-                        new Server().url("http://localhost:8888/api/v1/lms").description("Gateway")))
+                        new Server().url(gateway).description("API Gateway (Default)"),
+                        new Server().url(self_host).description("Direct Local (Bypass Gateway)")
+                ))
 
                 // --- SECURITY CONFIGURATION---
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))

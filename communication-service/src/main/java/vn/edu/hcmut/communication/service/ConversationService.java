@@ -26,7 +26,6 @@ import vn.edu.hcmut.communication.repository.httpclient.ProfileClient;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.StringJoiner;
 
 @Slf4j
@@ -36,7 +35,6 @@ import java.util.StringJoiner;
 public class ConversationService {
     ConversationRepository conversationRepository;
     ProfileClient profileClient;
-
     ConversationMapper conversationMapper;
 
     public ConversationResponse updateMetadata(String id, ConversationMetadataRequest request) {
@@ -52,7 +50,7 @@ public class ConversationService {
         }
 
         if (request.getConversationAvatar() != null) {
-            conversation.setConversationAvatar(request.getConversationAvatar());
+            conversation.setAvatar(request.getConversationAvatar());
         }
 
         if (request.getLastMessage() != null) {
@@ -88,61 +86,62 @@ public class ConversationService {
     }
 
     public ConversationResponse create(ConversationRequest request) {
-        // Fetch user infos
         String userId = getProfileIdFromToken();
-        var user = profileClient.getProfile(userId);
 
-        // Assume only 2 participants
-        var participant = profileClient.getProfile(request.getParticipantIds().get(0));
+        List<String> participantIds = new ArrayList<>(request.getParticipantIds());
+        if (!participantIds.contains(userId)) participantIds.add(userId);
 
-        if (Objects.isNull(user) || Objects.isNull(participant)) {
-            throw new AppException(ErrorCode.USER_NOT_FOUND);
+        if ("DIRECT".equals(request.getType())) {
+            if (participantIds.size() != 2) throw new AppException(ErrorCode.INVALID_DIRECT_CHAT_MEMBERS);
+
+            String hash = generateParticipantHash(participantIds.stream().sorted().toList());
+
+            var conversation = conversationRepository.findByParticipantsHash(hash);
+            if (conversation.isPresent()) return toConversationResponse(conversation.get());
+
+            return createConversation(request, participantIds, hash);
+        } else {
+            return createConversation(request, participantIds, null);
+        }
+    }
+
+    private ConversationResponse createConversation(
+            ConversationRequest request,
+            List<String> participantsIds,
+            String hash) {
+
+        List<ParticipantInfo> participantInfos = new ArrayList<>();
+
+        for (String id : participantsIds) {
+            var profile = profileClient.getProfile(id);
+            if (profile == null || profile.getResult() == null) continue;
+
+            var info = profile.getResult();
+
+            participantInfos.add(ParticipantInfo.builder()
+                    .userId(info.getId())
+                    .username(info.getLastName() + " " + info.getFirstName())
+                    .firstName(info.getFirstName())
+                    .lastName(info.getLastName())
+                    .avatar(info.getAvatarUrl())
+                    .build());
         }
 
-        var userInfo = user.getResult();
-        var participantInfo = participant.getResult();
+        String name = "GROUP".equals(request.getType()) ? request.getName() : null;
+        String avatar = "GROUP".equals(request.getType()) ? request.getAvatar() : null;
 
-        List<String> userIds = new ArrayList<>();
-        userIds.add(userId);
-        userIds.add(participantInfo.getId());
+        Conversation conversation = Conversation.builder()
+                .type(request.getType())
+                .name(name)
+                .avatar(avatar)
+                .participantsHash(hash)
+                .participantIds(participantsIds)
+                .createdDate(Instant.now())
+                .modifiedDate(Instant.now())
+                .participants(participantInfos)
+                .build();
 
-        var sortedIds = userIds.stream().sorted().toList();
-        String userIdsHash = generateParticipantHash(sortedIds);
-
-        var conversation = conversationRepository.findByParticipantsHash(userIdsHash)
-                .orElseGet(() -> {
-                    List<ParticipantInfo> participantInfos = List.of(
-                            // Request sender
-                            ParticipantInfo.builder()
-                                    .userId(userInfo.getId())
-                                    .username(userInfo.getLastName() + " " + userInfo.getFirstName())
-                                    .firstName(userInfo.getFirstName())
-                                    .lastName(userInfo.getLastName())
-                                    .avatar(userInfo.getAvatarUrl())
-                                    .build(),
-
-                            // participants
-                            ParticipantInfo.builder()
-                                    .userId(participantInfo.getId())
-                                    .username(participantInfo.getLastName() + " " + participantInfo.getFirstName())
-                                    .firstName(participantInfo.getFirstName())
-                                    .lastName(participantInfo.getLastName())
-                                    .avatar(participantInfo.getAvatarUrl())
-                                    .build());
-
-                    // Build conversation info
-                    Conversation newConversation = Conversation.builder()
-                            .type(request.getType())
-                            .participantsHash(userIdsHash)
-                            .createdDate(Instant.now())
-                            .modifiedDate(Instant.now())
-                            .participants(participantInfos)
-                            .build();
-
-                    return conversationRepository.save(newConversation);
-                });
-
-        return toConversationResponse(conversation);
+        return toConversationResponse(conversationRepository.save(conversation));
     }
 
     private String getProfileIdFromToken() {
@@ -159,27 +158,18 @@ public class ConversationService {
     private ConversationResponse toConversationResponse(Conversation conversation) {
         String userId = getProfileIdFromToken();
 
-        ConversationResponse conversationResponse = conversationMapper.toConversationResponse(conversation);
+        ConversationResponse response = conversationMapper.toConversationResponse(conversation);
 
-        conversation.getParticipants().stream()
-                .filter(participantInfo -> !participantInfo.getUserId().equals(userId))
-                .findFirst().ifPresent(participantInfo -> {
-                    conversationResponse.setConversationName(participantInfo.getUsername());
+        if ("DIRECT".equals(conversation.getType())) {
+            conversation.getParticipants().stream()
+                    .filter(p -> !p.getUserId().equals(userId))
+                    .findFirst()
+                    .ifPresent(p -> {
+                        response.setConversationName(p.getUsername());
+                        response.setConversationAvatar(p.getAvatar());
+                    });
+        }
 
-                    try {
-                        var profile = profileClient.getProfile(participantInfo.getUserId());
-                        if (profile != null && profile.getResult() != null) {
-                            conversationResponse.setConversationAvatar(profile.getResult().getAvatarUrl());
-                        } else {
-                            conversationResponse.setConversationAvatar(participantInfo.getAvatar());
-                        }
-                    } catch (Exception e) {
-                        log.warn("Failed to fetch avatar for user {}, falling back to snapshot",
-                                participantInfo.getUserId());
-                        conversationResponse.setConversationAvatar(participantInfo.getAvatar());
-                    }
-                });
-
-        return conversationResponse;
+        return response;
     }
 }

@@ -92,27 +92,29 @@ public class SyncService {
     public void syncTutorSubjects(List<TutorSubjectSyncRequest> requests) {
         if (requests == null || requests.isEmpty()) return;
 
-        String query = """
-                UNWIND $data AS row
-                MATCH (u:UserProfile {id: row.tutorId})
-                
-                OPTIONAL MATCH (u)-[r:TEACHES]->()
-                DELETE r
-                
-                WITH u, row
-                WHERE row.subjectIds IS NOT NULL AND size(row.subjectIds) > 0
-                
-                UNWIND row.subjectIds AS subId
-                
-                MERGE (s:Subject {id: subId})
-                MERGE (u)-[:TEACHES]->(s)
-                """;
+        String query =
+                """
+				UNWIND $data AS row
+				MATCH (u:UserProfile {id: row.tutorId})
+
+				OPTIONAL MATCH (u)-[r:TEACHES]->()
+				DELETE r
+
+				WITH u, row
+				WHERE row.subjectIds IS NOT NULL AND size(row.subjectIds) > 0
+
+				UNWIND row.subjectIds AS subId
+
+				MERGE (s:Subject {id: subId})
+				MERGE (u)-[:TEACHES]->(s)
+				""";
 
         List<Map<String, Object>> parameters = requests.stream()
                 .map(req -> Map.of(
-                        "tutorId", req.getTutorId(),
-                        "subjectIds", req.getSubjectIds() != null ? req.getSubjectIds() : Collections.emptySet()
-                ))
+                        "tutorId",
+                        req.getTutorId(),
+                        "subjectIds",
+                        req.getSubjectIds() != null ? req.getSubjectIds() : Collections.emptySet()))
                 .toList();
 
         neo4jClient.query(query).bindAll(Map.of("data", parameters)).run();
@@ -121,30 +123,33 @@ public class SyncService {
 
     @Transactional
     public void syncClass(ClassRoomSyncRequest request) {
-        String query = """
-                MERGE (c:ClassRoom {id: $id})
-                SET c.name = $name,
-                    c.status = $status,
-                    c.format = $format
-                WITH c
-                
-                OPTIONAL MATCH (c)-[r:COVERS]->()
-                DELETE r
-                
-                WITH c
-                UNWIND (CASE WHEN $topicId IS NOT NULL THEN [$topicId] ELSE [] END) AS tId
-                
-                MERGE (t:Topic {id: tId})
-                MERGE (c)-[:COVERS]->(t)
-                """;
+        String query =
+                """
+				MERGE (c:ClassRoom {id: $id})
+				SET c.name = $name,
+					c.status = $status,
+					c.format = $format
+				WITH c
 
-        neo4jClient.query(query).bindAll(Map.of(
-                "id", request.getId(),
-                "name", request.getName(),
-                "status", request.getStatus() != null ? request.getStatus() : "",
-                "format", request.getFormat() != null ? request.getFormat() : "",
-                "topicId", request.getTopicId()
-        )).run();
+				OPTIONAL MATCH (c)-[r:COVERS]->()
+				DELETE r
+
+				WITH c
+				UNWIND (CASE WHEN $topicId IS NOT NULL THEN [$topicId] ELSE [] END) AS tId
+
+				MERGE (t:Topic {id: tId})
+				MERGE (c)-[:COVERS]->(t)
+				""";
+
+        neo4jClient
+                .query(query)
+                .bindAll(Map.of(
+                        "id", request.getId(),
+                        "name", request.getName(),
+                        "status", request.getStatus() != null ? request.getStatus() : "",
+                        "format", request.getFormat() != null ? request.getFormat() : "",
+                        "topicId", request.getTopicId()))
+                .run();
 
         log.info("Successfully synced classroom {} to Neo4j.", request.getId());
     }
@@ -156,26 +161,27 @@ public class SyncService {
             return;
         }
 
-        String query = """
-                UNWIND $data AS row
-               \s
-                MERGE (c:ClassRoom {id: row.id})
-                SET c.name = row.name,
-                    c.status = row.status,
-                    c.format = row.format
-                   \s
-                WITH c, row
-               \s
-                OPTIONAL MATCH (c)-[r:COVERS]->()
-                DELETE r
-               \s
-                WITH c, row
-               \s
-                UNWIND (CASE WHEN row.topicId IS NOT NULL THEN [row.topicId] ELSE [] END) AS tId
-               \s
-                MERGE (t:Topic {id: tId})
-                MERGE (c)-[:COVERS]->(t)
-               \s""";
+        String query =
+                """
+				UNWIND $data AS row
+			\s
+				MERGE (c:ClassRoom {id: row.id})
+				SET c.name = row.name,
+					c.status = row.status,
+					c.format = row.format
+				\s
+				WITH c, row
+			\s
+				OPTIONAL MATCH (c)-[r:COVERS]->()
+				DELETE r
+			\s
+				WITH c, row
+			\s
+				UNWIND (CASE WHEN row.topicId IS NOT NULL THEN [row.topicId] ELSE [] END) AS tId
+			\s
+				MERGE (t:Topic {id: tId})
+				MERGE (c)-[:COVERS]->(t)
+			\s""";
 
         List<Map<String, Object>> parameters = requests.stream()
                 .map(req -> {
@@ -202,19 +208,19 @@ public class SyncService {
 
         neo4jClient.query("MATCH ()-[r:ENROLLED_IN]->() DELETE r").run();
 
-        String query = """
-                UNWIND $data AS row
+        String query =
+                """
+				UNWIND $data AS row
 
-                MERGE (u:UserProfile {id: row.studentId})
-                MERGE (c:ClassRoom {id: row.classRoomId})
-                MERGE (u)-[:ENROLLED_IN]->(c)
-                """;
+				MERGE (u:UserProfile {id: row.studentId})
+				MERGE (c:ClassRoom {id: row.classRoomId})
+				MERGE (u)-[:ENROLLED_IN]->(c)
+				""";
 
         List<Map<String, Object>> parameters = requests.stream()
                 .map(req -> Map.<String, Object>of(
                         "studentId", req.getStudentId(),
-                        "classRoomId", req.getClassId()
-                ))
+                        "classRoomId", req.getClassId()))
                 .toList();
 
         neo4jClient.query(query).bindAll(Map.of("data", parameters)).run();
@@ -223,38 +229,46 @@ public class SyncService {
 
     @Transactional
     public void addEnrollment(EnrollmentSyncRequest request) {
-        String query = """
-                MERGE (u:UserProfile {id: $studentId})
-                MERGE (c:ClassRoom {id: $classId})
-                MERGE (u)-[:ENROLLED_IN]->(c)
-                """;
-        neo4jClient.query(query).bindAll(Map.of(
-                "studentId", request.getStudentId(),
-                "classId", request.getClassId()
-        )).run();
-        log.info("Created ENROLLED_IN relation for student {} and class {}",
-                request.getStudentId(), request.getClassId());
+        String query =
+                """
+				MERGE (u:UserProfile {id: $studentId})
+				MERGE (c:ClassRoom {id: $classId})
+				MERGE (u)-[:ENROLLED_IN]->(c)
+				""";
+        neo4jClient
+                .query(query)
+                .bindAll(Map.of(
+                        "studentId", request.getStudentId(),
+                        "classId", request.getClassId()))
+                .run();
+        log.info(
+                "Created ENROLLED_IN relation for student {} and class {}",
+                request.getStudentId(),
+                request.getClassId());
     }
 
     @Transactional
     public void removeEnrollment(String studentId, String classId) {
-        String query = """
-                MATCH (u:UserProfile {id: $studentId})-[r:ENROLLED_IN]->(c:ClassRoom {id: $classId})
-                DELETE r
-                """;
-        neo4jClient.query(query).bindAll(Map.of(
-                "studentId", studentId,
-                "classId", classId
-        )).run();
+        String query =
+                """
+				MATCH (u:UserProfile {id: $studentId})-[r:ENROLLED_IN]->(c:ClassRoom {id: $classId})
+				DELETE r
+				""";
+        neo4jClient
+                .query(query)
+                .bindAll(Map.of(
+                        "studentId", studentId,
+                        "classId", classId))
+                .run();
         log.info("Removed ENROLLED_IN relation for student {} and class {}", studentId, classId);
     }
 
     @Transactional
     public void deleteClassRoom(String classId) {
         String query = """
-                MATCH (c:ClassRoom {id: $id})
-                DETACH DELETE c
-                """;
+				MATCH (c:ClassRoom {id: $id})
+				DETACH DELETE c
+				""";
 
         neo4jClient.query(query).bindAll(Map.of("id", classId)).run();
         log.info("Successfully deleted classroom {} and its relationships from Neo4j.", classId);

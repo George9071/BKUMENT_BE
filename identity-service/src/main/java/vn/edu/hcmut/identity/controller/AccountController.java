@@ -1,12 +1,12 @@
 package vn.edu.hcmut.identity.controller;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
 import org.springframework.web.bind.annotation.*;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -30,8 +30,7 @@ public class AccountController {
 
     @Operation(
             summary = "Register a new user",
-            description = "Creates a new identity account and triggers the creation of the user's external profile."
-    )
+            description = "Creates a new identity account and triggers the creation of the user's external profile.")
     @PostMapping("/registration")
     APIResponse<AccountResponse> createUser(@RequestBody @Valid UserCreationRequest request) {
         return APIResponse.<AccountResponse>builder()
@@ -41,15 +40,13 @@ public class AccountController {
 
     @Operation(
             summary = "Get all accounts (paginated)",
-            description = "Retrieves a paginated list of all accounts in the system. Requires ADMIN role."
-    )
+            description = "Retrieves a paginated list of all accounts in the system. Requires ADMIN role.")
     @GetMapping
     public APIResponse<PageResponse<AccountResponse>> getAccounts(
-            @Parameter(description = "Page number (1-based index)", example = "1")
-            @RequestParam(defaultValue = "1") int page,
-
-            @Parameter(description = "Number of records per page", example = "10")
-            @RequestParam(defaultValue = "10") int size) {
+            @Parameter(description = "Page number (1-based index)", example = "1") @RequestParam(defaultValue = "1")
+                    int page,
+            @Parameter(description = "Number of records per page", example = "10") @RequestParam(defaultValue = "10")
+                    int size) {
 
         return APIResponse.<PageResponse<AccountResponse>>builder()
                 .result(accountService.getAccounts(page, size))
@@ -58,9 +55,8 @@ public class AccountController {
 
     @Operation(
             summary = "Get account details",
-            description = "Retrieves specific information about an account. " +
-                    "Users can only fetch their own account unless they are an ADMIN."
-    )
+            description = "Retrieves specific information about an account. "
+                    + "Users can only fetch their own account unless they are an ADMIN.")
     @GetMapping("/{accountId}")
     APIResponse<AccountResponse> getAccount(@PathVariable("accountId") String accountId) {
         return APIResponse.<AccountResponse>builder()
@@ -70,13 +66,11 @@ public class AccountController {
 
     @Operation(
             summary = "Update account information",
-            description = "Updates an account's details, such as password. " +
-                    "Users can only update their own account unless they are an ADMIN."
-    )
+            description = "Updates an account's details, such as password. "
+                    + "Users can only update their own account unless they are an ADMIN.")
     @PatchMapping("/{accountId}")
     APIResponse<AccountResponse> updateAccount(
-            @PathVariable String accountId,
-            @RequestBody @Valid AccountUpdateRequest request) {
+            @PathVariable String accountId, @RequestBody @Valid AccountUpdateRequest request) {
         return APIResponse.<AccountResponse>builder()
                 .result(accountService.updateAccount(accountId, request))
                 .build();
@@ -84,9 +78,8 @@ public class AccountController {
 
     @Operation(
             summary = "Delete an account",
-            description = "Permanently deletes an account and cascades the deletion to LMS and Profile services. " +
-                    "Requires ADMIN role."
-    )
+            description = "Permanently deletes an account and cascades the deletion to LMS and Profile services. "
+                    + "Requires ADMIN role.")
     @DeleteMapping("/{accountId}")
     APIResponse<String> deleteAccount(@PathVariable String accountId) {
         accountService.deleteAccount(accountId);

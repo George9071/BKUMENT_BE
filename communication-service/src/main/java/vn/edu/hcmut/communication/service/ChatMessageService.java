@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 import vn.edu.hcmut.communication.dto.request.ChatMessageRequest;
 import vn.edu.hcmut.communication.dto.response.ChatMessageResponse;
 import vn.edu.hcmut.communication.entity.ChatMessage;
-import vn.edu.hcmut.communication.entity.Conversation;
 import vn.edu.hcmut.communication.entity.ParticipantInfo;
 import vn.edu.hcmut.communication.entity.WebSocketSession;
 import vn.edu.hcmut.communication.exception.AppException;
@@ -30,10 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -89,69 +85,61 @@ public class ChatMessageService {
 
         // Get user info from ProfileService
         var user = profileClient.getProfile(userId);
-
-        if (Objects.isNull(user)) {
+        if (Objects.isNull(user) || user.getResult() == null) {
             throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
         }
         var userInfo = user.getResult();
 
         // Build chat message info
-        ChatMessage chatMessage = chatMessageMapper.toChatMessage(request);
-        chatMessage.setSender(ParticipantInfo.builder()
+        if (("TEXT".equals(request.getType()) &&
+                (request.getMessage() == null || request.getMessage().trim().isEmpty()))
+            || ("IMAGE".equals(request.getType()) &&
+                (request.getAttachedUrl() == null || request.getAttachedUrl().trim().isEmpty()))) {
+            throw new AppException(ErrorCode.INVALID_MESSAGE_PAYLOAD);
+        }
+
+        ChatMessage message = chatMessageMapper.toChatMessage(request);
+
+        message.setSender(ParticipantInfo.builder()
                 .userId(userInfo.getId())
                 .username(userInfo.getLastName() + " " + userInfo.getFirstName())
                 .firstName(userInfo.getFirstName())
                 .lastName(userInfo.getLastName())
                 .avatar(userInfo.getAvatarUrl())
                 .build());
-        chatMessage.setCreatedDate(Instant.now());
+        message.setCreatedDate(Instant.now());
+        message = chatMessageRepository.save(message);
 
-        // Create chat message
-        chatMessage = chatMessageRepository.save(chatMessage);
-
-        conversation.setLastMessage(
-            "image".equals(request.getType())
-                ? "Hình ảnh"
-                : chatMessage.getMessage()
-        );
-        conversation.setLastMessageTime(chatMessage.getCreatedDate());
+        conversation.setLastMessage("image".equals(request.getType()) ? "Hình ảnh" : message.getMessage());
+        conversation.setLastMessageTime(message.getCreatedDate());
         conversation.setModifiedDate(Instant.now());
-
         conversationRepository.save(conversation);
 
-        // Publish socket event to clients in conversation
-        // Get participants ids
-        List<String> ids = conversation.getParticipants().stream()
-                .map(ParticipantInfo::getUserId).toList();
+        ChatMessageResponse response = chatMessageMapper.toChatMessageResponse(message);
+        String payload;
 
-        // Retrieve a list of active WebSocket Sessions for each member (socketSessionId, WebSocketSession).
-        Map<String, WebSocketSession> sessions = webSocketSessionRepository
-                .findAllByUserIdIn(ids)
-                .stream()
-                .collect(Collectors.toMap(WebSocketSession::getSocketSessionId, Function.identity()));
+        try {
+            // NOT set 'me' field here; let FE handle it.
+            payload = objectMapper.writeValueAsString(response);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize message", e);
+        }
 
-        ChatMessageResponse messageResponse = chatMessageMapper.toChatMessageResponse(chatMessage);
+        List<String> memberIds = conversation.getParticipants().stream().map(ParticipantInfo::getUserId).toList();
+        List<WebSocketSession> sessions = webSocketSessionRepository.findAllByUserIdIn(memberIds);
 
-        // Browse through all clients currently connected to the socket server.
-        socketIOServer.getAllClients().forEach(client -> {
-
-            // Check if the current client is included in the set of participants in the conversation.
-            var webSocketSession = sessions.get(client.getSessionId().toString());
-
-            if (Objects.nonNull(webSocketSession)) {
-                String message = null;
-                try {
-                    messageResponse.setMe(webSocketSession.getUserId().equals(userId));
-                    message = objectMapper.writeValueAsString(messageResponse);
-                    client.sendEvent("message", message);
-                } catch (JsonProcessingException e) {
-                    throw new RuntimeException(e);
+        sessions.forEach(session -> {
+            try {
+                var client = socketIOServer.getClient(java.util.UUID.fromString(session.getSocketSessionId()));
+                if (client != null) {
+                    client.sendEvent("message", payload);
                 }
+            } catch (Exception e) {
+                log.warn("Failed to send socket message to session {}", session.getSocketSessionId());
             }
         });
 
-        // Convert to response
-        return toChatMessageResponse(chatMessage);
+        return toChatMessageResponse(message);
     }
 
     private ChatMessageResponse toChatMessageResponse(ChatMessage chatMessage) {

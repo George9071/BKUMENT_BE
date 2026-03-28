@@ -13,8 +13,7 @@ import org.springframework.util.StringUtils;
  * Custom converter to extract authorities (privileges and roles) from a JWT token.
  * It maps custom claims ("privilege" and "scope") into Spring Security's GrantedAuthority objects.
  */
-public class CustomJwtGrantedAuthoritiesConverter
-        implements Converter<Jwt, Collection<GrantedAuthority>> {
+public class CustomJwtGrantedAuthoritiesConverter implements Converter<Jwt, Collection<GrantedAuthority>> {
 
     // Standard Spring Security role prefix
     private static final String ROLE_PREFIX = "ROLE_";
@@ -26,7 +25,7 @@ public class CustomJwtGrantedAuthoritiesConverter
         // "privilege" claim (e.g., "READ_CLASS WRITE_CLASS") -> Action-based authorities
         String privileges = jwt.getClaimAsString("privilege");
 
-        if (StringUtils.hasText(privileges)){
+        if (StringUtils.hasText(privileges)) {
             // Split by one or more whitespace characters ("\\s+") to handle accidental double spaces
             Arrays.stream(privileges.split("\\s+"))
                     .map(SimpleGrantedAuthority::new)

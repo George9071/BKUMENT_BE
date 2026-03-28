@@ -1,0 +1,49 @@
+name: Deploy BKUMENT BE
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      
+    - name: Set up JDK 21
+      uses: actions/setup-java@v3
+      with:
+        java-version: '21'   
+        distribution: 'temurin'
+        cache: maven
+        
+    - name: Build all microservices
+      run: |
+        for dir in */ ; do
+          if [ -f "$dir/pom.xml" ]; then
+            echo "🚀 build service: $dir"
+            (cd "$dir" && mvn clean package -DskipTests)
+          fi
+        done
+
+    - name: Copy JARs to DigitalOcean
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.DO_HOST }}
+        username: ${{ secrets.DO_USERNAME }}
+        password: ${{ secrets.DO_PASSWORD }}
+        
+        source: "docker-compose.yml,*/Dockerfile,*/target/*.jar"
+        target: "/root/bkument-backend" 
+
+    - name: Execute SSH to restart Docker
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.DO_HOST }}
+        username: ${{ secrets.DO_USERNAME }}
+        password: ${{ secrets.DO_PASSWORD }}
+        script: |
+          cd /root/bkument-backend
+          docker compose up -d --build

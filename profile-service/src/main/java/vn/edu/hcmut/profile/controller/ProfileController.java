@@ -1,5 +1,7 @@
 package vn.edu.hcmut.profile.controller;
 
+import java.util.List;
+
 import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,6 +22,15 @@ import vn.edu.hcmut.profile.service.ProfileService;
 @Tag(name = "Profile management", description = "APIs for managing user profiles, searching, and graph relationships")
 public class ProfileController {
     ProfileService profileService;
+
+    @GetMapping("/search")
+    public APIResponse<List<ProfileResponse>> searchUsers(
+            @RequestParam("keyword") String keyword, @RequestParam(value = "limit", defaultValue = "10") int limit) {
+
+        return APIResponse.<List<ProfileResponse>>builder()
+                .result(profileService.searchProfile(keyword, limit))
+                .build();
+    }
 
     // ========================= //
     // MANAGE YOUR OWN PROFILE
