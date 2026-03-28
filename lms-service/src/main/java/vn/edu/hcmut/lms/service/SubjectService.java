@@ -26,10 +26,16 @@ public class SubjectService {
     TopicRepository topicRepository;
     SubjectMapper subjectMapper;
 
-    public PageResponse<SubjectResponse> getAllSubjects(int page, int size) {
+	public PageResponse<SubjectResponse> getAllSubjects(String q, int page, int size) {
         Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
 
-        Page<Subject> subjectPage = subjectRepository.findAllWithTopics(pageable);
+        Page<Subject> subjectPage;
+        
+        if (q == null || q.isBlank()) {
+            subjectPage = subjectRepository.findAllWithTopics(pageable);
+        } else {
+            subjectPage = subjectRepository.findByNameContainingIgnoreCaseWithTopics(q, pageable);
+        }
 
         List<SubjectResponse> responses = subjectPage.getContent().stream()
                 .map(subjectMapper::toSubjectResponse)
