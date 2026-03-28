@@ -42,6 +42,13 @@ spring:
               filters:
                 - StripPrefix=2
 
+            - id: resource_service
+              uri: http://resource-service:8090
+              predicates:
+                - Path=${app.api-prefix}/resource/**
+              filters:
+                - StripPrefix=2
+
       globalcors:
         add-to-simple-url-handler-mapping: true
         cors-configurations:

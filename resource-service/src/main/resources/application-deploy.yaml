@@ -1,9 +1,3 @@
-server:
-  port: 8090
-  servlet:
-    context-path: /resource
-
-# MinIO Configuration
 minio:
   endpoint: http://${MINIO_HOST}:9000
   access-key: ${MINIO_ACCESS_KEY}
@@ -11,6 +5,5 @@ minio:
   bucket-name: ${MINIO_BUCKET_NAME}
   secure: false
 
-# Swagger Configuration
 swagger:
-  host-url: http://localhost:8090/resource
+  host-url: http://${PUBLIC_IP}:8888/api/v1/resource
