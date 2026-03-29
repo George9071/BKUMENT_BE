@@ -25,7 +25,9 @@ import vn.edu.hcmut.communication.repository.httpclient.ProfileClient;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 
 @Slf4j
@@ -111,8 +113,10 @@ public class ConversationService {
             String hash) {
 
         List<ParticipantInfo> participantInfos = new ArrayList<>();
+        Map<String, Boolean> initialReadStatus = new HashMap<>();
 
         for (String id : participantsIds) {
+            initialReadStatus.put(id, true);
             var profile = profileClient.getProfile(id);
             if (profile == null || profile.getResult() == null) continue;
 
@@ -139,6 +143,7 @@ public class ConversationService {
                 .createdDate(Instant.now())
                 .modifiedDate(Instant.now())
                 .participants(participantInfos)
+                .isParticipantRead(initialReadStatus) // Thêm dòng này
                 .build();
 
         return toConversationResponse(conversationRepository.save(conversation));
@@ -160,6 +165,12 @@ public class ConversationService {
 
         ConversationResponse response = conversationMapper.toConversationResponse(conversation);
 
+        if (conversation.getIsParticipantRead() != null) {
+            Boolean isRead = conversation.getIsParticipantRead().get(userId);
+            response.setIsRead(isRead != null ? isRead : true);
+        } else {
+            response.setIsRead(true); 
+        }
         if ("DIRECT".equals(conversation.getType())) {
             conversation.getParticipants().stream()
                     .filter(p -> !p.getUserId().equals(userId))

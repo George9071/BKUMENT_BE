@@ -24,13 +24,15 @@ public class SubjectController {
 
     SubjectService subjectService;
 
-    @Operation(summary = "Get all subjects", description = "Retrieves a paginated list of all available subjects.")
+    @Operation(summary = "Get all subjects", description = "Retrieves a paginated list of all available subjects. Optional search by name.")
     @GetMapping
     public APIResponse<PageResponse<SubjectResponse>> getAllSubjects(
+            @Parameter(description = "Search query by name") @RequestParam(required = false) String q,
             @Parameter(description = "Page number") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "Page size") @RequestParam(defaultValue = "10") int size) {
+            
         return APIResponse.<PageResponse<SubjectResponse>>builder()
-                .result(subjectService.getAllSubjects(page, size))
+                .result(subjectService.getAllSubjects(q, page, size))
                 .build();
     }
 

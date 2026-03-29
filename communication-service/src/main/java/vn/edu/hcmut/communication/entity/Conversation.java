@@ -7,7 +7,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.MongoId;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Setter
 @Getter
@@ -38,6 +40,9 @@ public class Conversation {
 
     @Indexed
     Instant lastMessageTime;
+
+    @Builder.Default
+    Map<String, Boolean> isParticipantRead = new HashMap<>();
 
     Instant createdDate;
     Instant modifiedDate;

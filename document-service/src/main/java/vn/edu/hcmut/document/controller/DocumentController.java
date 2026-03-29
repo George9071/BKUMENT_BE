@@ -67,6 +67,54 @@ public class DocumentController {
         return "Document Service is running";
     }
 
+    @GetMapping("/course/{courseId}")
+    public APIResponse<Page<DocumentMetadataResponse>> getDocumentsByCourseId(
+            @PathVariable String courseId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Document> documents = documentService.getDocumentsByCourseId(courseId, pageable);
+
+        Page<DocumentMetadataResponse> result = documents.map(doc -> {
+            APIResponse<ProfileResponse> apiResponse = profileClient.findUserProfileById(doc.getOwnerId());
+            ProfileResponse profile = apiResponse.getResult();
+
+            DocumentMetadataResponse.Author authorDto = null;
+            if (profile != null) {
+                authorDto = DocumentMetadataResponse.Author.builder()
+                        .id(profile.getId())
+                        .name(profile.getFullName())
+                        .avatarUrl(profile.getAvatarUrl())
+                        .build();
+            }
+
+            return DocumentMetadataResponse.builder()
+                    .id(doc.getId())
+                    .title(doc.getTitle())
+                    .author(authorDto)
+                    .documentType(doc.getDocumentType())
+                    .university(doc.getUniversity())
+                    .course(doc.getCourse())
+                    .description(doc.getDescription())
+                    .downloadable(doc.isDownloadable())
+                    .downloadUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()
+                            + "/document/download/" + doc.getId())
+                    .viewUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()
+                            + "/resource/download/asset/" + doc.getAssetId())
+                    .downloadCount(doc.getDownloadCount())
+                    .previewImageUrl(doc.getPreviewImageUrl())
+                    .createdAt(doc.getCreatedAt())
+                    .summary(doc.getSummary())
+                    .build();
+        });
+
+        return APIResponse.<Page<DocumentMetadataResponse>>builder()
+                .result(result)
+                .message("Get documents by course successfully")
+                .build();
+    }
+
     @GetMapping("/search")
     public APIResponse<Page<DocumentMetadataResponse>> searchDocuments(
             @RequestParam(required = false) String q,

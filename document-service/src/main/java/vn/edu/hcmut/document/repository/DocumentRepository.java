@@ -15,6 +15,8 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
 
     Page<Document> findByCourseContainingIgnoreCase(String keyword, Pageable pageable);
 
+    Page<Document> findByCourseId(String courseId, Pageable pageable);
+
     @Query(
             value =
                     """

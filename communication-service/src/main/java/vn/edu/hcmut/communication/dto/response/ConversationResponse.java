@@ -16,6 +16,7 @@ public class ConversationResponse {
     String id;
     String type; // GROUP, DIRECT
     String participantsHash;
+    Boolean isRead;
     String conversationAvatar;
     String conversationName;
     String lastMessage;

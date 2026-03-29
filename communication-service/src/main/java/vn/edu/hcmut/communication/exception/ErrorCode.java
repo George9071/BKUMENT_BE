@@ -12,7 +12,7 @@ public enum ErrorCode {
     UNAUTHORIZED_ACTION(9005, "unauthorized action", HttpStatus.UNAUTHORIZED),
     SYNC_FAILED(9998, "An error occurred during the synchronization process", HttpStatus.INTERNAL_SERVER_ERROR),
     UNAUTHORIZED(1007, "You do not have permission", HttpStatus.FORBIDDEN),
-    INVALID_KEY(1001, "Uncategorized error", HttpStatus.BAD_REQUEST),
+    INVALID_KEY(1001, "Invalid key", HttpStatus.NOT_FOUND),
 
     USER_NOT_FOUND(5001, "User not found", HttpStatus.NOT_FOUND),
     CONVERSATION_NOT_FOUND(5002, "Conversation not found", HttpStatus.NOT_FOUND),
