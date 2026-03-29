@@ -47,16 +47,28 @@ public class ChatMessageService {
     ObjectMapper objectMapper;
     ChatMessageMapper chatMessageMapper;
 
-    public Page<ChatMessageResponse> getMessages(String conversationId, Pageable pageable) {
+public Page<ChatMessageResponse> getMessages(String conversationId, Pageable pageable) {
         String userId = getProfileIdFromToken();
-        conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND))
-                .getParticipants()
+        var conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
+
+        conversation.getParticipants()
                 .stream()
                 .filter(participantInfo -> userId.equals(participantInfo.getUserId()))
                 .findAny()
                 .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
 
+        if (conversation.getIsParticipantRead() == null) {
+            conversation.setIsParticipantRead(new java.util.HashMap<>());
+        }
+
+        Boolean isRead = conversation.getIsParticipantRead().get(userId);
+        
+        if (Boolean.FALSE.equals(isRead) || isRead == null) {
+            conversation.getIsParticipantRead().put(userId, true);
+            conversationRepository.save(conversation);
+        }
+        
         Page<ChatMessage> messagesPage = chatMessageRepository
                 .findAllByConversationIdOrderByCreatedDateDesc(conversationId, pageable);
 
@@ -110,7 +122,16 @@ public class ChatMessageService {
         message.setCreatedDate(Instant.now());
         message = chatMessageRepository.save(message);
 
-        conversation.setLastMessage("image".equals(request.getType()) ? "Hình ảnh" : message.getMessage());
+        if (conversation.getIsParticipantRead() == null) {
+            conversation.setIsParticipantRead(new java.util.HashMap<>());
+        }
+        
+        conversation.getParticipants().forEach(participant -> {
+            String pId = participant.getUserId();
+            conversation.getIsParticipantRead().put(pId, pId.equals(userId));
+        });
+
+        conversation.setLastMessage("IMAGE".equalsIgnoreCase(request.getType()) ? "Hình ảnh" : message.getMessage());
         conversation.setLastMessageTime(message.getCreatedDate());
         conversation.setModifiedDate(Instant.now());
         conversationRepository.save(conversation);
@@ -139,7 +160,10 @@ public class ChatMessageService {
             }
         });
 
-        return toChatMessageResponse(message);
+        ChatMessageResponse response2 = toChatMessageResponse(message);
+        response2.setTempId(request.getTempId());
+
+        return response2;
     }
 
     private ChatMessageResponse toChatMessageResponse(ChatMessage chatMessage) {

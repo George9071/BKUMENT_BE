@@ -13,6 +13,7 @@ import java.time.Instant;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ChatMessageResponse {
     String id;
+    String tempId;
     String conversationId;
     boolean me;
     String type;

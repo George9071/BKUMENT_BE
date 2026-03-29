@@ -15,6 +15,7 @@ public class ChatMessageRequest {
     String conversationId;
 
     String message;
+    String tempId;
 
     @NotBlank
     @Pattern(regexp = "^(TEXT|IMAGE|FILE)$", message = "only accepts TEXT, IMAGE, or FILE")
