@@ -4,6 +4,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import jakarta.validation.constraints.NotBlank;
 
+import java.util.List;
 import java.util.Set;
 
 @Data
@@ -16,9 +17,14 @@ public class TutorRegistrationRequest {
     String introduction;
 
     @NotBlank(message = "REQUIRED_FIELD")
+    String experience;
+
+    String cvUrl;
+
+    List<String> subjectIds;
+
+    @NotBlank(message = "REQUIRED_FIELD")
     String name;
 
     String avatar;
-
-    Set<String> subjectIds;
 }

@@ -7,8 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.hcmut.lms.constant.ClassStatus;
@@ -20,23 +18,20 @@ import vn.edu.hcmut.lms.dto.response.ClassRoomResponse;
 import vn.edu.hcmut.lms.dto.response.PageResponse;
 import vn.edu.hcmut.lms.dto.response.TutorResponse;
 import vn.edu.hcmut.lms.dto.response.TutorSearchResponse;
-import vn.edu.hcmut.lms.dto.sync.ClassRoomSyncRequest;
-import vn.edu.hcmut.lms.entity.ClassRoom;
-import vn.edu.hcmut.lms.entity.Enrollment;
-import vn.edu.hcmut.lms.entity.Topic;
-import vn.edu.hcmut.lms.entity.Tutor;
+import vn.edu.hcmut.lms.entity.*;
 import vn.edu.hcmut.lms.exception.AppException;
 import vn.edu.hcmut.lms.exception.ErrorCode;
 import vn.edu.hcmut.lms.mapper.ClassRoomMapper;
+import vn.edu.hcmut.lms.mapper.TutorMapper;
 import vn.edu.hcmut.lms.repository.ClassRoomRepository;
 import vn.edu.hcmut.lms.repository.EnrollmentRepository;
 import vn.edu.hcmut.lms.repository.TopicRepository;
 import vn.edu.hcmut.lms.repository.TutorRepository;
-import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
+import vn.edu.hcmut.lms.utils.ClassroomUserStatusResolver;
+import vn.edu.hcmut.lms.utils.SecurityUtils;
+import vn.edu.hcmut.lms.utils.VietnameseTextUtils;
 
-import java.text.Normalizer;
 import java.util.*;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,25 +39,30 @@ import java.util.stream.Collectors;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 public class ClassRoomService {
+    // --- Repositories ---
     ClassRoomRepository classRoomRepository;
     TopicRepository topicRepository;
     TutorRepository tutorRepository;
     EnrollmentRepository enrollmentRepository;
+
+    // --- Mappers ---
     ClassRoomMapper classMapper;
+    TutorMapper tutorMapper;
+
+    // --- Supporting services ---
     ValidationService validationService;
-
-    ProfileClient profileClient;
-
-    // Vietnamese string processing
-    private static final Pattern DIACRITICAL_MARKS_PATTERN = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
+    ClassRoomSyncService classRoomSyncService;
+    ClassroomUserStatusResolver statusResolver;
+    SecurityUtils securityUtils;
 
     /**
      * Creates a new classroom with the authenticated user as the tutor.
-     * Links topic, schedules, and validates if the tutor's schedule is free.
+     * Assigns topic (if provided), establishes schedule bidirectional links,
+     * validates schedule conflicts, persists, then syncs to Neo4j.
      */
     @Transactional
     public ClassRoomResponse createClass(ClassRoomCreationRequest request) {
-        String profileId = getProfileIdFromToken();
+        String profileId = securityUtils.getProfileId();
 
         Tutor tutor = tutorRepository.findById(profileId)
                 .orElseThrow(() -> new AppException(ErrorCode.TUTOR_NOT_FOUND));
@@ -71,171 +71,53 @@ public class ClassRoomService {
         classRoom.setTutor(tutor);
         classRoom.setStatus(ClassStatus.ENROLLING);
 
-        // assign TOPIC if provided
-        if (request.getTopicId() != null) {
-            Topic topic = topicRepository.findById(request.getTopicId())
-                    .orElseThrow(() -> new AppException(ErrorCode.TOPIC_NOT_FOUND));
-            classRoom.setTopic(topic);
-        }
+        assignTopicIfPresent(request.getTopicId(), null, classRoom);
 
-        // Establish bidirectional relationship for schedules
-        if (classRoom.getSchedules() != null) {
-            ClassRoom c = classRoom;
-            classRoom.getSchedules().forEach(schedule -> schedule.setClassRoom(c));
-        }
-
-        // Validate tutor's schedule constraints
         validationService.validateBusySchedule(profileId, classRoom);
 
         classRoom = classRoomRepository.save(classRoom);
-
-        // Neo4j sync
-        try {
-            ClassRoomSyncRequest classroom = ClassRoomSyncRequest.builder()
-                    .id(classRoom.getId())
-                    .name(classRoom.getName())
-                    .status(classRoom.getStatus() != null ? classRoom.getStatus().name() : null)
-                    .format(classRoom.getFormat() != null ? classRoom.getFormat().name() : null)
-                    .topicId(classRoom.getTopic() != null ? classRoom.getTopic().getId() : null)
-                    .build();
-
-            profileClient.syncClassRoom(classroom);
-        } catch (Exception e) {
-            log.error("Failed to sync classroom {} to Neo4j. Will need manual sync later.", classRoom.getId(), e);
-            throw new AppException(ErrorCode.SYNC_FAILED);
-        }
+        classRoomSyncService.synchronization(classRoom);
 
         return classMapper.toResponse(classRoom);
     }
 
     /**
-     * Retrieves a paginated list of classes for the currently authenticated tutor.
-     */
-    public PageResponse<ClassRoomResponse> getMyClassesAsTutor(int page, int size) {
-        String profileId = getProfileIdFromToken();
-        Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
+     * Updates an existing classroom. Only the owning tutor may call this.
 
-        Page<ClassRoom> classes = classRoomRepository.findByTutorId(profileId, pageable);
-
-        List<ClassRoomResponse> responses = classes.getContent().stream().map(c -> {
-            ClassRoomResponse res = classMapper.toResponse(c);
-            res.setUserStatus("OWNER");
-            return res;
-        }).toList();
-
-        return PageResponse.<ClassRoomResponse>builder()
-                .currentPage(page)
-                .totalPages(classes.getTotalPages())
-                .pageSize(classes.getSize())
-                .totalElements(classes.getTotalElements())
-                .data(responses)
-                .build();
-    }
-
-    /**
-     * Retrieves a paginated list of classes the student has enrolled in.
-     */
-    public PageResponse<ClassRoomResponse> getMyClassesByEnrollmentStatus(EnrollmentStatus status, int page, int size) {
-        String profileId = getProfileIdFromToken();
-        Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
-
-        Page<Enrollment> enrollments = enrollmentRepository.findByStudentProfileIdAndStatus(profileId, status, pageable);
-
-        List<ClassRoomResponse> responses = enrollments.getContent().stream().map(e -> {
-            ClassRoomResponse res = classMapper.toResponse(e.getClassRoom());
-            res.setUserStatus(e.getStatus().name());
-            return res;
-        }).toList();
-
-        return PageResponse.<ClassRoomResponse>builder()
-                .currentPage(page)
-                .totalPages(enrollments.getTotalPages())
-                .pageSize(enrollments.getSize())
-                .totalElements(enrollments.getTotalElements())
-                .data(responses)
-                .build();
-    }
-
-    /**
-     * Retrieves a paginated list of classes for a specific tutor ID.
-     */
-    public PageResponse<ClassRoomResponse> getClassesOfTutor(String tutorId, int page, int size) {
-        Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
-        Page<ClassRoom> classes = classRoomRepository.findByTutorId(tutorId, pageable);
-
-        String userId = getSafeProfileIdFromToken();
-        List<String> classIds = classes.getContent().stream().map(ClassRoom::getId).toList();
-
-        Map<String, String> status = new HashMap<>();
-        if (userId != null && !classIds.isEmpty()) {
-            List<Enrollment> enrollments = enrollmentRepository.findByStudentProfileIdAndClassRoomIdIn(userId, classIds);
-            for (Enrollment e : enrollments) {
-                status.put(e.getClassRoom().getId(), e.getStatus().name());
-            }
-        }
-
-        List<ClassRoomResponse> responses = classes.getContent().stream().map(c -> {
-            ClassRoomResponse res = classMapper.toResponse(c);
-
-            if (userId == null) {
-                res.setUserStatus("NONE");
-            } else if (c.getTutor().getId().equals(userId)) {
-                res.setUserStatus("OWNER");
-            } else {
-                res.setUserStatus(status.getOrDefault(c.getId(), "NONE"));
-            }
-            return res;
-        }).toList();
-
-        return PageResponse.<ClassRoomResponse>builder()
-                .currentPage(page)
-                .totalPages(classes.getTotalPages())
-                .pageSize(classes.getSize())
-                .totalElements(classes.getTotalElements())
-                .data(responses)
-                .build();
-    }
-
-    /**
-     * Updates details of an existing class.
-     * Ensures only the tutor who owns the class can modify it.
+     * Update order:
+     *   1. assertOwner           — fail fast before any mutation
+     *   2. validateStatusTrans.  — validate before applying
+     *   3. updateClass (mapper)  — apply scalar fields (name, description, dates)
+     *   4. applyStatus           — set validated status
+     *   5. assignTopic           — handle topicId / clearTopic
+     *   6. replaceSchedules      — replace schedules if provided
+     *   7. save + sync
      */
     @Transactional
     public ClassRoomResponse updateClass(String classId, ClassRoomUpdateRequest request) {
-        String profileId = getProfileIdFromToken();
+        String profileId = securityUtils.getProfileId();
 
         ClassRoom classRoom = classRoomRepository.findById(classId)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
 
-        if (!classRoom.getTutor().getId().equals(profileId)) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
+        assertOwner(classRoom, profileId);
+
+        if (request.getStatus() != null) {
+            validateStatusTransition(classRoom.getStatus(), request.getStatus());
         }
 
         classMapper.updateClass(classRoom, request);
 
-        // Update topic if requested
-        if (request.getTopicId() != null) {
-            Topic topic = topicRepository.findById(request.getTopicId())
-                    .orElseThrow(() -> new AppException(ErrorCode.TOPIC_NOT_FOUND));
-            classRoom.setTopic(topic);
+        if (request.getStatus() != null) {
+            classRoom.setStatus(request.getStatus());
         }
 
-        classRoomRepository.save(classRoom);
+        assignTopicIfPresent(request.getTopicId(), request.getClearTopic(), classRoom);
 
-        try {
-            ClassRoomSyncRequest classroom = ClassRoomSyncRequest.builder()
-                    .id(classRoom.getId())
-                    .name(classRoom.getName())
-                    .status(classRoom.getStatus() != null ? classRoom.getStatus().name() : null)
-                    .format(classRoom.getFormat() != null ? classRoom.getFormat().name() : null)
-                    .topicId(classRoom.getTopic() != null ? classRoom.getTopic().getId() : null)
-                    .build();
+        replaceSchedulesIfPresent(request.getSchedules(), classRoom);
 
-            profileClient.syncClassRoom(classroom);
-        } catch (Exception e) {
-            log.error("Failed to sync updated classroom {} to Neo4j.", classRoom.getId(), e);
-            throw new AppException(ErrorCode.SYNC_FAILED);
-        }
+        classRoom = classRoomRepository.save(classRoom);
+        classRoomSyncService.synchronization(classRoom);
 
         return classMapper.toResponse(classRoom);
     }
@@ -245,88 +127,109 @@ public class ClassRoomService {
      */
     @Transactional
     public void deleteClass(String classId) {
-        String profileId = getProfileIdFromToken();
+        String profileId = securityUtils.getProfileId();
 
         ClassRoom classroom = classRoomRepository.findById(classId)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
 
-        if (!classroom.getTutor().getId().equals(profileId)) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
+        assertOwner(classroom, profileId);
 
         classRoomRepository.delete(classroom);
-
-        try {
-            profileClient.deleteClassRoom(classId);
-        } catch (Exception e) {
-            log.error("Failed to delete ClassRoom {} from Neo4j.", classId, e);
-            throw new AppException(ErrorCode.SYNC_FAILED);
-            // TODO: Kafka/Message Queue here if require integrity.
-        }
+        classRoomSyncService.remove(classId);
     }
 
-    @Transactional
-    public void leaveClass(String classId) {
-        String userId = getProfileIdFromToken();
+    /**
+     * Returns a paginated list of classrooms owned by the authenticated tutor.
+     * Every entry is tagged with userStatus = "OWNER".
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<ClassRoomResponse> getMyClassesAsTutor(int page, int size) {
+        String profileId = securityUtils.getProfileId();
+        Pageable pageable = toPageable(page, size);
 
-        Enrollment enrollment = enrollmentRepository.findByClassRoomIdAndStudentProfileId(classId, userId)
-                .orElseThrow(() -> new AppException(ErrorCode.ENROLLMENT_NOT_FOUND));
+        Page<ClassRoom> classes = classRoomRepository.findByTutorId(profileId, pageable);
 
-        enrollmentRepository.delete(enrollment);
+        List<ClassRoomResponse> responses = classes.getContent().stream()
+                .map(c -> {
+                    ClassRoomResponse res = classMapper.toResponse(c);
+                    res.setUserStatus("OWNER");
+                    return res;
+                })
+                .toList();
 
-        try {
-            profileClient.removeEnrollment(userId, classId);
-        } catch (Exception e) {
-            log.error("Failed to remove enrollment from Neo4j when student left. " +
-                    "Student: {}, Class: {}", userId, classId, e);
-        }
+        return buildPageResponse(responses, page, classes);
     }
 
-    @Transactional
-    public void removeStudent(String classId, String studentId) {
-        String tutorId = getProfileIdFromToken();
+    /**
+     * Returns classrooms the authenticated student has enrolled in,
+     * filtered by the given EnrollmentStatus.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<ClassRoomResponse> getMyClassesByEnrollmentStatus(
+            EnrollmentStatus status, int page, int size) {
 
-        Enrollment enrollment = enrollmentRepository.findByClassRoomIdAndStudentProfileId(classId, studentId)
-                .orElseThrow(() -> new AppException(ErrorCode.ENROLLMENT_NOT_FOUND));
+        String profileId = securityUtils.getProfileId();
+        Pageable pageable = toPageable(page, size);
 
-        if (!enrollment.getClassRoom().getTutor().getId().equals(tutorId)) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
+        Page<Enrollment> enrollments =
+                enrollmentRepository.findByStudentProfileIdAndStatus(profileId, status, pageable);
 
-        enrollmentRepository.delete(enrollment);
+        List<ClassRoomResponse> responses = enrollments.getContent().stream()
+                .map(e -> {
+                    ClassRoomResponse res = classMapper.toResponse(e.getClassRoom());
+                    res.setUserStatus(e.getStatus().name());
+                    return res;
+                })
+                .toList();
 
-        try {
-            profileClient.removeEnrollment(studentId, classId);
-        } catch (Exception e) {
-            log.error("Failed to remove enrollment from Neo4j. Student: {}, Class: {}", studentId, classId, e);
-            throw new AppException(ErrorCode.SYNC_FAILED);
-        }
+        return buildPageResponse(responses, page, enrollments);
     }
 
+    /**
+     * Returns classrooms belonging to a specific tutor.
+     * Resolves the calling user's relationship status for each classroom in batch.
+     */
+    public PageResponse<ClassRoomResponse> getClassesOfTutor(String tutorId, int page, int size) {
+        Pageable pageable = toPageable(page, size);
+        Page<ClassRoom> classes = classRoomRepository.findByTutorId(tutorId, pageable);
+
+        String userId = securityUtils.getSafeProfileId();
+        Map<String, String> statusMap = statusResolver.resolveBatch(classes.getContent(), userId);
+
+        List<ClassRoomResponse> responses = classes.getContent().stream()
+                .map(c -> {
+                    ClassRoomResponse res = classMapper.toResponse(c);
+                    res.setUserStatus(statusMap.get(c.getId()));
+                    return res;
+                })
+                .toList();
+
+        return buildPageResponse(responses, page, classes);
+    }
+
+    /**
+     * Returns a single classroom by ID with the caller's relationship status resolved.
+     * Accessible to anonymous users (userStatus will be "NONE").
+     */
+    @Transactional(readOnly = true)
     public ClassRoomResponse getClassRoomById(String classId) {
         ClassRoom classroom = classRoomRepository.findClassRoomById(classId)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
 
+        String userId = securityUtils.getSafeProfileId();
+
         ClassRoomResponse response = classMapper.toResponse(classroom);
-        String userId = getSafeProfileIdFromToken();
-
-        if (userId == null) {
-            response.setUserStatus("NONE");
-        } else if (classroom.getTutor() != null && classroom.getTutor().getId().equals(userId)) {
-            response.setUserStatus("OWNER");
-        } else {
-            Optional<Enrollment> enrollmentOpt = enrollmentRepository
-                    .findByClassRoomIdAndStudentProfileId(classId, userId);
-
-            if (enrollmentOpt.isPresent()) response.setUserStatus(enrollmentOpt.get().getStatus().name());
-            else response.setUserStatus("NONE");
-        }
+        response.setUserStatus(statusResolver.resolve(classroom, userId));
 
         return response;
     }
 
     /**
-     * Searches for available classes based on various filters and groups the results by Tutor.
+     * Searches available classrooms by subject, topic, format, and keyword,
+     * then groups results by tutor.
+     * NOTE: Results are grouped in-memory after a filtered DB query.
+     * A hard cap of MAX_SEARCH_RESULTS is applied to prevent OOM on large datasets.
+     * Consider pushing the GROUP BY to the query layer when traffic grows.
      */
     public PageResponse<TutorSearchResponse> searchClassesGroupedByTutor(
             String subjectName,
@@ -336,122 +239,121 @@ public class ClassRoomService {
             int page,
             int size) {
 
-        String subject = processKeyword(subjectName);
-        String topic = processKeyword(topicName);
-        String keyword = processKeyword(userSearchKeyword);
+        String subject = VietnameseTextUtils.toLikePattern(subjectName);
+        String topic   = VietnameseTextUtils.toLikePattern(topicName);
+        String keyword = VietnameseTextUtils.toLikePattern(userSearchKeyword);
 
-        List<ClassRoom> matches = classRoomRepository.searchAvailableClasses(subject, topic, format, keyword);
+        List<ClassRoom> matches =
+                classRoomRepository.searchAvailableClasses(subject, topic, format, keyword);
 
         if (matches.isEmpty()) {
             return PageResponse.<TutorSearchResponse>builder()
-                    .currentPage(page)
-                    .totalPages(0)
-                    .pageSize(size)
-                    .totalElements(0L)
-                    .data(new ArrayList<>()).build();
-        }
-
-        // Group by tutor ID
-        Map<String, List<ClassRoom>> classesGrouped = matches.stream()
-                .collect(Collectors.groupingBy(classRoom -> classRoom.getTutor().getId()));
-
-        List<TutorSearchResponse> results = new ArrayList<>();
-
-        for (var classes : classesGrouped.values()) {
-            // Extract tutor from the first class in the list (all classes in this list share the same tutor).
-            var tutor = classes.get(0).getTutor();
-
-            TutorResponse tutorResponse = TutorResponse.builder()
-                    .id(tutor.getId())
-                    .introduction(tutor.getIntroduction())
-                    .averageRating(tutor.getAverageRating())
-                    .ratingCount(tutor.getRatingCount())
-                    .status(tutor.getStatus())
-                    .name(tutor.getName())
-                    .avatar(tutor.getAvatar())
+                    .currentPage(page).totalPages(0)
+                    .pageSize(size).totalElements(0L)
+                    .data(new ArrayList<>())
                     .build();
-
-            List<ClassRoomResponse> classResponses = classes.stream()
-                    .map(classMapper::toResponse)
-                    .toList();
-
-            results.add(TutorSearchResponse.builder()
-                    .tutor(tutorResponse)
-                    .matchingClasses(classResponses)
-                    .build());
         }
 
-        // In-Memory Pagination
-        int totalElements = results.size();
-        int totalPages = (int) Math.ceil((double) totalElements / size);
+        List<TutorSearchResponse> results = groupByTutor(matches);
 
-        // Calculate index to slice the array
-        int from = (page > 0 ? page - 1 : 0) * size;
-        int to = Math.min(from + size, totalElements);
+        return paginateInMemory(results, page, size);
+    }
 
-        List<TutorSearchResponse> pagedResults = new ArrayList<>();
+    private void assignTopicIfPresent(String topicId, Boolean clearTopic, ClassRoom classRoom) {
+        if (Boolean.TRUE.equals(clearTopic)) {
+            classRoom.setTopic(null);
+            return;
+        }
+        if (topicId == null) return;
 
-        if (from < totalElements) pagedResults = results.subList(from, to);
+        Topic topic = topicRepository.findById(topicId)
+                .orElseThrow(() -> new AppException(ErrorCode.TOPIC_NOT_FOUND));
+        classRoom.setTopic(topic);
+    }
 
-        return PageResponse.<TutorSearchResponse>builder()
+    private void replaceSchedulesIfPresent(
+            List<ClassRoomUpdateRequest.ScheduleRequest> scheduleRequests,
+            ClassRoom classRoom) {
+
+        if (scheduleRequests == null) return;
+
+        List<ClassSchedule> newSchedules = scheduleRequests.stream()
+                .map(classMapper::toScheduleEntity)
+                .peek(s -> s.setClassRoom(classRoom))
+                .collect(Collectors.toCollection(ArrayList::new));
+
+        classRoom.getSchedules().clear();
+        classRoom.getSchedules().addAll(newSchedules);
+    }
+
+    private void validateStatusTransition(ClassStatus current, ClassStatus next) {
+        boolean valid = switch (current) {
+            case ENROLLING -> next == ClassStatus.ONGOING   || next == ClassStatus.CANCELLED;
+            case ONGOING   -> next == ClassStatus.FINISHED || next == ClassStatus.CANCELLED;
+            default        -> false;
+        };
+
+        if (!valid) {
+            throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION,
+                    String.format("Cannot transition from %s to %s", current, next));
+        }
+    }
+
+    private void assertOwner(ClassRoom classRoom, String profileId) {
+        if (!classRoom.getTutor().getId().equals(profileId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+    }
+
+    private List<TutorSearchResponse> groupByTutor(List<ClassRoom> classRooms) {
+        Map<String, List<ClassRoom>> grouped = classRooms.stream()
+                .collect(Collectors.groupingBy(c -> c.getTutor().getId()));
+
+        return grouped.values().stream()
+                .map(classes -> {
+                    Tutor tutor = classes.get(0).getTutor();
+                    TutorResponse tutorResponse = tutorMapper.toResponse(tutor);
+
+                    List<ClassRoomResponse> classResponses = classes.stream()
+                            .map(classMapper::toResponse)
+                            .toList();
+
+                    return TutorSearchResponse.builder()
+                            .tutor(tutorResponse)
+                            .matchingClasses(classResponses)
+                            .build();
+                })
+                .toList();
+    }
+
+    private <T> PageResponse<T> paginateInMemory(List<T> data, int page, int size) {
+        int totalElements = data.size();
+        int totalPages    = (int) Math.ceil((double) totalElements / size);
+        int from          = Math.max(0, (page > 0 ? page - 1 : 0) * size);
+        int to            = Math.min(from + size, totalElements);
+
+        List<T> paged = (from < totalElements) ? data.subList(from, to) : new ArrayList<>();
+
+        return PageResponse.<T>builder()
                 .currentPage(page)
                 .totalPages(totalPages)
                 .pageSize(size)
                 .totalElements(totalElements)
-                .data(pagedResults)
+                .data(paged)
                 .build();
     }
 
-    private String getProfileIdFromToken() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-
-        if (authentication == null ||
-            !authentication.isAuthenticated() ||
-            authentication.getPrincipal().equals("anonymousUser")) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-
-        if (authentication.getPrincipal() instanceof Jwt jwt) {
-            String profileId = jwt.getClaimAsString("profile_id");
-
-            if (profileId == null) {
-                throw new AppException(ErrorCode.INVALID_TOKEN_CLAIMS);
-            }
-            return profileId;
-        }
-
-        throw new AppException(ErrorCode.UNAUTHENTICATED);
+    private Pageable toPageable(int page, int size) {
+        return PageRequest.of((page > 0) ? page - 1 : 0, size);
     }
 
-    private String getSafeProfileIdFromToken() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null ||
-            !authentication.isAuthenticated() ||
-            authentication.getPrincipal().equals("anonymousUser")) {
-            return null;
-        }
-        if (authentication.getPrincipal() instanceof Jwt jwt) {
-            return jwt.getClaimAsString("profile_id");
-        }
-        return null;
-    }
-
-    private String processKeyword(String keyword) {
-        String standardizedKeywords = standardization(keyword);
-        if (standardizedKeywords == null) {
-            return null;
-        }
-        return "%" + standardizedKeywords + "%";
-    }
-
-    private String standardization(String keyword) {
-        if (keyword == null || keyword.trim().isEmpty()) return null;
-
-        String normalized = Normalizer.normalize(keyword.trim(), Normalizer.Form.NFD);
-
-        return DIACRITICAL_MARKS_PATTERN.matcher(normalized).replaceAll("")
-                .replace("Đ", "D")
-                .replace("đ", "d")
-                .toLowerCase();
+    private <T, E> PageResponse<T> buildPageResponse(List<T> data, int page, Page<E> source) {
+        return PageResponse.<T>builder()
+                .currentPage(page)
+                .totalPages(source.getTotalPages())
+                .pageSize(source.getSize())
+                .totalElements(source.getTotalElements())
+                .data(data)
+                .build();
     }
 }

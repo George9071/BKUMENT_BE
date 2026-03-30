@@ -19,6 +19,8 @@ public class Tutor implements Persistable<String> {
     String id; // profile_id
 
     String introduction;
+    String experience;
+    String cvUrl;
     String name;
     String avatar;
 

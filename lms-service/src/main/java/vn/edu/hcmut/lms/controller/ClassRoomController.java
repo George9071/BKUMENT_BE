@@ -109,7 +109,7 @@ public class ClassRoomController {
             @Parameter(required = true)
             @PathVariable("studentId") String studentId) {
 
-        classRoomService.removeStudent(classId, studentId);
+        enrollmentService.removeStudent(classId, studentId);
 
         return APIResponse.<Void>builder()
                 .message("Student removed successfully")
@@ -158,7 +158,7 @@ public class ClassRoomController {
     )
     @DeleteMapping("/{classId}/leave")
     public APIResponse<Void> leaveClass(@PathVariable("classId") String classId) {
-        classRoomService.leaveClass(classId);
+        enrollmentService.leaveClass(classId);
 
         return APIResponse.<Void>builder()
                 .message("Successfully left the class")

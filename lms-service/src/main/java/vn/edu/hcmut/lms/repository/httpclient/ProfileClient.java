@@ -32,27 +32,4 @@ public interface ProfileClient {
 
     @PostMapping("/internal/metadata/topics")
     void syncTopics(@RequestBody List<TopicSyncRequest> topics);
-
-    @PostMapping("/internal/metadata/tutor-subjects")
-    void syncTutorSubjects(@RequestBody List<TutorSubjectSyncRequest> requests);
-
-    @PostMapping("/internal/metadata/classrooms")
-    void syncClassRoom(@RequestBody ClassRoomSyncRequest request);
-
-    @PostMapping("/internal/metadata/classrooms/batch")
-    void syncClasses(@RequestBody List<ClassRoomSyncRequest> requests);
-
-    @PostMapping("/internal/metadata/enrollments/batch")
-    void syncAllEnrollments(@RequestBody List<EnrollmentSyncRequest> requests);
-
-    @PostMapping("/internal/metadata/enrollments")
-    void addEnrollment(@RequestBody EnrollmentSyncRequest request);
-
-    @DeleteMapping("/internal/metadata/enrollments/students/{studentId}/classes/{classId}")
-    void removeEnrollment(
-            @PathVariable("studentId") String studentId,
-            @PathVariable("classId") String classId);
-
-    @DeleteMapping("/internal/metadata/classrooms/{classId}")
-    void deleteClassRoom(@PathVariable("classId") String classId);
 }
