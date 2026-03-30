@@ -144,29 +144,64 @@ services:
 #    depends_on:
 #      - kafka
 
-#  blog-service:
-#    build: ./blog-service
-#    container_name: blog-service
-#    environment:
-#      - SPRING_PROFILES_ACTIVE=deploy
-#      - DB_HOST=${DB_HOST}
-#    networks:
-#      - bkument-net
-#    restart: unless-stopped
-#    depends_on:
-#      - kafka
-#
-#  document-service:
-#    build: ./document-service
-#    container_name: document-service
-#    environment:
-#      - SPRING_PROFILES_ACTIVE=deploy
-#      - DB_HOST=${DB_HOST}
-#    networks:
-#      - bkument-net
-#    restart: unless-stopped
-#    depends_on:
-#      - kafka
+  resource-service:
+    build: ./resource-service
+    container_name: resource-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=deploy
+      - DB_HOST=${DB_HOST}
+      - PUBLIC_IP=${PUBLIC_IP}
+      - POSTGRES_USERNAME=${POSTGRES_USERNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - MINIO_HOST=${MINIO_HOST}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME}
+    networks:
+      - bkument-net
+    restart: unless-stopped
+    depends_on:
+      - kafka
+
+  blog-service:
+    build: ./blog-service
+    container_name: blog-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=deploy
+      - DB_HOST=${DB_HOST}
+      - PUBLIC_IP=${PUBLIC_IP}
+      - POSTGRES_USERNAME=${POSTGRES_USERNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - MINIO_HOST=${MINIO_HOST}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME}
+    networks:
+      - bkument-net
+    restart: unless-stopped
+    depends_on:
+      - kafka
+
+  document-service:
+    build: ./document-service
+    container_name: document-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=deploy
+      - DB_HOST=${DB_HOST}
+      - PUBLIC_IP=${PUBLIC_IP}
+      - POSTGRES_USERNAME=${POSTGRES_USERNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - MINIO_HOST=${MINIO_HOST}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME}
+      - NEO4J_USERNAME=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+    networks:
+      - bkument-net
+    restart: unless-stopped
+    depends_on:
+      - kafka
 #
 #  ai-service:
 #    build: ./ai-service
@@ -180,14 +215,23 @@ services:
 #    depends_on:
 #      - kafka
 #
-#  social-service:
-#    build: ./social-service
-#    container_name: social-service
-#    environment:
-#      - SPRING_PROFILES_ACTIVE=deploy
-#      - DB_HOST=${DB_HOST}
-#    networks:
-#      - bkument-net
-#    restart: unless-stopped
-#    depends_on:
-#      - kafka
+  social-service:
+    build: ./social-service
+    container_name: social-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=deploy
+      - DB_HOST=${DB_HOST}
+      - PUBLIC_IP=${PUBLIC_IP}
+      - POSTGRES_USERNAME=${POSTGRES_USERNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - MINIO_HOST=${MINIO_HOST}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME}
+      - NEO4J_USERNAME=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+    networks:
+      - bkument-net
+    restart: unless-stopped
+    depends_on:
+      - kafka
