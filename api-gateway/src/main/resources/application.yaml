@@ -55,6 +55,27 @@ spring:
               filters:
                 - StripPrefix=2
 
+            - id: blog_service
+              uri: http://localhost:8085
+              predicates:
+                - Path=${app.api-prefix}/blog/**
+              filters:
+                - StripPrefix=2
+
+            - id: document_service
+              uri: http://localhost:8086
+              predicates:
+                - Path=${app.api-prefix}/document/**
+              filters:
+                - StripPrefix=2
+
+            - id: social_service
+              uri: http://localhost:8089
+              predicates:
+                - Path=${app.api-prefix}/social/**
+              filters:
+                - StripPrefix=2
+
             - id: resource_service
               uri: http://localhost:8090
               predicates:
@@ -89,6 +110,14 @@ springdoc:
         url: /api/v1/lms/v3/api-docs/public
       - name: Communication Service
         url: /api/v1/communication/v3/api-docs/public
+      - name: Document Service
+        url: /api/v1/document/v3/api-docs/public
+      - name: Blog Service
+        url: /api/v1/blog/v3/api-docs/public
+      - name: Resource Service
+        url: /api/v1/resource/v3/api-docs/public
+      - name: Social Service
+        url: /api/v1/social/v3/api-docs/public
 
 swagger:
   host-url: http://localhost:8888

@@ -41,6 +41,7 @@ gateway:
 
 # Swagger Configuration
 swagger:
+  gateway-url: http://localhost:8888/api/v1/social
   host-url: http://localhost:8089/social
 
 app:

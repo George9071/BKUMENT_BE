@@ -6,4 +6,5 @@ minio:
   secure: false
 
 swagger:
-  host-url: http://${PUBLIC_IP}:8888/api/v1/resource
+  gateway-url: http://${PUBLIC_IP}:8888/api/v1/resource
+  host-url: http://${PUBLIC_IP}:8090/resource
