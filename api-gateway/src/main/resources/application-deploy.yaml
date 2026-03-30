@@ -42,6 +42,27 @@ spring:
               filters:
                 - StripPrefix=2
 
+            - id: blog_service
+              uri: http://blog-service:8085
+              predicates:
+                - Path=${app.api-prefix}/blog/**
+              filters:
+                - StripPrefix=2
+
+            - id: document_service
+              uri: http://document-service:8086
+              predicates:
+                - Path=${app.api-prefix}/document/**
+              filters:
+                - StripPrefix=2
+
+            - id: social_service
+              uri: http://social-service:8089
+              predicates:
+                - Path=${app.api-prefix}/social/**
+              filters:
+                - StripPrefix=2
+
             - id: resource_service
               uri: http://resource-service:8090
               predicates:

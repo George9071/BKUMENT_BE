@@ -24,7 +24,8 @@ gateway:
   api-prefix: /api/v1
 
 swagger:
-  host-url: http://${PUBLIC_IP}:8888/api/v1/blog
+  gateway-url: http://${PUBLIC_IP}:8888/api/v1/blog
+  host-url: http://${PUBLIC_IP}:8085/blog
 
 app:
   services:

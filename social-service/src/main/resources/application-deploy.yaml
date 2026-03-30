@@ -29,7 +29,8 @@ gateway:
   api-prefix: /api/v1
 
 swagger:
-  host-url: http://${PUBLIC_IP}:8888/api/v1/social
+  gateway-url: http://${PUBLIC_IP}:8888/api/v1/social
+  host-url: http://${PUBLIC_IP}:8089/social
 
 app:
   services:
