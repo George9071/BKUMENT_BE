@@ -7,11 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import vn.edu.hcmut.lms.dto.request.TutorRegistrationRequest;
 import vn.edu.hcmut.lms.dto.request.TutorUpdateRequest;
 import vn.edu.hcmut.lms.dto.response.PageResponse;
 import vn.edu.hcmut.lms.dto.response.SubjectResponse;
@@ -24,8 +21,7 @@ import vn.edu.hcmut.lms.mapper.SubjectMapper;
 import vn.edu.hcmut.lms.mapper.TutorMapper;
 import vn.edu.hcmut.lms.repository.SubjectRepository;
 import vn.edu.hcmut.lms.repository.TutorRepository;
-import vn.edu.hcmut.lms.repository.httpclient.IdentityClient;
-import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
+import vn.edu.hcmut.lms.utils.SecurityUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,50 +36,12 @@ public class TutorService {
     SubjectRepository subjectRepository;
     SubjectMapper subjectMapper;
     TutorMapper tutorMapper;
-    ProfileClient profileClient;
-    IdentityClient identityClient;
-
-    /**
-     * Register to become a tutor.
-     * WARNING: calling multiple FeignClients in one Transaction.
-     * Consider Message Queue / Saga Pattern for the future
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public TutorResponse registerTutor(TutorRegistrationRequest request) {
-        String profileId = getProfileIdFromToken();
-        if (tutorRepository.existsById(profileId)) {
-            throw new AppException(ErrorCode.TUTOR_ALREADY_REGISTERED);
-        }
-
-        var user = profileClient.getProfile(profileId);
-        if (user == null) throw new AppException(ErrorCode.PROFILE_NOT_FOUND);
-
-        Tutor tutor = tutorMapper.toTutor(request);
-        tutor.setId(profileId);
-        tutor.setNew(true);
-        tutorRepository.save(tutor);
-
-        try {
-            identityClient.addRole(getAccountIdFromToken(), "TUTOR");
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to sync role to Identity Service", e);
-        }
-
-        try {
-            profileClient.addRole(profileId, "TUTOR");
-            if (request.getSubjectIds() != null && !request.getSubjectIds().isEmpty()) {
-                profileClient.updateTutorSubjects(profileId, request.getSubjectIds());
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to sync role to Profile Service", e);
-        }
-
-        return tutorMapper.toResponse(tutor);
-    }
+    TutorSyncService syncService;
+    SecurityUtils utils;
 
     @Transactional(rollbackFor = Exception.class)
     public TutorResponse updateTutorProfile(TutorUpdateRequest request) {
-        String profileId = getProfileIdFromToken();
+        String profileId = utils.getProfileId();
 
         Tutor tutor = tutorRepository.findById(profileId)
                 .orElseThrow(() -> new AppException(ErrorCode.TUTOR_NOT_FOUND));
@@ -91,12 +49,7 @@ public class TutorService {
         tutorMapper.updateTutor(tutor, request);
 
         if (request.getSubjectIds() != null) {
-            try {
-                profileClient.updateTutorSubjects(profileId, request.getSubjectIds());
-            } catch (Exception e) {
-                log.error("Failed to sync tutor subjects to Profile Service for user {}", profileId, e);
-                throw new AppException(ErrorCode.SYNC_FAILED);
-            }
+            syncService.syncTutorSubjects(profileId, request.getSubjectIds());
         }
 
         tutor = tutorRepository.save(tutor);
@@ -107,24 +60,8 @@ public class TutorService {
     public void deleteTutor(String profileId) {
         if (tutorRepository.existsById(profileId)) {
             tutorRepository.deleteById(profileId);
-            log.info("Deleted Tutor profile for id: {}", profileId);
-
-            try {
-                var profile = profileClient.getProfile(profileId).getResult();
-
-                if (profile != null && profile.getAccountId() != null) {
-                    String accountId = profile.getAccountId();
-                    identityClient.removeRole(accountId, "TUTOR");
-                } else {
-                    log.warn("Could not find accountId for profile: {}", profileId);
-                    throw new AppException(ErrorCode.PROFILE_NOT_FOUND);
-                }
-                profileClient.removeRole(profileId, "TUTOR");
-
-            } catch (Exception e) {
-                log.error("Failed to remove tutor role for user {} in external services", profileId, e);
-                throw new AppException(ErrorCode.SYNC_FAILED);
-            }
+            syncService.revokeTutorRole(profileId);
+            log.info("Deleted tutor profile for id: {}", profileId);
         }
     }
 
@@ -150,7 +87,7 @@ public class TutorService {
 
     @Transactional(readOnly = true)
     public PageResponse<SubjectResponse> getTutorSubjects(int page, int size) {
-        String id = getProfileIdFromToken();
+        String id = utils.getProfileId();
         Tutor tutor = tutorRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.TUTOR_NOT_FOUND));
 
@@ -184,7 +121,7 @@ public class TutorService {
     }
 
     public TutorResponse getMyTutorProfile() {
-        String tutorId = getProfileIdFromToken();
+        String tutorId = utils.getProfileId();
 
         Tutor tutor = tutorRepository.findById(tutorId)
                 .orElseThrow(() -> new AppException(ErrorCode.TUTOR_NOT_FOUND));
@@ -194,33 +131,9 @@ public class TutorService {
                 .introduction(tutor.getIntroduction())
                 .averageRating(tutor.getAverageRating())
                 .ratingCount(tutor.getRatingCount())
-                .status(tutor.getStatus()) // Assuming status is an Enum
+                .status(tutor.getStatus())
                 .name(tutor.getName())
                 .avatar(tutor.getAvatar())
                 .build();
-    }
-
-    private String getProfileIdFromToken() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null) throw new AppException(ErrorCode.UNAUTHENTICATED);
-
-        var principal = authentication.getPrincipal();
-        if (principal instanceof Jwt jwt) {
-
-            String profileId = jwt.getClaimAsString("profile_id");
-            if (profileId == null) throw new AppException(ErrorCode.INVALID_TOKEN_CLAIMS);
-            return profileId;
-        }
-        throw new AppException(ErrorCode.UNAUTHENTICATED);
-    }
-
-    private String getAccountIdFromToken() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null) throw new AppException(ErrorCode.UNAUTHENTICATED);
-
-        if (authentication.getPrincipal() instanceof Jwt jwt) {
-            return jwt.getSubject();
-        }
-        throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
 }

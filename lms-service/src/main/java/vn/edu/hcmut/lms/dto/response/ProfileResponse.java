@@ -15,4 +15,5 @@ public class ProfileResponse {
     String lastName;
     String avatarUrl;
     String email;
+    Long points;
 }

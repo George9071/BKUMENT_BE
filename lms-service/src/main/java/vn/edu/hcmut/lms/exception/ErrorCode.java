@@ -26,6 +26,7 @@ public enum ErrorCode {
     CLASS_NOT_FOUND(2003, "Class not found", HttpStatus.NOT_FOUND),
     TOPIC_NOT_FOUND(2004, "Topic not found", HttpStatus.NOT_FOUND),
     ENROLLMENT_NOT_FOUND(2005, "Enrollment not found", HttpStatus.NOT_FOUND),
+    APPLICATION_NOT_FOUND(2006, "Application not found", HttpStatus.NOT_FOUND),
 
     // ==========================================
     // BUSINESS LOGIC & CONFLICTS (3000 - 3999)
@@ -36,7 +37,13 @@ public enum ErrorCode {
     CANNOT_ENROLL_OWN_CLASS(3004, "You cannot enroll in your own class", HttpStatus.BAD_REQUEST),
     ENROLLMENT_PENDING(3005, "Your enrollment request is still pending approval", HttpStatus.BAD_REQUEST),
     SCHEDULE_CONFLICT(3006, "Schedule conflict detected", HttpStatus.BAD_REQUEST),
-    ENROLLMENT_COOLDOWN(3006, "You were previously denied entry to this class; try again in 1 day.", HttpStatus.BAD_REQUEST)
+    ENROLLMENT_COOLDOWN(3007, "You were previously denied entry to this class; try again in 1 day.", HttpStatus.BAD_REQUEST),
+    NOT_ENOUGH_POINTS(3008, "You don't have enough points to register as a tutor", HttpStatus.BAD_REQUEST),
+    REGISTRATION_PENDING(3009, "Your registration is still in process, please wait", HttpStatus.BAD_REQUEST),
+    REGISTRATION_COOLDOWN(3010, "You can re-submit your registration 3 days after previous application be rejected", HttpStatus.BAD_REQUEST),
+    INVALID_STATUS(3011, "Invalid status", HttpStatus.BAD_REQUEST),
+    ALREADY_COMPLETED(3012, "You already finished this course", HttpStatus.BAD_REQUEST),
+    INVALID_STATUS_TRANSITION(3013, "Invalid status change of a class", HttpStatus.BAD_REQUEST),
     ;
 
     private final int code;

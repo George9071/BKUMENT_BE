@@ -7,13 +7,13 @@ import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
+import vn.edu.hcmut.lms.constant.ApplicationStatus;
 import vn.edu.hcmut.lms.dto.request.TutorRegistrationRequest;
 import vn.edu.hcmut.lms.dto.request.TutorUpdateRequest;
-import vn.edu.hcmut.lms.dto.response.APIResponse;
-import vn.edu.hcmut.lms.dto.response.PageResponse;
-import vn.edu.hcmut.lms.dto.response.SubjectResponse;
-import vn.edu.hcmut.lms.dto.response.TutorResponse;
+import vn.edu.hcmut.lms.dto.response.*;
+import vn.edu.hcmut.lms.service.TutorApplicationService;
 import vn.edu.hcmut.lms.service.TutorService;
 
 @RestController
@@ -23,14 +23,55 @@ import vn.edu.hcmut.lms.service.TutorService;
 @Tag(name = "Tutor management", description = "APIs for tutor registration, profile management, and searching")
 public class TutorController {
     TutorService tutorService;
+    TutorApplicationService applicationService;
 
     @Operation(summary = "Register as a tutor",
-            description = "Registers the currently authenticated user as a tutor.")
+            description = "Submit an application to become a tutor. Only one PENDING application is allowed at a time.")
     @PostMapping("/registration")
-    APIResponse<TutorResponse> registerTutor(
+    public APIResponse<ApplicationResponse> registerTutor(
             @RequestBody @Valid TutorRegistrationRequest request) {
-        return APIResponse.<TutorResponse>builder()
-                .result(tutorService.registerTutor(request))
+
+        return APIResponse.<ApplicationResponse>builder()
+                .result(applicationService.registerTutor(request))
+                .build();
+    }
+
+    @Operation(summary = "Get list of tutor applications (Admin)",
+            description = "Retrieve a paginated list of applications. Can filter by status (PENDING, APPROVED, REJECTED).")
+    @GetMapping("/admin/applications")
+    public APIResponse<Page<ApplicationResponse>> getApplications(
+            @RequestParam(required = false) ApplicationStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        return APIResponse.<Page<ApplicationResponse>>builder()
+                .result(applicationService.getApplications(status, page, size))
+                .build();
+    }
+
+    @Operation(summary = "Approve a tutor application (Admin)",
+            description = "Approves the application, creates a Tutor profile, and grants TUTOR role.")
+    @PostMapping("/admin/applications/{applicationId}/approve")
+    public APIResponse<String> approveApplication(@PathVariable String applicationId) {
+
+        applicationService.approveApplication(applicationId);
+
+        return APIResponse.<String>builder()
+                .result("The application has been successfully approved..")
+                .build();
+    }
+
+    @Operation(summary = "Reject a tutor application (Admin)",
+            description = "Rejects the application and logs the rejection reason.")
+    @PostMapping("/admin/applications/{applicationId}/reject")
+    public APIResponse<String> rejectApplication(
+            @PathVariable String applicationId,
+            @RequestBody @Valid String reason) {
+
+        applicationService.rejectApplication(applicationId, reason);
+
+        return APIResponse.<String>builder()
+                .result("The application was rejected.")
                 .build();
     }
 

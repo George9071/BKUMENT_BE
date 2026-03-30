@@ -13,5 +13,7 @@ public class TutorUpdateRequest {
     String introduction;
     String name;
     String avatar;
+    String experience;
+    String cvUrl;
     Set<String> subjectIds;
 }
