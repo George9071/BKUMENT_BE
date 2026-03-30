@@ -7,6 +7,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.Valid;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import vn.edu.hcmut.lms.constant.LearningFormat;
+
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -37,6 +39,10 @@ public class ClassRoomCreationRequest {
     @NotEmpty(message = "REQUIRED_FIELD")
     @Valid
     List<ScheduleRequest> schedules;
+
+    String location;
+
+    LearningFormat format;
 
     @Data
     @NoArgsConstructor

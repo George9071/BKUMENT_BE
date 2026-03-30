@@ -5,10 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import vn.edu.hcmut.lms.constant.EnrollmentStatus;
 import vn.edu.hcmut.lms.dto.sync.*;
-import vn.edu.hcmut.lms.entity.ClassRoom;
-import vn.edu.hcmut.lms.entity.Enrollment;
 import vn.edu.hcmut.lms.repository.*;
-import vn.edu.hcmut.lms.repository.httpclient.ProfileClient;
 
 import java.util.List;
 
@@ -21,60 +18,50 @@ public class SyncService {
     private final TutorRepository tutorRepository;
     private final ClassRoomRepository classRoomRepository;
     private final EnrollmentRepository enrollmentRepository;
-    private final ProfileClient profileClient;
+    private final GraphSyncService graphSyncService;
 
+    /**
+     * Syncs all Subjects and Topics (with BELONGS_TO relationships) to Neo4j.
+     * Order matters — Topics must be synced after Subjects to resolve the relationship.
+     */
     public void syncAllMetadata() {
-        List<SubjectSyncRequest> subjects =  subjectRepository
-                .findAll()
-                .stream()
-                .map(s -> SubjectSyncRequest.builder()
-                        .id(s.getId())
-                        .name(s.getName())
-                        .build())
-                .toList();
-
-        if (!subjects.isEmpty()) {
-            profileClient.syncSubjects(subjects);
-            log.info("Successfully requested sync for {} subjects", subjects.size());
-        }
-
-        List<TopicSyncRequest> topics = topicRepository
-                .findAll()
-                .stream()
-                .map(t -> TopicSyncRequest.builder()
-                        .id(t.getId())
-                        .name(t.getName())
-                        .subjectId(t.getSubject().getId())
-                        .build())
-                .toList();
-
-        if (!topics.isEmpty()) {
-            profileClient.syncTopics(topics);
-            log.info("Successfully requested sync for {} topics", topics.size());
-        }
+        syncSubjects();
+        syncTopics();
     }
 
+    /**
+     * Syncs all Tutor → Subject (TEACHES) relationships to Neo4j.
+     * Skips tutors with no subjects assigned.
+     */
     public void syncAllTutorSubjects() {
-        var tutors = tutorRepository.findAll();
-
-        List<TutorSubjectSyncRequest> requests = tutors.stream()
+        List<String[]> tutorSubjectPairs = tutorRepository.findAll().stream()
                 .filter(t -> t.getSubjectIds() != null && !t.getSubjectIds().isEmpty())
-                .map(t -> TutorSubjectSyncRequest.builder()
-                        .tutorId(t.getId())
-                        .subjectIds(t.getSubjectIds())
-                        .build())
+                .flatMap(t -> t.getSubjectIds().stream()
+                        .map(subjectId -> new String[]{t.getId(), subjectId}))
                 .toList();
 
-        if (!requests.isEmpty()) {
-            profileClient.syncTutorSubjects(requests);
-            log.info("Requested sync for {} tutors and their subjects", requests.size());
+        if (tutorSubjectPairs.isEmpty()) {
+            log.info("No tutor-subject relationships found to sync.");
+            return;
         }
+
+        // Group back by tutorId for GraphSyncService
+        tutorRepository.findAll().stream()
+                .filter(t -> t.getSubjectIds() != null && !t.getSubjectIds().isEmpty())
+                .forEach(t -> graphSyncService.syncTutorSubjects(
+                        t.getId(),
+                        t.getSubjectIds().stream().toList()
+                ));
+
+        log.info("Synced tutor-subject relationships for {} tutors.",
+                tutorSubjectPairs.size());
     }
 
+    /**
+     * Bulk syncs all ClassRoom nodes (with COVERS → Topic relationships) to Neo4j.
+     */
     public void syncAllClasses() {
-        List<ClassRoom> classes = classRoomRepository.findAll();
-
-        List<ClassRoomSyncRequest> requests = classes.stream()
+        List<ClassRoomSyncRequest> requests = classRoomRepository.findAll().stream()
                 .map(c -> ClassRoomSyncRequest.builder()
                         .id(c.getId())
                         .name(c.getName())
@@ -84,18 +71,21 @@ public class SyncService {
                         .build())
                 .toList();
 
-        if (!requests.isEmpty()) {
-            profileClient.syncClasses(requests);
-            log.info("Requested bulk sync for {} classes to Neo4j", requests.size());
-        } else {
-            log.info("No class found in JPA to sync.");
+        if (requests.isEmpty()) {
+            log.info("No classrooms found to sync.");
+            return;
         }
+
+        graphSyncService.syncAllClassRooms(requests);
+        log.info("Bulk synced {} classrooms to Neo4j.", requests.size());
     }
 
+    /**
+     * Bulk syncs all APPROVED Enrollment → ENROLLED_IN relationships to Neo4j.
+     * Only APPROVED enrollments are synced — PENDING/REJECTED/CANCELLED are excluded.
+     */
     public void syncAllEnrollments() {
-        List<Enrollment> enrollments = enrollmentRepository.findAll();
-
-        List<EnrollmentSyncRequest> requests = enrollments.stream()
+        List<EnrollmentSyncRequest> requests = enrollmentRepository.findAll().stream()
                 .filter(e -> e.getStatus() == EnrollmentStatus.APPROVED)
                 .map(e -> EnrollmentSyncRequest.builder()
                         .studentId(e.getStudentProfileId())
@@ -103,11 +93,60 @@ public class SyncService {
                         .build())
                 .toList();
 
-        if (!requests.isEmpty()) {
-            profileClient.syncAllEnrollments(requests);
-            log.info("Requested bulk sync for {} Enrollments to Neo4j", requests.size());
-        } else {
-            log.info("No approved enrollments found in Postgres to sync.");
+        if (requests.isEmpty()) {
+            log.info("No approved enrollments found to sync.");
+            return;
         }
+
+        graphSyncService.syncAllEnrollments(requests);
+        log.info("Bulk synced {} approved enrollments to Neo4j.", requests.size());
+    }
+
+    /**
+     * Full reconciliation — runs all sync operations in dependency order:
+     * Subjects → Topics → Classes → Enrollments → TutorSubjects
+     */
+    public void syncAll() {
+        log.info("Starting full Neo4j reconciliation...");
+        syncAllMetadata();
+        syncAllClasses();
+        syncAllEnrollments();
+        syncAllTutorSubjects();
+        log.info("Full Neo4j reconciliation completed.");
+    }
+
+    private void syncSubjects() {
+        List<SubjectSyncRequest> subjects = subjectRepository.findAll().stream()
+                .map(s -> SubjectSyncRequest.builder()
+                        .id(s.getId())
+                        .name(s.getName())
+                        .build())
+                .toList();
+
+        if (subjects.isEmpty()) {
+            log.info("No subjects found to sync.");
+            return;
+        }
+
+        graphSyncService.syncSubjects(subjects);
+        log.info("Synced {} subjects to Neo4j.", subjects.size());
+    }
+
+    private void syncTopics() {
+        List<TopicSyncRequest> topics = topicRepository.findAll().stream()
+                .map(t -> TopicSyncRequest.builder()
+                        .id(t.getId())
+                        .name(t.getName())
+                        .subjectId(t.getSubject().getId())
+                        .build())
+                .toList();
+
+        if (topics.isEmpty()) {
+            log.info("No topics found to sync.");
+            return;
+        }
+
+        graphSyncService.syncTopics(topics);
+        log.info("Synced {} topics to Neo4j.", topics.size());
     }
 }

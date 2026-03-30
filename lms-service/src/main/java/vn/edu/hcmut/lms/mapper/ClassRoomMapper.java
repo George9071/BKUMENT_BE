@@ -9,36 +9,40 @@ import vn.edu.hcmut.lms.entity.ClassSchedule;
 
 @Mapper(componentModel = "spring")
 public interface ClassRoomMapper {
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "status", ignore = true)
-    @Mapping(target = "tutor", ignore = true)
-    @Mapping(target = "topic", ignore = true)
+    @Mapping(target = "id",       ignore = true)
+    @Mapping(target = "status",   ignore = true)
+    @Mapping(target = "tutor",    ignore = true)
+    @Mapping(target = "topic",    ignore = true)
     ClassRoom toClassRoom(ClassRoomCreationRequest request);
 
-    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "id",        ignore = true)
     @Mapping(target = "classRoom", ignore = true)
     ClassSchedule toScheduleEntity(ClassRoomCreationRequest.ScheduleRequest request);
 
-    @Mapping(target = "tutorId", source = "tutor.id")
-    @Mapping(target = "tutorName", source = "tutor.name")
-    @Mapping(target = "tutorAvatar", source = "tutor.avatar")
-    @Mapping(target = "topicName", source = "topic.name")
-    @Mapping(target = "subjectName", source = "topic.subject.name")
-    ClassRoomResponse toResponse(ClassRoom classRoom);
-
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "tutor", ignore = true)
-    @Mapping(target = "status", ignore = true)
-    @Mapping(target = "topic", ignore = true)
+    @Mapping(target = "id",        ignore = true)
+    @Mapping(target = "tutor",     ignore = true)
+    @Mapping(target = "topic",     ignore = true)
+    @Mapping(target = "status",    ignore = true)
+    @Mapping(target = "schedules", ignore = true)
     void updateClass(@MappingTarget ClassRoom classRoom, ClassRoomUpdateRequest request);
+
+    @Mapping(target = "id",        ignore = true)
+    @Mapping(target = "classRoom", ignore = true)
+    ClassSchedule toScheduleEntity(ClassRoomUpdateRequest.ScheduleRequest request);
+
+    @Mapping(target = "tutorId",     source = "tutor.id")
+    @Mapping(target = "tutorName",   source = "tutor.name")
+    @Mapping(target = "tutorAvatar", source = "tutor.avatar")
+    @Mapping(target = "topicName",   source = "topic.name")
+    @Mapping(target = "subjectName", source = "topic.subject.name")
+    @Mapping(target = "userStatus",  ignore = true)
+    ClassRoomResponse toResponse(ClassRoom classRoom);
 
     @AfterMapping
     default void linkSchedules(@MappingTarget ClassRoom classRoom) {
         if (classRoom.getSchedules() != null) {
-            classRoom.getSchedules().forEach(schedule -> schedule.setClassRoom(classRoom));
+            classRoom.getSchedules().forEach(s -> s.setClassRoom(classRoom));
         }
     }
-
-
 }

@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import vn.edu.hcmut.lms.constant.ClassStatus;
 import vn.edu.hcmut.lms.constant.EnrollmentStatus;
+import vn.edu.hcmut.lms.dto.response.ScheduleConflictDetail;
 import vn.edu.hcmut.lms.entity.ClassRoom;
 import vn.edu.hcmut.lms.entity.ClassSchedule;
 import vn.edu.hcmut.lms.exception.AppException;
@@ -14,8 +15,9 @@ import vn.edu.hcmut.lms.exception.ErrorCode;
 import vn.edu.hcmut.lms.repository.ClassRoomRepository;
 import vn.edu.hcmut.lms.repository.EnrollmentRepository;
 
-import java.util.ArrayList;
+import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -25,64 +27,73 @@ public class ValidationService {
     EnrollmentRepository enrollmentRepository;
     ClassRoomRepository classRoomRepository;
 
-    /**
-     * Checks if two classes have overlapping dates AND overlapping time slots.
-     */
-    public boolean isScheduleConflict(ClassRoom newClass, ClassRoom existingClass) {
-        // check for date overlap
-        boolean isDateOverlap = !newClass.getStartDate().isAfter(existingClass.getEndDate()) &&
-                                !newClass.getEndDate().isBefore(existingClass.getStartDate());
-
-        if (!isDateOverlap) return false;
-
-        // check for time slot overlap on the same day of the week
-        for (ClassSchedule newSch : newClass.getSchedules()) {
-            for (ClassSchedule existingSch : existingClass.getSchedules()) {
-                if (isTimeSlotConflict(newSch, existingSch)) return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Checks if two specific schedules conflict (same day, overlapping hours).
-     */
-    private boolean isTimeSlotConflict(ClassSchedule sch1, ClassSchedule sch2) {
-        if (sch1.getDayOfWeek() != sch2.getDayOfWeek()) return false;
-
-        return sch1.getStartTime().isBefore(sch2.getEndTime()) &&
-                sch1.getEndTime().isAfter(sch2.getStartTime());
-    }
-
-    /**
-     * Validates if the proposed class conflicts with any of the user's current teaching or studying schedules.
-     * Throws an exception if a conflict is detected.
-     */
     public void validateBusySchedule(String userId, ClassRoom proposedClass) {
         List<ClassStatus> activeStatuses = List.of(ClassStatus.ENROLLING, ClassStatus.ONGOING);
 
-        // Fetch classes the user is teaching
-        List<ClassRoom> teachingClasses = classRoomRepository.findActiveClassesByTutor(userId, activeStatuses);
-        List<ClassRoom> busyClasses = new ArrayList<>(teachingClasses);
+        List<ClassRoom> teachingClasses = classRoomRepository
+                .findActiveClassesByTutor(userId, activeStatuses);
+        List<ClassRoom> studyingClasses = enrollmentRepository
+                .findActiveClassesByStudent(userId, EnrollmentStatus.APPROVED, activeStatuses);
 
-        // Fetch classes the user is studying
-        List<ClassRoom> studyingClasses = enrollmentRepository.findActiveClassesByStudent(
-                userId,
-                EnrollmentStatus.APPROVED,
-                activeStatuses
-        );
-        busyClasses.addAll(studyingClasses);
+        checkConflicts(proposedClass, teachingClasses, "lịch dạy");
+        checkConflicts(proposedClass, studyingClasses, "lịch học");
+    }
 
-        // Verify conflicts against all active classes
-        for (ClassRoom existingClass : busyClasses) {
-            if (isScheduleConflict(proposedClass, existingClass)) {
-                String role = teachingClasses.contains(existingClass) ? "lịch dạy" : "lịch học";
+    private void checkConflicts(ClassRoom proposed, List<ClassRoom> existingClasses, String role) {
+        for (ClassRoom existing : existingClasses) {
+            if (existing.getId().equals(proposed.getId())) continue;
 
+            findConflictingSlot(proposed, existing).ifPresent(detail -> {
                 throw new AppException(ErrorCode.SCHEDULE_CONFLICT,
-                        String.format("Bị trùng với %s lớp '%s' (%s)",
-                                role, existingClass.getName(), existingClass.getId()));
+                        buildConflictDetail(existing, role, detail).toMessage());
+            });
+        }
+    }
+
+    Optional<ClassSchedule[]> findConflictingSlot(ClassRoom proposed, ClassRoom existing) {
+        boolean dateOverlap =
+                !proposed.getStartDate().isAfter(existing.getEndDate()) &&
+                        !proposed.getEndDate().isBefore(existing.getStartDate());
+
+        if (!dateOverlap) return Optional.empty();
+
+        for (ClassSchedule newSch : proposed.getSchedules()) {
+            for (ClassSchedule existingSch : existing.getSchedules()) {
+                if (isTimeSlotConflict(newSch, existingSch)) {
+                    return Optional.of(new ClassSchedule[]{newSch, existingSch});
+                }
             }
         }
+        return Optional.empty();
+    }
+
+    private boolean isTimeSlotConflict(ClassSchedule s1, ClassSchedule s2) {
+        if (s1.getDayOfWeek() != s2.getDayOfWeek()) return false;
+        return s1.getStartTime().isBefore(s2.getEndTime()) &&
+                s1.getEndTime().isAfter(s2.getStartTime());
+    }
+
+    private ScheduleConflictDetail buildConflictDetail(
+            ClassRoom existing, String role, ClassSchedule[] slots) {
+
+        ClassSchedule existingSlot = slots[1];
+
+        LocalTime overlapStart = existingSlot.getStartTime()
+                .isAfter(slots[0].getStartTime())
+                ? existingSlot.getStartTime() : slots[0].getStartTime();
+        LocalTime overlapEnd = existingSlot.getEndTime()
+                .isBefore(slots[0].getEndTime())
+                ? existingSlot.getEndTime() : slots[0].getEndTime();
+
+        return new ScheduleConflictDetail(
+                existing.getId(),
+                existing.getName(),
+                role,
+                existing.getStartDate(),
+                existing.getEndDate(),
+                existingSlot.getDayOfWeek(),
+                overlapStart,
+                overlapEnd
+        );
     }
 }
