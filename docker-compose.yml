@@ -112,6 +112,8 @@ services:
 
   communication-service:
     build: ./communication-service
+    ports:
+      - "8099:8099"
     container_name: communication-service
     environment:
       - SPRING_PROFILES_ACTIVE=deploy

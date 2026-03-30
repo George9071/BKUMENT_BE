@@ -9,6 +9,8 @@ public class SocketIOConfig {
     @Bean
     public SocketIOServer socketIOServer() {
         com.corundumstudio.socketio.Configuration configuration = new com.corundumstudio.socketio.Configuration();
+
+        configuration.setHostname("0.0.0.0");
         configuration.setPort(8099);
         configuration.setOrigin("*");
 
