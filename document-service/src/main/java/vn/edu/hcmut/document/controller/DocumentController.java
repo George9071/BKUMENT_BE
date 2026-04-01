@@ -90,6 +90,16 @@ public class DocumentController {
         return mapToDocumentMetadataResponsePage(documents, "Get my documents successfully");
     }
 
+    @GetMapping("/top-downloaded")
+    public APIResponse<Page<DocumentMetadataResponse>> getTopDownloadedDocuments(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Document> documents = documentService.getTopDownloadedDocuments(pageable);
+
+        return mapToDocumentMetadataResponsePage(documents, "Get top downloaded documents successfully");
+    }
+
     private APIResponse<Page<DocumentMetadataResponse>> mapToDocumentMetadataResponsePage(
             Page<Document> documents, String message) {
         Page<DocumentMetadataResponse> result = documents.map(doc -> {

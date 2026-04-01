@@ -150,6 +150,14 @@ public class DocumentService {
         return documentRepository.findByOwnerId(ownerId, sortedByCreatedAt);
     }
 
+    public Page<Document> getTopDownloadedDocuments(Pageable pageable) {
+        Pageable sortedByDownloadCount = PageRequest.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                Sort.by("downloadCount").descending());
+        return documentRepository.findAll(sortedByDownloadCount);
+    }
+
     // TODO: move to search service
     public Page<Document> search(String keyword, Pageable pageable) {
         Pageable sortedByCreatedAt = PageRequest.of(
