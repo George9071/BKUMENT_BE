@@ -76,6 +76,22 @@ public class DocumentController {
         Pageable pageable = PageRequest.of(page, size);
         Page<Document> documents = documentService.getDocumentsByCourseId(courseId, pageable);
 
+        return mapToDocumentMetadataResponsePage(documents, "Get documents by course successfully");
+    }
+
+    @GetMapping("/my-documents")
+    public APIResponse<Page<DocumentMetadataResponse>> getMyDocuments(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+
+        String userId = getProfileIdFromToken();
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Document> documents = documentService.getDocumentsByOwnerId(userId, pageable);
+
+        return mapToDocumentMetadataResponsePage(documents, "Get my documents successfully");
+    }
+
+    private APIResponse<Page<DocumentMetadataResponse>> mapToDocumentMetadataResponsePage(
+            Page<Document> documents, String message) {
         Page<DocumentMetadataResponse> result = documents.map(doc -> {
             APIResponse<ProfileResponse> apiResponse = profileClient.findUserProfileById(doc.getOwnerId());
             ProfileResponse profile = apiResponse.getResult();
@@ -111,7 +127,7 @@ public class DocumentController {
 
         return APIResponse.<Page<DocumentMetadataResponse>>builder()
                 .result(result)
-                .message("Get documents by course successfully")
+                .message(message)
                 .build();
     }
 
@@ -124,44 +140,7 @@ public class DocumentController {
         Pageable pageable = PageRequest.of(page, size);
         Page<Document> documents = documentService.search(q, pageable);
 
-        Page<DocumentMetadataResponse> result = documents.map(doc -> {
-            APIResponse<ProfileResponse> apiResponse = profileClient.findUserProfileById(doc.getOwnerId());
-            ProfileResponse profile = apiResponse.getResult();
-            String authorId = getProfileIdFromToken();
-
-            DocumentMetadataResponse.Author authorDto = null;
-            if (profile != null) {
-                authorDto = DocumentMetadataResponse.Author.builder()
-                        .id(profile.getId())
-                        .name(profile.getFullName())
-                        .avatarUrl(profile.getAvatarUrl())
-                        .build();
-            }
-
-            return DocumentMetadataResponse.builder()
-                    .id(doc.getId())
-                    .title(doc.getTitle())
-                    .author(authorDto)
-                    .documentType(doc.getDocumentType())
-                    .university(doc.getUniversity())
-                    .course(doc.getCourse())
-                    .description(doc.getDescription())
-                    .downloadable(doc.isDownloadable())
-                    .downloadUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()
-                            + "/document/download/" + doc.getId())
-                    .viewUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()
-                            + "/resource/download/asset/" + doc.getAssetId())
-                    .downloadCount(doc.getDownloadCount())
-                    .previewImageUrl(doc.getPreviewImageUrl())
-                    .createdAt(doc.getCreatedAt())
-                    .summary(doc.getSummary())
-                    .build();
-        });
-
-        return APIResponse.<Page<DocumentMetadataResponse>>builder()
-                .result(result)
-                .message("Search documents successfully")
-                .build();
+        return mapToDocumentMetadataResponsePage(documents, "Search documents successfully");
     }
 
     @PostMapping("updateMetadata")

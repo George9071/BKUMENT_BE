@@ -142,6 +142,14 @@ public class DocumentService {
         return documentRepository.findByCourseId(courseId, sortedByCreatedAt);
     }
 
+    public Page<Document> getDocumentsByOwnerId(String ownerId, Pageable pageable) {
+        Pageable sortedByCreatedAt = PageRequest.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                Sort.by("createdAt").descending());
+        return documentRepository.findByOwnerId(ownerId, sortedByCreatedAt);
+    }
+
     // TODO: move to search service
     public Page<Document> search(String keyword, Pageable pageable) {
         Pageable sortedByCreatedAt = PageRequest.of(
