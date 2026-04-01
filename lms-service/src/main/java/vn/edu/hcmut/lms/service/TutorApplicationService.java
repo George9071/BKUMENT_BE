@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.edu.hcmut.lms.constant.ApplicationStatus;
 import vn.edu.hcmut.lms.dto.request.TutorRegistrationRequest;
 import vn.edu.hcmut.lms.dto.response.ApplicationResponse;
+import vn.edu.hcmut.lms.dto.response.PageResponse;
 import vn.edu.hcmut.lms.entity.Tutor;
 import vn.edu.hcmut.lms.entity.TutorApplication;
 import vn.edu.hcmut.lms.exception.AppException;
@@ -25,6 +26,7 @@ import vn.edu.hcmut.lms.utils.SecurityUtils;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -133,18 +135,21 @@ public class TutorApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ApplicationResponse> getApplications(ApplicationStatus status, int page, int size){
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+    public PageResponse<ApplicationResponse> getApplications(ApplicationStatus status, int page, int size){
+        Pageable pageable = toPageable(page, size, Sort.by("createdAt").descending());
 
-        Page<TutorApplication> applications;
-
+        Page<TutorApplication> applicationPage;
         if (status != null) {
-            applications = applicationRepository.findByStatus(status, pageable);
+            applicationPage = applicationRepository.findByStatus(status, pageable);
         } else {
-            applications = applicationRepository.findAll(pageable);
+            applicationPage = applicationRepository.findAll(pageable);
         }
 
-        return applications.map(mapper::toResponse);
+        List<ApplicationResponse> responseList = applicationPage.getContent().stream()
+                .map(mapper::toResponse)
+                .toList();
+
+        return buildPageResponse(responseList, page, applicationPage);
     }
 
     private boolean isCooldownActive(TutorApplication application) {
@@ -152,5 +157,23 @@ public class TutorApplicationService {
                 application.getReviewedAt()
                         .plus(3, ChronoUnit.DAYS)
                         .isAfter(Instant.now());
+    }
+
+    private Pageable toPageable(int page, int size) {
+        return PageRequest.of((page > 0) ? page - 1 : 0, size);
+    }
+
+    private Pageable toPageable(int page, int size, Sort sort) {
+        return PageRequest.of((page > 0) ? page - 1 : 0, size, sort);
+    }
+
+    private <T, E> PageResponse<T> buildPageResponse(List<T> data, int page, Page<E> source) {
+        return PageResponse.<T>builder()
+                .currentPage(page)
+                .totalPages(source.getTotalPages())
+                .pageSize(source.getSize())
+                .totalElements(source.getTotalElements())
+                .data(data)
+                .build();
     }
 }

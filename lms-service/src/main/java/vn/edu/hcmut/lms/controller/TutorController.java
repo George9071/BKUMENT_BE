@@ -39,12 +39,12 @@ public class TutorController {
     @Operation(summary = "Get list of tutor applications (Admin)",
             description = "Retrieve a paginated list of applications. Can filter by status (PENDING, APPROVED, REJECTED).")
     @GetMapping("/admin/applications")
-    public APIResponse<Page<ApplicationResponse>> getApplications(
+    public APIResponse<PageResponse<ApplicationResponse>> getApplications(
             @RequestParam(required = false) ApplicationStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
-        return APIResponse.<Page<ApplicationResponse>>builder()
+        return APIResponse.<PageResponse<ApplicationResponse>>builder()
                 .result(applicationService.getApplications(status, page, size))
                 .build();
     }
