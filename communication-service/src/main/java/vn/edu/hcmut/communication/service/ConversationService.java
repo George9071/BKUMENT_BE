@@ -170,15 +170,14 @@ public class ConversationService {
             response.setIsRead(isRead != null ? isRead : true);
         } else {
             response.setIsRead(true); 
-        }        
+        }
         if ("DIRECT".equals(conversation.getType())) {
             conversation.getParticipants().stream()
                     .filter(p -> !p.getUserId().equals(userId))
                     .findFirst()
                     .ifPresent(p -> {
-                        var profile = profileClient.getProfile(p.getUserId());
                         response.setConversationName(p.getUsername());
-                        response.setConversationAvatar(profile.getResult().getAvatarUrl());
+                        response.setConversationAvatar(p.getAvatar());
                     });
         }
 
