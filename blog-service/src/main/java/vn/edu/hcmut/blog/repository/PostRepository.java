@@ -8,4 +8,6 @@ import vn.edu.hcmut.blog.entity.Post;
 
 public interface PostRepository extends JpaRepository<Post, String> {
     Page<Post> findByTitleContainingIgnoreCase(String title, Pageable pageable);
+
+    Page<Post> findByOwnerId(String ownerId, Pageable pageable);
 }
