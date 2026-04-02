@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import vn.edu.hcmut.social.dto.request.RatingRequest;
 import vn.edu.hcmut.social.dto.response.APIResponse;
+import vn.edu.hcmut.social.dto.response.RankingStatsResponse;
 import vn.edu.hcmut.social.dto.response.RatingResponse;
 import vn.edu.hcmut.social.exception.AppException;
 import vn.edu.hcmut.social.exception.ErrorCode;
@@ -77,6 +78,23 @@ public class RatingController {
         return APIResponse.<Double>builder()
                 .result(ratingService.getAverageRating(resourceId))
                 .message("Get average rating successfully")
+                .build();
+    }
+
+    @GetMapping("/resource/{resourceId}/my-rating")
+    public APIResponse<RatingResponse> getUserRatingForResource(@PathVariable String resourceId) {
+        String userId = getProfileIdFromToken();
+        return APIResponse.<RatingResponse>builder()
+                .result(ratingService.getUserRatingForResource(resourceId, userId))
+                .message("Get user rating successfully")
+                .build();
+    }
+
+    @GetMapping("/ranking-stats")
+    public APIResponse<RankingStatsResponse> getRankingStats() {
+        return APIResponse.<RankingStatsResponse>builder()
+                .result(ratingService.getRankingStats())
+                .message("Get ranking stats successfully")
                 .build();
     }
 }

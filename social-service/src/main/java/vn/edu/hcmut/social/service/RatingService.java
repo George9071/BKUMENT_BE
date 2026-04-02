@@ -1,5 +1,6 @@
 package vn.edu.hcmut.social.service;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -11,7 +12,9 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import vn.edu.hcmut.social.dto.request.RatingRequest;
+import vn.edu.hcmut.social.dto.response.RankingStatsResponse;
 import vn.edu.hcmut.social.dto.response.RatingResponse;
+import vn.edu.hcmut.social.dto.response.ResourceRatingStatsResponse;
 import vn.edu.hcmut.social.entity.Rating;
 import vn.edu.hcmut.social.repository.RatingRepository;
 
@@ -57,6 +60,23 @@ public class RatingService {
     public Double getAverageRating(String resourceId) {
         Double avg = ratingRepository.getAverageScoreByResourceId(resourceId);
         return avg != null ? avg : 0.0;
+    }
+
+    public RankingStatsResponse getRankingStats() {
+        Double globalAvg = ratingRepository.getGlobalAverageScore();
+        List<ResourceRatingStatsResponse> stats = ratingRepository.getResourceRatingStats();
+
+        return RankingStatsResponse.builder()
+                .globalAverage(globalAvg != null ? globalAvg : 0.0)
+                .stats(stats)
+                .build();
+    }
+
+    public RatingResponse getUserRatingForResource(String resourceId, String userId) {
+        return ratingRepository
+                .findByResourceIdAndUserId(resourceId, userId)
+                .map(this::toRatingResponse)
+                .orElse(null);
     }
 
     private RatingResponse toRatingResponse(Rating rating) {
