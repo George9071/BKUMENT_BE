@@ -17,6 +17,7 @@ import javax.imageio.ImageIO;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -30,6 +31,7 @@ import io.minio.StatObjectResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.document.configuration.GatewayProperties;
 import vn.edu.hcmut.document.dto.request.DocumentMetadataRequest;
@@ -44,6 +46,7 @@ import vn.edu.hcmut.document.repository.DocumentRepository;
 import vn.edu.hcmut.document.repository.ResourceRepository;
 import vn.edu.hcmut.document.repository.httpclient.AiClient;
 import vn.edu.hcmut.document.repository.httpclient.ProfileClient;
+import vn.edu.hcmut.document.repository.httpclient.SocialClient;
 import vn.edu.hcmut.document.utils.StreamMultipartFile;
 
 @Slf4j
@@ -59,8 +62,17 @@ public class DocumentService {
     MinioService minioService;
     GraphSyncService graphSyncService;
     ProfileClient profileClient;
+    SocialClient socialClient;
     AiClient aiClient;
     DocumentAsyncService documentAsyncService;
+
+    @NonFinal
+    @Value("${app.ranking.weight-rating:0.7}")
+    double weightRating;
+
+    @NonFinal
+    @Value("${app.ranking.weight-download:0.3}")
+    double weightDownload;
 
     public DocAnalyzeResponse processAndCreateDocument(String assetId, String originalFileName, String ownerId) {
         log.info("[ASSET][{}] Bắt đầu xử lý với AI Service", assetId);
@@ -117,6 +129,13 @@ public class DocumentService {
         document = documentRepository.save(document);
         documentAsyncService.runBackgroundAiProcess(assetId, finalFileName, fileSize, document.getId());
 
+        // Points hook: +10 for upload
+        try {
+            profileClient.updatePoints(ownerId, 10L);
+        } catch (Exception e) {
+            log.error("Failed to update points for document upload: {}", document.getId(), e);
+        }
+
         return DocAnalyzeResponse.builder()
                 .docId(document.getId())
                 .keywords(processResult.fastResult.getKeywords())
@@ -140,6 +159,77 @@ public class DocumentService {
                 pageable.getPageSize(),
                 Sort.by("createdAt").descending());
         return documentRepository.findByCourseId(courseId, sortedByCreatedAt);
+    }
+
+    public Page<Document> getDocumentsByOwnerId(String ownerId, Pageable pageable) {
+        Pageable sortedByCreatedAt = PageRequest.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                Sort.by("createdAt").descending());
+        return documentRepository.findByOwnerId(ownerId, sortedByCreatedAt);
+    }
+
+    public Page<Document> getTopRankedDocuments(Pageable pageable) {
+        // Step 1: Fetch a batch of candidate documents (e.g., top 1000 by download or overall)
+        // For simplicity and to ensure accuracy, we'll fetch a larger set than just one page
+        // But in a real-world scenario, we might want a specialized query or caching
+        List<Document> documents = documentRepository.findAll();
+
+        if (documents.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        RankingStatsResponse rankingStats = null;
+        try {
+            APIResponse<RankingStatsResponse> response = socialClient.getRankingStats();
+            rankingStats = response.getResult();
+        } catch (Exception e) {
+            log.error("Failed to fetch ranking stats from social service", e);
+        }
+
+        final Map<String, ResourceRatingStatsResponse> statsMap =
+                (rankingStats != null && rankingStats.getStats() != null)
+                        ? rankingStats.getStats().stream()
+                                .collect(Collectors.toMap(ResourceRatingStatsResponse::getResourceId, s -> s))
+                        : new HashMap<>();
+
+        // Step 3: Calculate score for each document
+        List<DocumentScore> scoredDocs = documents.stream()
+                .map(doc -> {
+                    ResourceRatingStatsResponse stats = statsMap.get(doc.getId());
+                    double R = (stats != null && stats.getAverageRating() != null) ? stats.getAverageRating() : 0.0;
+
+                    // Final Score = w1 * R + w2 * log10(1 + Downloads)
+                    double downloads = doc.getDownloadCount() != null ? doc.getDownloadCount() : 0.0;
+                    double finalScore = (weightRating * R) + (weightDownload * Math.log10(1 + downloads));
+
+                    return new DocumentScore(doc, finalScore);
+                })
+                .sorted((a, b) -> Double.compare(b.score, a.score))
+                .collect(Collectors.toList());
+
+        // Step 4: Paginate
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), scoredDocs.size());
+
+        if (start > scoredDocs.size()) {
+            return new PageImpl<>(List.of(), pageable, scoredDocs.size());
+        }
+
+        List<Document> pagedDocs =
+                scoredDocs.subList(start, end).stream().map(ds -> ds.document).collect(Collectors.toList());
+
+        return new PageImpl<>(pagedDocs, pageable, scoredDocs.size());
+    }
+
+    private static class DocumentScore {
+        Document document;
+        double score;
+
+        public DocumentScore(Document document, double score) {
+            this.document = document;
+            this.score = score;
+        }
     }
 
     // TODO: move to search service
@@ -194,7 +284,19 @@ public class DocumentService {
             document.setTopicId(request.getTopicId());
         }
 
-        return documentRepository.save(document);
+        boolean isNew = (document.getId() == null);
+        document = documentRepository.save(document);
+
+        // Points hook: +10 for new document
+        if (isNew) {
+            try {
+                profileClient.updatePoints(ownerId, 10L);
+            } catch (Exception e) {
+                log.error("Failed to update points for new document creation: {}", document.getId(), e);
+            }
+        }
+
+        return document;
     }
 
     @Transactional
@@ -280,6 +382,16 @@ public class DocumentService {
         document.setDownloadCount(document.getDownloadCount() + 1);
         documentRepository.save(document);
 
+        // Points hook: +2 for unique download
+        boolean isFirstDownload = !documentDownloadRepository.existsByDocumentIdAndProfileId(docId, userId);
+        if (isFirstDownload && !userId.equals(document.getOwnerId())) {
+            try {
+                profileClient.updatePoints(document.getOwnerId(), 2L);
+            } catch (Exception e) {
+                log.error("Failed to update points for unique download: {}", docId, e);
+            }
+        }
+
         // Save download history
         DocumentDownload documentDownload = new DocumentDownload();
         documentDownload.setDocumentId(docId);
@@ -330,6 +442,13 @@ public class DocumentService {
         }
 
         documentRepository.delete(document);
+    }
+
+    public String getOwnerId(String docId) {
+        return documentRepository
+                .findById(docId)
+                .map(Document::getOwnerId)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
     }
 
     public PresignResponse generatePresignedUrl(String fileName) {

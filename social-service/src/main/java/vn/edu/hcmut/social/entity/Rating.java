@@ -14,7 +14,9 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
-@Table(name = "rating")
+@Table(
+        name = "rating",
+        uniqueConstraints = {@UniqueConstraint(columnNames = {"user_id", "resource_id"})})
 public class Rating {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

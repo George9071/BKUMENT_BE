@@ -118,9 +118,7 @@ public class ProfileService {
 
         Pageable pageable = PageRequest.of(0, limit);
 
-        return jpaRepository.search(keyword.trim(), pageable)
-                .getContent()
-                .stream()
+        return jpaRepository.search(keyword.trim(), pageable).getContent().stream()
                 .map(profileMapper::toProfileResponse)
                 .toList();
     }
@@ -202,6 +200,19 @@ public class ProfileService {
         neo4jClient.query(query).bindAll(Map.of("profileId", profileId)).run();
 
         log.info("Deleted UserProfile {} and all its relationships in Neo4j", profileId);
+    }
+
+    @Transactional(transactionManager = "transactionManager", rollbackFor = Exception.class)
+    public void updatePoints(String profileId, long delta) {
+        UserProfile user =
+                jpaRepository.findById(profileId).orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
+
+        if (user.getPoints() == null) user.setPoints(0L);
+
+        user.setPoints(user.getPoints() + delta);
+        jpaRepository.save(user);
+
+        log.info("Updated points for profile {}: delta={}, new total={}", profileId, delta, user.getPoints());
     }
 
     public void addRole(String profileId, String role) {

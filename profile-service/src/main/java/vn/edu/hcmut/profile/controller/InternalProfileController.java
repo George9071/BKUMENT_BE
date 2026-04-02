@@ -67,4 +67,9 @@ public class InternalProfileController {
     public void deleteProfile(@PathVariable String profileId) {
         profileService.deleteProfile(profileId);
     }
+
+    @PostMapping("/{profileId}/points")
+    public void updatePoints(@PathVariable String profileId, @RequestParam Long delta) {
+        profileService.updatePoints(profileId, delta);
+    }
 }

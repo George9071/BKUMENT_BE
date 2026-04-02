@@ -17,6 +17,8 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
 
     Page<Document> findByCourseId(String courseId, Pageable pageable);
 
+    Page<Document> findByOwnerId(String ownerId, Pageable pageable);
+
     @Query(
             value =
                     """

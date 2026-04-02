@@ -59,32 +59,38 @@ public class PostService {
             posts = postRepository.findByTitleContainingIgnoreCase(keyword, pageable);
         }
 
-        final boolean finalIsUuidQuery = isUuidQuery;
+        boolean finalIsUuidQuery = isUuidQuery;
+        return posts.map(post -> toBlogMetadataResponse(post, finalIsUuidQuery));
+    }
 
-        return posts.map(post -> {
-            APIResponse<ProfileResponse> apiResponse = profileClient.findUserProfileById(post.getOwnerId());
-            ProfileResponse profile = apiResponse.getResult();
+    public Page<BlogMetadataResponse> getBlogsByOwnerId(String ownerId, Pageable pageable) {
+        Page<Post> posts = postRepository.findByOwnerId(ownerId, pageable);
+        return posts.map(post -> toBlogMetadataResponse(post, false));
+    }
 
-            BlogMetadataResponse.Author authorDto = null;
-            if (profile != null) {
-                authorDto = BlogMetadataResponse.Author.builder()
-                        .id(profile.getId())
-                        .name(profile.getFullName())
-                        .avatarUrl(profile.getAvatarUrl())
-                        .build();
-            }
+    private BlogMetadataResponse toBlogMetadataResponse(Post post, boolean detailed) {
+        APIResponse<ProfileResponse> apiResponse = profileClient.findUserProfileById(post.getOwnerId());
+        ProfileResponse profile = apiResponse.getResult();
 
-            String processedContent = finalIsUuidQuery ? post.getContent() : htmlToTextWithoutImages(post.getContent());
-
-            return BlogMetadataResponse.builder()
-                    .id(post.getId())
-                    .name(post.getTitle())
-                    .author(authorDto)
-                    .content(processedContent)
-                    .coverImage(post.getCoverImage())
-                    .createdAt(post.getCreatedAt())
+        BlogMetadataResponse.Author authorDto = null;
+        if (profile != null) {
+            authorDto = BlogMetadataResponse.Author.builder()
+                    .id(profile.getId())
+                    .name(profile.getFullName())
+                    .avatarUrl(profile.getAvatarUrl())
                     .build();
-        });
+        }
+
+        String processedContent = detailed ? post.getContent() : htmlToTextWithoutImages(post.getContent());
+
+        return BlogMetadataResponse.builder()
+                .id(post.getId())
+                .name(post.getTitle())
+                .author(authorDto)
+                .content(processedContent)
+                .coverImage(post.getCoverImage())
+                .createdAt(post.getCreatedAt())
+                .build();
     }
 
     public boolean isUUID(String value) {
@@ -109,6 +115,13 @@ public class PostService {
         post.setVisibility(request.getVisibility());
 
         postRepository.save(post);
+
+        // Points hook: +20 for blog post
+        try {
+            profileClient.updatePoints(ownerId, 20L);
+        } catch (Exception e) {
+            log.error("Failed to update points for blog post: {}", post.getId(), e);
+        }
 
         for (String assetId : request.getAssetIds()) {
             PostAsset postAsset = new PostAsset();
@@ -146,6 +159,11 @@ public class PostService {
         }
 
         return postRepository.save(post);
+    }
+
+    public String getOwnerId(String blogId) {
+        Post post = postRepository.findById(blogId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
+        return post.getOwnerId();
     }
 
     public String htmlToTextWithoutImages(String html) {
