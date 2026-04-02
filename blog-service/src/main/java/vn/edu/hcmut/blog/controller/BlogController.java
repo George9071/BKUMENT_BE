@@ -93,6 +93,19 @@ public class BlogController {
                 .build();
     }
 
+    @GetMapping("/top-blog")
+    public APIResponse<Page<BlogMetadataResponse>> getTopBlogs(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<BlogMetadataResponse> result = postService.getTopBlogs(pageable);
+
+        return APIResponse.<Page<BlogMetadataResponse>>builder()
+                .result(result)
+                .message("Get top blogs successfully")
+                .build();
+    }
+
     @PostMapping("")
     public APIResponse<BlogMetadataResponse> createResource(@RequestBody @Valid BlogMetadataRequest request) {
         String authorId = getProfileIdFromToken();

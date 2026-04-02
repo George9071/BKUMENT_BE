@@ -1,6 +1,7 @@
 package vn.edu.hcmut.document.dto.response;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -25,6 +26,8 @@ public class DocumentMetadataResponse {
     String description;
     String summary;
     boolean downloadable;
+    List<String> keywords;
+    Long views;
 
     String universityId;
     String courseId;

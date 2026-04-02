@@ -48,6 +48,10 @@ public class Resource {
     @Column(name = "course_id")
     String courseId;
 
+    @Column(name = "views")
+    @Builder.Default
+    Long views = 0L;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

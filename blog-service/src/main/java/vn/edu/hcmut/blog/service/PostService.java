@@ -1,14 +1,20 @@
 package vn.edu.hcmut.blog.service;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import jakarta.transaction.Transactional;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -17,11 +23,13 @@ import org.springframework.stereotype.Service;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.blog.dto.request.BlogMetadataRequest;
 import vn.edu.hcmut.blog.dto.response.APIResponse;
 import vn.edu.hcmut.blog.dto.response.BlogMetadataResponse;
 import vn.edu.hcmut.blog.dto.response.ProfileResponse;
+import vn.edu.hcmut.blog.dto.response.ResourceEngagementStatsResponse;
 import vn.edu.hcmut.blog.entity.Post;
 import vn.edu.hcmut.blog.entity.PostAsset;
 import vn.edu.hcmut.blog.entity.Resource;
@@ -31,6 +39,7 @@ import vn.edu.hcmut.blog.repository.PostAssetRepository;
 import vn.edu.hcmut.blog.repository.PostRepository;
 import vn.edu.hcmut.blog.repository.ResourceRepository;
 import vn.edu.hcmut.blog.repository.httpclient.ProfileClient;
+import vn.edu.hcmut.blog.repository.httpclient.SocialClient;
 
 @Slf4j
 @Service
@@ -42,6 +51,23 @@ public class PostService {
     ResourceRepository resourceRepository;
     PostAssetRepository postAssetRepository;
     ProfileClient profileClient;
+    SocialClient socialClient;
+
+    @NonFinal
+    @Value("${app.trending.w1:100.0}")
+    double w1;
+
+    @NonFinal
+    @Value("${app.trending.w2:1.0}")
+    double w2;
+
+    @NonFinal
+    @Value("${app.trending.w3:5.0}")
+    double w3;
+
+    @NonFinal
+    @Value("${app.trending.gravity:1.8}")
+    double gravity;
 
     public Page<BlogMetadataResponse> search(String keyword, Pageable pageable) {
         Page<Post> posts;
@@ -59,13 +85,94 @@ public class PostService {
             posts = postRepository.findByTitleContainingIgnoreCase(keyword, pageable);
         }
 
+        if (!posts.isEmpty()) {
+            List<String> ids = posts.getContent().stream().map(Post::getId).toList();
+            postRepository.incrementViews(ids);
+        }
+
         boolean finalIsUuidQuery = isUuidQuery;
         return posts.map(post -> toBlogMetadataResponse(post, finalIsUuidQuery));
     }
 
     public Page<BlogMetadataResponse> getBlogsByOwnerId(String ownerId, Pageable pageable) {
         Page<Post> posts = postRepository.findByOwnerId(ownerId, pageable);
+        if (!posts.isEmpty()) {
+            List<String> ids = posts.getContent().stream().map(Post::getId).toList();
+            postRepository.incrementViews(ids);
+        }
         return posts.map(post -> toBlogMetadataResponse(post, false));
+    }
+
+    public Page<BlogMetadataResponse> getTopBlogs(Pageable pageable) {
+        List<Post> allPosts = postRepository.findAll();
+
+        if (allPosts.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        Map<String, ResourceEngagementStatsResponse> engagementMap = new HashMap<>();
+        try {
+            APIResponse<List<ResourceEngagementStatsResponse>> response = socialClient.getEngagementStats();
+            if (response.getResult() != null) {
+                engagementMap = response.getResult().stream()
+                        .collect(Collectors.toMap(ResourceEngagementStatsResponse::getResourceId, s -> s));
+            }
+        } catch (Exception e) {
+            log.error("Failed to fetch engagement stats from social service", e);
+        }
+
+        final Map<String, ResourceEngagementStatsResponse> finalEngagementMap = engagementMap;
+        LocalDateTime now = LocalDateTime.now();
+
+        List<PostScore> scoredPosts = allPosts.stream()
+                .map(post -> {
+                    ResourceEngagementStatsResponse stats = finalEngagementMap.get(post.getId());
+                    double avgRate =
+                            (stats != null && stats.getAverageRating() != null) ? stats.getAverageRating() : 0.0;
+                    long numRates = (stats != null && stats.getRatingCount() != null) ? stats.getRatingCount() : 0L;
+                    long comments = (stats != null && stats.getCommentCount() != null) ? stats.getCommentCount() : 0L;
+                    long views = post.getViews() != null ? post.getViews() : 0L;
+
+                    long ageInHours = ChronoUnit.HOURS.between(post.getCreatedAt(), now);
+
+                    // Trending_Score = (w1 * [avg_rate * log10(1 + num_rates)] + w2 * Views + w3 * Comments) /
+                    // (age_in_hours + 2)^G
+                    double numerator = (w1 * (avgRate * Math.log10(1 + numRates))) + (w2 * views) + (w3 * comments);
+                    double denominator = Math.pow(ageInHours + 2, gravity);
+                    double score = numerator / denominator;
+
+                    return new PostScore(post, score);
+                })
+                .sorted(Comparator.comparingDouble((PostScore ps) -> ps.score).reversed())
+                .collect(Collectors.toList());
+
+        // Paginate
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), scoredPosts.size());
+
+        if (start > scoredPosts.size()) {
+            return new PageImpl<>(List.of(), pageable, scoredPosts.size());
+        }
+
+        List<Post> pagedPosts =
+                scoredPosts.subList(start, end).stream().map(ps -> ps.post).collect(Collectors.toList());
+
+        if (!pagedPosts.isEmpty()) {
+            postRepository.incrementViews(pagedPosts.stream().map(Post::getId).toList());
+        }
+
+        return new PageImpl<>(pagedPosts, pageable, scoredPosts.size())
+                .map(post -> toBlogMetadataResponse(post, false));
+    }
+
+    private static class PostScore {
+        Post post;
+        double score;
+
+        public PostScore(Post post, double score) {
+            this.post = post;
+            this.score = score;
+        }
     }
 
     private BlogMetadataResponse toBlogMetadataResponse(Post post, boolean detailed) {
@@ -90,6 +197,7 @@ public class PostService {
                 .content(processedContent)
                 .coverImage(post.getCoverImage())
                 .createdAt(post.getCreatedAt())
+                .views(post.getViews())
                 .build();
     }
 

@@ -35,3 +35,5 @@ swagger:
 app:
   services:
     profile: http://profile-service:8081/profile
+    document: http://document-service:8086/document
+    blog: http://blog-service:8085/blog

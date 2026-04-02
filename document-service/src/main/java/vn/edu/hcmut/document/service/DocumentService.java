@@ -158,7 +158,12 @@ public class DocumentService {
                 pageable.getPageNumber(),
                 pageable.getPageSize(),
                 Sort.by("createdAt").descending());
-        return documentRepository.findByCourseId(courseId, sortedByCreatedAt);
+        Page<Document> result = documentRepository.findByCourseId(courseId, sortedByCreatedAt);
+        if (!result.isEmpty()) {
+            documentRepository.incrementViews(
+                    result.getContent().stream().map(Document::getId).toList());
+        }
+        return result;
     }
 
     public Page<Document> getDocumentsByOwnerId(String ownerId, Pageable pageable) {
@@ -166,7 +171,12 @@ public class DocumentService {
                 pageable.getPageNumber(),
                 pageable.getPageSize(),
                 Sort.by("createdAt").descending());
-        return documentRepository.findByOwnerId(ownerId, sortedByCreatedAt);
+        Page<Document> result = documentRepository.findByOwnerId(ownerId, sortedByCreatedAt);
+        if (!result.isEmpty()) {
+            documentRepository.incrementViews(
+                    result.getContent().stream().map(Document::getId).toList());
+        }
+        return result;
     }
 
     public Page<Document> getTopRankedDocuments(Pageable pageable) {
@@ -219,6 +229,11 @@ public class DocumentService {
         List<Document> pagedDocs =
                 scoredDocs.subList(start, end).stream().map(ds -> ds.document).collect(Collectors.toList());
 
+        if (!pagedDocs.isEmpty()) {
+            documentRepository.incrementViews(
+                    pagedDocs.stream().map(Document::getId).toList());
+        }
+
         return new PageImpl<>(pagedDocs, pageable, scoredDocs.size());
     }
 
@@ -239,18 +254,23 @@ public class DocumentService {
                 pageable.getPageSize(),
                 Sort.by("createdAt").descending());
 
+        Page<Document> result;
         if (keyword == null || keyword.isBlank()) {
-            return documentRepository.findAll(sortedByCreatedAt);
-        }
-
-        if (isUUID(keyword)) {
+            result = documentRepository.findAll(sortedByCreatedAt);
+        } else if (isUUID(keyword)) {
             Optional<Document> optionalDoc = documentRepository.findById(keyword);
-            if (optionalDoc.isPresent()) {
-                return new PageImpl<>(List.of(optionalDoc.get()), sortedByCreatedAt, 1);
-            }
+            result = optionalDoc
+                    .map(doc -> new PageImpl<>(List.of(doc), sortedByCreatedAt, 1))
+                    .orElseGet(() -> new PageImpl<>(List.of(), sortedByCreatedAt, 0));
+        } else {
+            result = documentRepository.findByTitleContainingIgnoreCase(keyword, sortedByCreatedAt);
         }
 
-        return documentRepository.findByTitleContainingIgnoreCase(keyword, sortedByCreatedAt);
+        if (!result.isEmpty()) {
+            documentRepository.incrementViews(
+                    result.getContent().stream().map(Document::getId).toList());
+        }
+        return result;
     }
 
     @Transactional
@@ -338,6 +358,8 @@ public class DocumentService {
         Document document =
                 documentRepository.findById(docId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
 
+        documentRepository.incrementViews(List.of(docId));
+
         String downloadUrl =
                 gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/document/asset/" + docId;
 
@@ -370,6 +392,7 @@ public class DocumentService {
                 .summary(document.getSummary())
                 .downloadable(document.isDownloadable())
                 .previewImageUrl(document.getPreviewImageUrl())
+                .views(document.getViews())
                 .build();
     }
 
@@ -501,6 +524,11 @@ public class DocumentService {
                 })
                 .toList();
 
+        if (!dtos.isEmpty()) {
+            documentRepository.incrementViews(
+                    dtos.stream().map(RelatedDocumentsResponse::getId).toList());
+        }
+
         return new PageImpl<>(dtos, pageable, validIds.size());
     }
 
@@ -558,6 +586,11 @@ public class DocumentService {
                 })
                 .toList();
 
+        if (!dtos.isEmpty()) {
+            documentRepository.incrementViews(
+                    dtos.stream().map(RelatedDocumentsResponse::getId).toList());
+        }
+
         return new PageImpl<>(dtos, pageable, docIdsPage.getTotalElements());
     }
 
@@ -589,6 +622,7 @@ public class DocumentService {
                 .downloadable(document.isDownloadable())
                 .keywords(document.getKeywords())
                 .previewImageUrl(document.getPreviewImageUrl())
+                .views(document.getViews())
                 .build();
     }
 
