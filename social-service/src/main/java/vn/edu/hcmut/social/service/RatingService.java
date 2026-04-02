@@ -1,7 +1,9 @@
 package vn.edu.hcmut.social.service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,10 +17,12 @@ import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.social.dto.request.RatingRequest;
 import vn.edu.hcmut.social.dto.response.RankingStatsResponse;
 import vn.edu.hcmut.social.dto.response.RatingResponse;
+import vn.edu.hcmut.social.dto.response.ResourceEngagementStatsResponse;
 import vn.edu.hcmut.social.dto.response.ResourceRatingStatsResponse;
 import vn.edu.hcmut.social.entity.Rating;
 import vn.edu.hcmut.social.exception.AppException;
 import vn.edu.hcmut.social.exception.ErrorCode;
+import vn.edu.hcmut.social.repository.CommentRepository;
 import vn.edu.hcmut.social.repository.RatingRepository;
 import vn.edu.hcmut.social.repository.httpclient.BlogClient;
 import vn.edu.hcmut.social.repository.httpclient.DocumentClient;
@@ -30,6 +34,7 @@ import vn.edu.hcmut.social.repository.httpclient.ProfileClient;
 @Slf4j
 public class RatingService {
     RatingRepository ratingRepository;
+    CommentRepository commentRepository;
     ProfileClient profileClient;
     DocumentClient documentClient;
     BlogClient blogClient;
@@ -109,6 +114,23 @@ public class RatingService {
                 .globalAverage(globalAvg != null ? globalAvg : 0.0)
                 .stats(stats)
                 .build();
+    }
+
+    public List<ResourceEngagementStatsResponse> getEngagementStats() {
+        List<ResourceRatingStatsResponse> ratingStats = ratingRepository.getResourceRatingStats();
+        List<Object[]> commentCounts = commentRepository.countCommentsGroupByResourceId();
+
+        Map<String, Long> commentCountMap =
+                commentCounts.stream().collect(Collectors.toMap(row -> (String) row[0], row -> (Long) row[1]));
+
+        return ratingStats.stream()
+                .map(rs -> ResourceEngagementStatsResponse.builder()
+                        .resourceId(rs.getResourceId())
+                        .averageRating(rs.getAverageRating())
+                        .ratingCount(rs.getRatingCount())
+                        .commentCount(commentCountMap.getOrDefault(rs.getResourceId(), 0L))
+                        .build())
+                .collect(Collectors.toList());
     }
 
     public RatingResponse getUserRatingForResource(String resourceId, String userId) {

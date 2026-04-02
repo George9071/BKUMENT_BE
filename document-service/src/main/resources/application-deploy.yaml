@@ -44,3 +44,6 @@ app:
     ai: http://ai-service:8087/ai
     profile: http://profile-service:8081/profile
     social: http://social-service:8089/social
+  ranking:
+    weight-rating: 0.7
+    weight-download: 0.3

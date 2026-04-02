@@ -1,5 +1,7 @@
 package vn.edu.hcmut.social.controller;
 
+import java.util.List;
+
 import jakarta.validation.Valid;
 
 import org.springframework.data.domain.Page;
@@ -19,6 +21,7 @@ import vn.edu.hcmut.social.dto.request.RatingRequest;
 import vn.edu.hcmut.social.dto.response.APIResponse;
 import vn.edu.hcmut.social.dto.response.RankingStatsResponse;
 import vn.edu.hcmut.social.dto.response.RatingResponse;
+import vn.edu.hcmut.social.dto.response.ResourceEngagementStatsResponse;
 import vn.edu.hcmut.social.exception.AppException;
 import vn.edu.hcmut.social.exception.ErrorCode;
 import vn.edu.hcmut.social.service.RatingService;
@@ -95,6 +98,14 @@ public class RatingController {
         return APIResponse.<RankingStatsResponse>builder()
                 .result(ratingService.getRankingStats())
                 .message("Get ranking stats successfully")
+                .build();
+    }
+
+    @GetMapping("/engagement-stats")
+    public APIResponse<List<ResourceEngagementStatsResponse>> getEngagementStats() {
+        return APIResponse.<List<ResourceEngagementStatsResponse>>builder()
+                .result(ratingService.getEngagementStats())
+                .message("Get engagement stats successfully")
                 .build();
     }
 }
