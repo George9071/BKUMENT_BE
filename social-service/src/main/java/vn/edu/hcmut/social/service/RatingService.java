@@ -17,6 +17,8 @@ import vn.edu.hcmut.social.dto.response.RankingStatsResponse;
 import vn.edu.hcmut.social.dto.response.RatingResponse;
 import vn.edu.hcmut.social.dto.response.ResourceRatingStatsResponse;
 import vn.edu.hcmut.social.entity.Rating;
+import vn.edu.hcmut.social.exception.AppException;
+import vn.edu.hcmut.social.exception.ErrorCode;
 import vn.edu.hcmut.social.repository.RatingRepository;
 import vn.edu.hcmut.social.repository.httpclient.BlogClient;
 import vn.edu.hcmut.social.repository.httpclient.DocumentClient;
@@ -62,33 +64,27 @@ public class RatingService {
     public RatingResponse createOrUpdateRating(RatingRequest request, String userId) {
         Optional<Rating> existingRating = ratingRepository.findByResourceIdAndUserId(request.getResourceId(), userId);
 
-        Double oldScore = existingRating.map(Rating::getScore).orElse(null);
-        Rating rating;
         if (existingRating.isPresent()) {
-            rating = existingRating.get();
-            rating.setScore(request.getScore());
-        } else {
-            rating = Rating.builder()
-                    .resourceId(request.getResourceId())
-                    .userId(userId)
-                    .score(request.getScore())
-                    .build();
+            throw new AppException(ErrorCode.ALREADY_RATED);
         }
+
+        Rating rating = Rating.builder()
+                .resourceId(request.getResourceId())
+                .userId(userId)
+                .score(request.getScore())
+                .build();
 
         rating = ratingRepository.save(rating);
 
-        // Points hook: update owner points based on score delta
+        // Points hook: +points based on score (delta is always newPoints - 0)
         String ownerId = getOwnerId(request.getResourceId());
         if (ownerId != null) {
-            long oldPoints = getPointsForScore(oldScore);
             long newPoints = getPointsForScore(request.getScore());
-            long delta = newPoints - oldPoints;
-
-            if (delta != 0) {
+            if (newPoints != 0) {
                 try {
-                    profileClient.updatePoints(ownerId, delta);
+                    profileClient.updatePoints(ownerId, newPoints);
                 } catch (Exception e) {
-                    log.error("Failed to update points for rating update: profile={}, delta={}", ownerId, delta, e);
+                    log.error("Failed to update points for new rating: profile={}, delta={}", ownerId, newPoints, e);
                 }
             }
         }

@@ -59,12 +59,21 @@ public class PostService {
             posts = postRepository.findByTitleContainingIgnoreCase(keyword, pageable);
         }
 
+        if (!posts.isEmpty()) {
+            List<String> ids = posts.getContent().stream().map(Post::getId).toList();
+            postRepository.incrementViews(ids);
+        }
+
         boolean finalIsUuidQuery = isUuidQuery;
         return posts.map(post -> toBlogMetadataResponse(post, finalIsUuidQuery));
     }
 
     public Page<BlogMetadataResponse> getBlogsByOwnerId(String ownerId, Pageable pageable) {
         Page<Post> posts = postRepository.findByOwnerId(ownerId, pageable);
+        if (!posts.isEmpty()) {
+            List<String> ids = posts.getContent().stream().map(Post::getId).toList();
+            postRepository.incrementViews(ids);
+        }
         return posts.map(post -> toBlogMetadataResponse(post, false));
     }
 
@@ -90,6 +99,7 @@ public class PostService {
                 .content(processedContent)
                 .coverImage(post.getCoverImage())
                 .createdAt(post.getCreatedAt())
+                .views(post.getViews())
                 .build();
     }
 

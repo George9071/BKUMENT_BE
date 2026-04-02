@@ -18,6 +18,7 @@ public class BlogMetadataResponse {
 
     String content;
     LocalDateTime createdAt;
+    Long views;
 
     @Data
     @Builder
