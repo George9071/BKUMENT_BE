@@ -118,9 +118,7 @@ public class ProfileService {
 
         Pageable pageable = PageRequest.of(0, limit);
 
-        return jpaRepository.search(keyword.trim(), pageable)
-                .getContent()
-                .stream()
+        return jpaRepository.search(keyword.trim(), pageable).getContent().stream()
                 .map(profileMapper::toProfileResponse)
                 .toList();
     }

@@ -17,6 +17,7 @@ import javax.imageio.ImageIO;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -30,6 +31,7 @@ import io.minio.StatObjectResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.document.configuration.GatewayProperties;
 import vn.edu.hcmut.document.dto.request.DocumentMetadataRequest;
@@ -44,6 +46,7 @@ import vn.edu.hcmut.document.repository.DocumentRepository;
 import vn.edu.hcmut.document.repository.ResourceRepository;
 import vn.edu.hcmut.document.repository.httpclient.AiClient;
 import vn.edu.hcmut.document.repository.httpclient.ProfileClient;
+import vn.edu.hcmut.document.repository.httpclient.SocialClient;
 import vn.edu.hcmut.document.utils.StreamMultipartFile;
 
 @Slf4j
@@ -59,8 +62,17 @@ public class DocumentService {
     MinioService minioService;
     GraphSyncService graphSyncService;
     ProfileClient profileClient;
+    SocialClient socialClient;
     AiClient aiClient;
     DocumentAsyncService documentAsyncService;
+
+    @NonFinal
+    @Value("${app.ranking.weight-rating:0.7}")
+    double weightRating;
+
+    @NonFinal
+    @Value("${app.ranking.weight-download:0.3}")
+    double weightDownload;
 
     public DocAnalyzeResponse processAndCreateDocument(String assetId, String originalFileName, String ownerId) {
         log.info("[ASSET][{}] Bắt đầu xử lý với AI Service", assetId);
@@ -150,12 +162,67 @@ public class DocumentService {
         return documentRepository.findByOwnerId(ownerId, sortedByCreatedAt);
     }
 
-    public Page<Document> getTopDownloadedDocuments(Pageable pageable) {
-        Pageable sortedByDownloadCount = PageRequest.of(
-                pageable.getPageNumber(),
-                pageable.getPageSize(),
-                Sort.by("downloadCount").descending());
-        return documentRepository.findAll(sortedByDownloadCount);
+    public Page<Document> getTopRankedDocuments(Pageable pageable) {
+        // Step 1: Fetch a batch of candidate documents (e.g., top 1000 by download or overall)
+        // For simplicity and to ensure accuracy, we'll fetch a larger set than just one page
+        // But in a real-world scenario, we might want a specialized query or caching
+        List<Document> documents = documentRepository.findAll();
+
+        if (documents.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        RankingStatsResponse rankingStats = null;
+        try {
+            APIResponse<RankingStatsResponse> response = socialClient.getRankingStats();
+            rankingStats = response.getResult();
+        } catch (Exception e) {
+            log.error("Failed to fetch ranking stats from social service", e);
+        }
+
+        final Map<String, ResourceRatingStatsResponse> statsMap =
+                (rankingStats != null && rankingStats.getStats() != null)
+                        ? rankingStats.getStats().stream()
+                                .collect(Collectors.toMap(ResourceRatingStatsResponse::getResourceId, s -> s))
+                        : new HashMap<>();
+
+        // Step 3: Calculate score for each document
+        List<DocumentScore> scoredDocs = documents.stream()
+                .map(doc -> {
+                    ResourceRatingStatsResponse stats = statsMap.get(doc.getId());
+                    double R = (stats != null && stats.getAverageRating() != null) ? stats.getAverageRating() : 0.0;
+
+                    // Final Score = w1 * R + w2 * log10(1 + Downloads)
+                    double downloads = doc.getDownloadCount() != null ? doc.getDownloadCount() : 0.0;
+                    double finalScore = (weightRating * R) + (weightDownload * Math.log10(1 + downloads));
+
+                    return new DocumentScore(doc, finalScore);
+                })
+                .sorted((a, b) -> Double.compare(b.score, a.score))
+                .collect(Collectors.toList());
+
+        // Step 4: Paginate
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), scoredDocs.size());
+
+        if (start > scoredDocs.size()) {
+            return new PageImpl<>(List.of(), pageable, scoredDocs.size());
+        }
+
+        List<Document> pagedDocs =
+                scoredDocs.subList(start, end).stream().map(ds -> ds.document).collect(Collectors.toList());
+
+        return new PageImpl<>(pagedDocs, pageable, scoredDocs.size());
+    }
+
+    private static class DocumentScore {
+        Document document;
+        double score;
+
+        public DocumentScore(Document document, double score) {
+            this.document = document;
+            this.score = score;
+        }
     }
 
     // TODO: move to search service

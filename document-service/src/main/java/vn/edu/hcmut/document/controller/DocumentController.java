@@ -90,14 +90,14 @@ public class DocumentController {
         return mapToDocumentMetadataResponsePage(documents, "Get my documents successfully");
     }
 
-    @GetMapping("/top-downloaded")
-    public APIResponse<Page<DocumentMetadataResponse>> getTopDownloadedDocuments(
+    @GetMapping("/top-documents")
+    public APIResponse<Page<DocumentMetadataResponse>> getTopRankedDocuments(
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
 
         Pageable pageable = PageRequest.of(page, size);
-        Page<Document> documents = documentService.getTopDownloadedDocuments(pageable);
+        Page<Document> documents = documentService.getTopRankedDocuments(pageable);
 
-        return mapToDocumentMetadataResponsePage(documents, "Get top downloaded documents successfully");
+        return mapToDocumentMetadataResponsePage(documents, "Get top ranked documents successfully");
     }
 
     private APIResponse<Page<DocumentMetadataResponse>> mapToDocumentMetadataResponsePage(
