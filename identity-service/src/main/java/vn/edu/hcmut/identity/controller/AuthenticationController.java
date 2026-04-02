@@ -2,23 +2,21 @@ package vn.edu.hcmut.identity.controller;
 
 import java.text.ParseException;
 
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+
+import org.springframework.web.bind.annotation.*;
 
 import com.nimbusds.jose.JOSEException;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import vn.edu.hcmut.identity.dto.request.AuthenticationRequest;
-import vn.edu.hcmut.identity.dto.request.IntrospectRequest;
-import vn.edu.hcmut.identity.dto.request.LogoutRequest;
-import vn.edu.hcmut.identity.dto.request.RefreshRequest;
+import vn.edu.hcmut.identity.dto.request.*;
 import vn.edu.hcmut.identity.dto.response.APIResponse;
 import vn.edu.hcmut.identity.dto.response.AuthenticationResponse;
 import vn.edu.hcmut.identity.dto.response.IntrospectResponse;
+import vn.edu.hcmut.identity.service.AccountService;
 import vn.edu.hcmut.identity.service.AuthenticationService;
 
 @RestController
@@ -28,6 +26,7 @@ import vn.edu.hcmut.identity.service.AuthenticationService;
 public class AuthenticationController {
 
     AuthenticationService authenticationService;
+    AccountService accountService;
 
     @PostMapping("/login")
     APIResponse<AuthenticationResponse> authenticate(@RequestBody AuthenticationRequest request) {
@@ -52,5 +51,30 @@ public class AuthenticationController {
     APIResponse<Void> logout(@RequestBody LogoutRequest request) {
         authenticationService.logout(request);
         return APIResponse.<Void>builder().build();
+    }
+
+    @PostMapping("/verify-email")
+    public APIResponse<Void> verifyEmail(@RequestParam String token) {
+        accountService.verifyEmail(token);
+        return APIResponse.<Void>builder()
+                .message("Email đã được xác minh thành công")
+                .build();
+    }
+
+    @PostMapping("/forgot-password")
+    public APIResponse<Void> forgotPassword(@RequestParam @Email String email) {
+        accountService.forgotPassword(email);
+        return APIResponse.<Void>builder()
+                .message("Nếu email tồn tại, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu")
+                .build();
+    }
+
+    @PostMapping("/reset-password")
+    public APIResponse<Void> resetPassword(
+            @RequestParam String token, @RequestBody @Valid ResetPasswordRequest request) {
+        accountService.resetPassword(token, request.getPassword());
+        return APIResponse.<Void>builder()
+                .message("Mật khẩu đã được đặt lại thành công")
+                .build();
     }
 }

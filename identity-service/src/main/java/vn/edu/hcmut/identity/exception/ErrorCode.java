@@ -35,6 +35,10 @@ public enum ErrorCode {
     DELETE_PROFILE_FAILED(
             9101, "Failed to delete user profile during account removal", HttpStatus.INTERNAL_SERVER_ERROR),
     PROFILE_NOT_FOUND(9102, "User profile not found in Profile Service", HttpStatus.NOT_FOUND),
+    INVALID_VERIFICATION_TOKEN(400, "Token xác minh không hợp lệ hoặc đã được sử dụng", HttpStatus.BAD_REQUEST),
+    VERIFICATION_TOKEN_EXPIRED(400, "Token xác minh đã hết hạn, vui lòng yêu cầu gửi lại", HttpStatus.BAD_REQUEST),
+    SYNC_FAILED(400, "Lỗi đồng bộ", HttpStatus.INTERNAL_SERVER_ERROR),
+
     UNCATEGORIZED_EXCEPTION(9999, "Uncategorized system error", HttpStatus.INTERNAL_SERVER_ERROR);
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {

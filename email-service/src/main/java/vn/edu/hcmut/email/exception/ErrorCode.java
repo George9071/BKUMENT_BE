@@ -15,6 +15,7 @@ public enum ErrorCode {
     INVALID_KEY(1001, "Uncategorized error", HttpStatus.BAD_REQUEST),
 
     CANNOT_SEND_EMAIL(1008, "Cannot send email", HttpStatus.BAD_REQUEST),
+    ACCESS_DENIED(2004, "You do not have permission to access this resource", HttpStatus.FORBIDDEN),
     ;
 
     private final int code;

@@ -101,7 +101,7 @@ public class AuthenticationService {
 
         if (!isAdmin) {
             try {
-                profile = profileClient.getProfileByAccountId(account.getId()).getResult();
+                profile = profileClient.getProfileByAccountId(account.getId());
             } catch (Exception e) {
                 log.error("CRITICAL: Cannot fetch profile for account {}", account.getId(), e);
                 throw new AppException(ErrorCode.PROFILE_NOT_FOUND);
@@ -157,7 +157,7 @@ public class AuthenticationService {
 
         ProfileResponse profile;
         try {
-            profile = profileClient.getProfileByAccountId(account.getId()).getResult();
+            profile = profileClient.getProfileByAccountId(account.getId());
         } catch (Exception e) {
             log.warn("ProfileService is down during token refresh. Falling back to claims from the old token.");
             profile = extractProfileFromOldToken(signedJWT);
