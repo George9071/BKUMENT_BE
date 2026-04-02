@@ -6,13 +6,14 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 
 @SpringBootApplication(scanBasePackages = {
-        "vn.edu.hcmut.realtime",
+        "vn.edu.hcmut.communication",
         "vn.edu.hcmut.event"
 })
 
 @EnableMongoRepositories(basePackages = {
         "vn.edu.hcmut.communication.messaging.repository",
-        "vn.edu.hcmut.communication.notification.repository"
+        "vn.edu.hcmut.communication.notification.repository",
+        "vn.edu.hcmut.communication.session.repository"
 })
 
 @EnableFeignClients
