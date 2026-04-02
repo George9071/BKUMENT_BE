@@ -33,7 +33,6 @@ import vn.edu.hcmut.profile.repository.UserProfileRepository;
 public class ProfileService {
 
     UserProfileRepository jpaRepository;
-    UserProfileNodeRepository neo4jRepository;
     UniversityRepository universityRepository;
 
     ProfileMapper profileMapper;

@@ -97,10 +97,9 @@ public Page<ChatMessageResponse> getMessages(String conversationId, Pageable pag
 
         // Get user info from ProfileService
         var user = profileClient.getProfile(userId);
-        if (Objects.isNull(user) || user.getResult() == null) {
+        if (Objects.isNull(user)) {
             throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
         }
-        var userInfo = user.getResult();
 
         // Build chat message info
         if (("TEXT".equals(request.getType()) &&
@@ -113,11 +112,11 @@ public Page<ChatMessageResponse> getMessages(String conversationId, Pageable pag
         ChatMessage message = chatMessageMapper.toChatMessage(request);
 
         message.setSender(ParticipantInfo.builder()
-                .userId(userInfo.getId())
-                .username(userInfo.getLastName() + " " + userInfo.getFirstName())
-                .firstName(userInfo.getFirstName())
-                .lastName(userInfo.getLastName())
-                .avatar(userInfo.getAvatarUrl())
+                .userId(user.getId())
+                .username(user.getLastName() + " " + user.getFirstName())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .avatar(user.getAvatarUrl())
                 .build());
         message.setCreatedDate(Instant.now());
         message = chatMessageRepository.save(message);

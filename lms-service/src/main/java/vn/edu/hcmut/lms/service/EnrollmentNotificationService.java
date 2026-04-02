@@ -2,10 +2,9 @@ package vn.edu.hcmut.lms.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
-import vn.edu.hcmut.event.dto.EnrollmentNotificationEvent;
+import vn.edu.hcmut.event.EnrollmentNotificationEvent;
 
 import java.time.Instant;
 
@@ -14,8 +13,6 @@ import java.time.Instant;
 @Slf4j
 public class EnrollmentNotificationService {
     private final KafkaTemplate<String, Object> kafkaTemplate;
-
-    String NOTIFICATION_TOPIC = "notification-events";
 
     public void sendEnrollmentRequested(String classId, String className,
                                         String studentId, String studentName,
@@ -41,7 +38,7 @@ public class EnrollmentNotificationService {
 
     private void send(EnrollmentNotificationEvent event, String partitionKey) {
         try {
-            kafkaTemplate.send(NOTIFICATION_TOPIC, partitionKey, event);
+            kafkaTemplate.send("enrollment-events", partitionKey, event);
         } catch (Exception e) {
             log.error("Failed to send notification event [{}] for key {}",
                     event.getAction(), partitionKey, e);

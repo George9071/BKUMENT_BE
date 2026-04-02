@@ -68,17 +68,14 @@ public class ProfileNeo4jService {
 
     @Transactional
     public void addRole(String profileId, String role) {
-        neo4jRepository.findById(profileId).ifPresent(node -> {
-            List<String> roles = node.getRoles() != null ? new ArrayList<>(node.getRoles()) : new ArrayList<>();
+        neo4jClient.query(CypherQueries.USER_ADD_ROLE)
+                .bindAll(Map.of(
+                        "profileId", profileId,
+                        "role", role
+                ))
+                .run();
 
-            if (!roles.contains(role)) {
-                roles.add(role);
-                node.setRoles(roles);
-                node.setNotNew();
-                neo4jRepository.save(node);
-                log.info("Added role '{}' to profile '{}'", role, profileId);
-            }
-        });
+        log.info("Added role '{}' to profile '{}' via direct Cypher execution", role, profileId);
     }
 
     @Transactional

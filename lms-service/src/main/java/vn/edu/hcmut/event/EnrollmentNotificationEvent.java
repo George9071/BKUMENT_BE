@@ -1,4 +1,4 @@
-package vn.edu.hcmut.event.dto;
+package vn.edu.hcmut.event;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
