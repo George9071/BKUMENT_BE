@@ -1,4 +1,4 @@
-package vn.edu.hcmut.event.dto;
+package vn.edu.hcmut.communication.messaging.event;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

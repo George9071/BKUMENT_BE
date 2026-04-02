@@ -43,38 +43,9 @@ public class InternalSyncController {
         log.info("Successfully synced {} topics.", requests.size());
     }
 
-    @PostMapping("/tutor-subjects")
-    public void syncTutorSubjects(@RequestBody List<TutorSubjectSyncRequest> requests) {
-        syncService.syncTutorSubjects(requests);
-    }
-
-    @PostMapping("/classroom")
-    public void syncClassroom(@RequestBody ClassRoomSyncRequest request) {
-        syncService.syncClass(request);
-    }
-
-    @PostMapping("/classrooms/batch")
-    public void syncClasses(@RequestBody List<ClassRoomSyncRequest> requests) {
-        syncService.syncClasses(requests);
-    }
-
-    @PostMapping("/enrollments/batch")
-    public void syncAllEnrollments(@RequestBody List<EnrollmentSyncRequest> requests) {
-        syncService.syncAllEnrollments(requests);
-    }
-
-    @PostMapping("/enrollments")
-    public void addEnrollment(@RequestBody EnrollmentSyncRequest request) {
-        syncService.addEnrollment(request);
-    }
-
-    @DeleteMapping("/enrollments/students/{studentId}/classes/{classId}")
-    public void removeEnrollment(@PathVariable("studentId") String studentId, @PathVariable("classId") String classId) {
-        syncService.removeEnrollment(studentId, classId);
-    }
-
-    @DeleteMapping("/classrooms/{classId}")
-    public void deleteClassRoom(@PathVariable("classId") String classId) {
-        syncService.deleteClassRoom(classId);
+    @PostMapping("/subjects-topics")
+    public void syncSubjectsTopics(
+            @RequestBody List<SubjectSyncRequest> subjects, @RequestBody List<TopicSyncRequest> topics) {
+        syncService.syncMetadata(subjects, topics);
     }
 }

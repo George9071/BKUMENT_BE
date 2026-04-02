@@ -14,7 +14,9 @@ import vn.edu.hcmut.profile.dto.request.ProfileUpdateRequest;
 import vn.edu.hcmut.profile.dto.response.APIResponse;
 import vn.edu.hcmut.profile.dto.response.PageResponse;
 import vn.edu.hcmut.profile.dto.response.ProfileResponse;
+import vn.edu.hcmut.profile.service.FollowService;
 import vn.edu.hcmut.profile.service.ProfileService;
+import vn.edu.hcmut.profile.service.RecommendationService;
 
 @RestController
 @RequiredArgsConstructor
@@ -22,6 +24,8 @@ import vn.edu.hcmut.profile.service.ProfileService;
 @Tag(name = "Profile management", description = "APIs for managing user profiles, searching, and graph relationships")
 public class ProfileController {
     ProfileService profileService;
+    FollowService followService;
+    RecommendationService recommendationService;
 
     @GetMapping("/search")
     public APIResponse<List<ProfileResponse>> searchUsers(
@@ -32,9 +36,6 @@ public class ProfileController {
                 .build();
     }
 
-    // ========================= //
-    // MANAGE YOUR OWN PROFILE
-    // ========================= //
     @Operation(
             summary = "Get my profile",
             description = "Retrieves the profile of the currently authenticated user based on JWT token.")
@@ -55,9 +56,6 @@ public class ProfileController {
                 .build();
     }
 
-    // ========================= //
-    // PUBLIC PROFILE
-    // ========================= //
     @Operation(summary = "Get profile by ID", description = "Retrieves public profile information of a specific user.")
     @GetMapping("/{profileId}")
     APIResponse<ProfileResponse> getProfile(
@@ -67,16 +65,12 @@ public class ProfileController {
                 .build();
     }
 
-    // ========================= //
-    // GRAPH RELATIONSHIPS
-    // ========================= //
     @Operation(summary = "Follow a user", description = "Current authenticated user follows the specified profile.")
     @PostMapping("/{profileId}/follow")
     public APIResponse<String> followProfile(
             @Parameter(description = "ID of the profile to follow") @PathVariable("profileId") String followeeId) {
-
         String followerId = profileService.getMyProfile().getId();
-        profileService.followProfile(followerId, followeeId);
+        followService.followProfile(followerId, followeeId);
 
         return APIResponse.<String>builder()
                 .result("Successfully followed the user")
@@ -89,7 +83,7 @@ public class ProfileController {
             @Parameter(description = "ID of the profile to unfollow") @PathVariable("profileId") String followeeId) {
 
         String followerId = profileService.getMyProfile().getId();
-        profileService.unfollowProfile(followerId, followeeId);
+        followService.unfollowProfile(followerId, followeeId);
 
         return APIResponse.<String>builder()
                 .result("Successfully unfollowed the user")
@@ -104,7 +98,7 @@ public class ProfileController {
             @RequestParam(defaultValue = "10") int size) {
 
         return APIResponse.<PageResponse<ProfileResponse>>builder()
-                .result(profileService.getFollowers(profileId, page, size))
+                .result(followService.getFollowers(profileId, page, size))
                 .build();
     }
 
@@ -116,7 +110,7 @@ public class ProfileController {
             @RequestParam(defaultValue = "10") int size) {
 
         return APIResponse.<PageResponse<ProfileResponse>>builder()
-                .result(profileService.getFollowing(profileId, page, size))
+                .result(followService.getFollowing(profileId, page, size))
                 .build();
     }
 
@@ -126,7 +120,7 @@ public class ProfileController {
 
         String profileId = profileService.getMyProfile().getId();
         return APIResponse.<PageResponse<ProfileResponse>>builder()
-                .result(profileService.getPeopleYouMayKnow(profileId, page, size))
+                .result(recommendationService.getPeopleYouMayKnow(profileId, page, size))
                 .build();
     }
 }

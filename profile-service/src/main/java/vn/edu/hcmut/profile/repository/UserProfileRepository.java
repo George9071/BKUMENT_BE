@@ -15,6 +15,8 @@ import vn.edu.hcmut.profile.entity.jpa.UserProfile;
 public interface UserProfileRepository extends JpaRepository<UserProfile, String> {
     Optional<UserProfile> findByAccountId(String accountId);
 
+    Optional<UserProfile> findByEmail(String email);
+
     @Query("SELECT p FROM UserProfile p WHERE "
             + "LOWER(function('f_unaccent', CONCAT(p.lastName, ' ', p.firstName))) LIKE LOWER(function('f_unaccent', CONCAT('%', :keyword, '%'))) OR "
             + "LOWER(function('f_unaccent', CONCAT(p.firstName, ' ', p.lastName))) LIKE LOWER(function('f_unaccent', CONCAT('%', :keyword, '%'))) OR "
