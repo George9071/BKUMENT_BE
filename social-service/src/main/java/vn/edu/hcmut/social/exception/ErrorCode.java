@@ -11,7 +11,8 @@ public enum ErrorCode {
     VALIDATION_FAILED(1001, "Invalid body"),
     UNAUTHENTICATED(1006, "Unauthenticated"),
     DOCUMENT_NOT_FOUND(404, "Document not found"),
-    INVALID_TOKEN_CLAIMS(401, "Invalid tokien");
+    INVALID_TOKEN_CLAIMS(401, "Invalid token"),
+    ALREADY_RATED(1100, "You have already rated this resource");
 
     ErrorCode(int code, String message) {
         this.code = code;

@@ -4,4 +4,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import vn.edu.hcmut.document.entity.DocumentDownload;
 
-public interface DocumentDownloadRepository extends JpaRepository<DocumentDownload, String> {}
+public interface DocumentDownloadRepository extends JpaRepository<DocumentDownload, String> {
+    boolean existsByDocumentIdAndProfileId(String documentId, String profileId);
+}

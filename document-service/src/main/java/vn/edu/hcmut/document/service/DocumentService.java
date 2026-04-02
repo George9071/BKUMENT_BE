@@ -129,6 +129,13 @@ public class DocumentService {
         document = documentRepository.save(document);
         documentAsyncService.runBackgroundAiProcess(assetId, finalFileName, fileSize, document.getId());
 
+        // Points hook: +10 for upload
+        try {
+            profileClient.updatePoints(ownerId, 10L);
+        } catch (Exception e) {
+            log.error("Failed to update points for document upload: {}", document.getId(), e);
+        }
+
         return DocAnalyzeResponse.builder()
                 .docId(document.getId())
                 .keywords(processResult.fastResult.getKeywords())
@@ -277,7 +284,19 @@ public class DocumentService {
             document.setTopicId(request.getTopicId());
         }
 
-        return documentRepository.save(document);
+        boolean isNew = (document.getId() == null);
+        document = documentRepository.save(document);
+
+        // Points hook: +10 for new document
+        if (isNew) {
+            try {
+                profileClient.updatePoints(ownerId, 10L);
+            } catch (Exception e) {
+                log.error("Failed to update points for new document creation: {}", document.getId(), e);
+            }
+        }
+
+        return document;
     }
 
     @Transactional
@@ -363,6 +382,16 @@ public class DocumentService {
         document.setDownloadCount(document.getDownloadCount() + 1);
         documentRepository.save(document);
 
+        // Points hook: +2 for unique download
+        boolean isFirstDownload = !documentDownloadRepository.existsByDocumentIdAndProfileId(docId, userId);
+        if (isFirstDownload && !userId.equals(document.getOwnerId())) {
+            try {
+                profileClient.updatePoints(document.getOwnerId(), 2L);
+            } catch (Exception e) {
+                log.error("Failed to update points for unique download: {}", docId, e);
+            }
+        }
+
         // Save download history
         DocumentDownload documentDownload = new DocumentDownload();
         documentDownload.setDocumentId(docId);
@@ -413,6 +442,13 @@ public class DocumentService {
         }
 
         documentRepository.delete(document);
+    }
+
+    public String getOwnerId(String docId) {
+        return documentRepository
+                .findById(docId)
+                .map(Document::getOwnerId)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
     }
 
     public PresignResponse generatePresignedUrl(String fileName) {

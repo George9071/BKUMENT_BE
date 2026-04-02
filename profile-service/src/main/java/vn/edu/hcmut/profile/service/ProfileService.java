@@ -202,6 +202,19 @@ public class ProfileService {
         log.info("Deleted UserProfile {} and all its relationships in Neo4j", profileId);
     }
 
+    @Transactional(transactionManager = "transactionManager", rollbackFor = Exception.class)
+    public void updatePoints(String profileId, long delta) {
+        UserProfile user =
+                jpaRepository.findById(profileId).orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
+
+        if (user.getPoints() == null) user.setPoints(0L);
+
+        user.setPoints(user.getPoints() + delta);
+        jpaRepository.save(user);
+
+        log.info("Updated points for profile {}: delta={}, new total={}", profileId, delta, user.getPoints());
+    }
+
     public void addRole(String profileId, String role) {
         neo4jRepository.findById(profileId).ifPresent(node -> {
             List<String> currentRoles = node.getRoles();

@@ -116,6 +116,13 @@ public class PostService {
 
         postRepository.save(post);
 
+        // Points hook: +20 for blog post
+        try {
+            profileClient.updatePoints(ownerId, 20L);
+        } catch (Exception e) {
+            log.error("Failed to update points for blog post: {}", post.getId(), e);
+        }
+
         for (String assetId : request.getAssetIds()) {
             PostAsset postAsset = new PostAsset();
             postAsset.setResourceId(post.getId());
@@ -152,6 +159,11 @@ public class PostService {
         }
 
         return postRepository.save(post);
+    }
+
+    public String getOwnerId(String blogId) {
+        Post post = postRepository.findById(blogId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
+        return post.getOwnerId();
     }
 
     public String htmlToTextWithoutImages(String html) {
