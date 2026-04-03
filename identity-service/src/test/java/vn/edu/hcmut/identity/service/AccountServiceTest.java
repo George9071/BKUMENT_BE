@@ -309,7 +309,7 @@ public class AccountServiceTest {
                     APIResponse.<ProfileResponse>builder().result(profile).build();
 
             when(accountRepository.existsById("acc-001")).thenReturn(true);
-            when(profileClient.getProfileByAccountId("acc-001")).thenReturn(response);
+            when(profileClient.getProfileByAccountId("acc-001")).thenReturn(response.getResult());
 
             accountService.deleteAccount("acc-001");
 
@@ -355,7 +355,7 @@ public class AccountServiceTest {
                     APIResponse.<ProfileResponse>builder().result(profile).build();
 
             when(accountRepository.existsById("acc-001")).thenReturn(true);
-            when(profileClient.getProfileByAccountId("acc-001")).thenReturn(response);
+            when(profileClient.getProfileByAccountId("acc-001")).thenReturn(response.getResult());
             doThrow(new RuntimeException("LMS error")).when(lmsClient).deleteTutor("prof-001");
 
             assertThatThrownBy(() -> accountService.deleteAccount("acc-001"))

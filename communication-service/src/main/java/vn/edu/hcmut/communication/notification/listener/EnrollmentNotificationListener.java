@@ -35,7 +35,7 @@ public class EnrollmentNotificationListener {
     ObjectMapper objectMapper;
     NotificationMapper notificationMapper;
 
-    @KafkaListener(topics = "notification-events", groupId = "communication-group")
+    @KafkaListener(topics = "enrollment-events", groupId = "communication-enrollment-group")
     public void handleEnrollmentEvent(EnrollmentNotificationEvent event) {
         log.info("Received: action={}, class={}", event.getAction(), event.getClassId());
 

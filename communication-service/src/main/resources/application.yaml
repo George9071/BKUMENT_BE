@@ -8,7 +8,6 @@ spring:
       auto-index-creation: true
   kafka:
     bootstrap-servers: localhost:9094
-
     consumer:
       group-id: communication-group
       auto-offset-reset: earliest

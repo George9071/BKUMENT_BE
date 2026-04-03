@@ -26,7 +26,7 @@ public class TutorSyncService {
     ProfileClient profileClient;
 
     public void grantTutorRole(String profileId, List<String> subjectIds) {
-        var profile = profileClient.getProfile(profileId).getResult();
+        var profile = profileClient.getProfile(profileId);
 
         try {
             identityClient.addRole(profile.getAccountId(), "TUTOR");
@@ -44,7 +44,7 @@ public class TutorSyncService {
     }
 
     public void revokeTutorRole(String profileId) {
-        var profile = profileClient.getProfile(profileId).getResult();
+        var profile = profileClient.getProfile(profileId);
 
         try {
             identityClient.removeRole(profile.getAccountId(), "TUTOR");

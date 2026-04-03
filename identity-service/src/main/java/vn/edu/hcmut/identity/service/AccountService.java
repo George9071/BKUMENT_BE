@@ -17,13 +17,14 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
-import vn.edu.hcmut.event.dto.NotificationEvent;
+import vn.edu.hcmut.event.EmailSendEvent;
 import vn.edu.hcmut.identity.constant.UserRole;
 import vn.edu.hcmut.identity.dto.request.AccountUpdateRequest;
 import vn.edu.hcmut.identity.dto.request.UserCreationRequest;
 import vn.edu.hcmut.identity.dto.response.AccountResponse;
 import vn.edu.hcmut.identity.dto.response.PageResponse;
 import vn.edu.hcmut.identity.entity.Account;
+import vn.edu.hcmut.identity.entity.VerificationToken;
 import vn.edu.hcmut.identity.exception.AppException;
 import vn.edu.hcmut.identity.exception.ErrorCode;
 import vn.edu.hcmut.identity.mapper.AccountMapper;
@@ -45,6 +46,8 @@ public class AccountService {
 
     ProfileClient profileClient;
     LmsClient lmsClient;
+
+    VerificationTokenService verificationTokenService;
 
     KafkaTemplate<String, Object> kafkaTemplate;
 
@@ -72,16 +75,15 @@ public class AccountService {
         profile.setAccountId(account.getId());
         profileClient.createProfile(profile);
 
-        // Asynchronous event publishing for notifications
-        NotificationEvent noti = NotificationEvent.builder()
-                .channel("EMAIL")
-                .recipient(request.getEmail())
-                .subject("Welcome to BKUMENT")
-                .body("Hello, " + request.getAccount().getUsername())
-                .build();
+        String verifyLink = verificationTokenService.createEmailVerificationLink(account.getId());
 
-        // Publish message to kafka
-        //        kafkaTemplate.send("notification-delivery", noti);
+        kafkaTemplate.send(
+                "email-delivery",
+                EmailSendEvent.builder()
+                        .recipient(request.getEmail())
+                        .subject("Xác minh tài khoản BKUMENT")
+                        .body(buildVerifyEmailBody(request.getAccount().getUsername(), verifyLink))
+                        .build());
 
         return accountMapper.toAccountResponse(account);
     }
@@ -139,7 +141,7 @@ public class AccountService {
 
         String profileId = null;
         try {
-            var profile = profileClient.getProfileByAccountId(accountId).getResult();
+            var profile = profileClient.getProfileByAccountId(accountId);
             if (profile != null) profileId = profile.getId();
         } catch (Exception e) {
             log.warn("Cannot fetch profile for account {}", accountId, e);
@@ -194,5 +196,80 @@ public class AccountService {
         } else {
             log.info("Account '{}' does not have role '{}', skipping removal", accountId, roleName);
         }
+    }
+
+    @Transactional
+    public void verifyEmail(String token) {
+        VerificationToken verifyToken =
+                verificationTokenService.validateToken(token, VerificationToken.TokenType.EMAIL_VERIFICATION);
+
+        verificationTokenService.markAsUsed(verifyToken);
+
+        try {
+            profileClient.verifyEmail(verifyToken.getAccountId());
+        } catch (Exception e) {
+            log.error("Failed to update emailVerified for account {}", verifyToken.getAccountId(), e);
+            throw new AppException(ErrorCode.SYNC_FAILED);
+        }
+    }
+
+    public void forgotPassword(String email) {
+        var profile = profileClient.getProfileByEmail(email);
+        if (profile == null) {
+            log.warn("Password reset requested for unknown email: {}", email);
+            return;
+        }
+
+        String resetLink = verificationTokenService.createPasswordResetLink(profile.getAccountId());
+
+        kafkaTemplate.send(
+                "email-delivery",
+                EmailSendEvent.builder()
+                        .recipient(email)
+                        .subject("Đặt lại mật khẩu BKUMENT")
+                        .body(buildResetPasswordBody(resetLink))
+                        .build());
+    }
+
+    @Transactional
+    public void resetPassword(String token, String newPassword) {
+        VerificationToken vToken =
+                verificationTokenService.validateToken(token, VerificationToken.TokenType.PASSWORD_RESET);
+
+        Account account = accountRepository
+                .findById(vToken.getAccountId())
+                .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_FOUND));
+
+        account.setPassword(passwordEncoder.encode(newPassword));
+        accountRepository.save(account);
+
+        verificationTokenService.markAsUsed(vToken);
+
+        log.info("Password reset successfully for account {}", account.getId());
+    }
+
+    private String buildVerifyEmailBody(String username, String verifyLink) {
+        return """
+		<h2>Chào %s,</h2>
+		<p>Cảm ơn bạn đã đăng ký tài khoản BKUMENT.</p>
+		<p>Vui lòng click vào link bên dưới để xác minh email:</p>
+		<a href="%s" style="padding:10px 20px;background:#007bff;color:white;
+			border-radius:5px;text-decoration:none;">Xác minh email</a>
+		<p>Link có hiệu lực trong 24 giờ.</p>
+		<p>Nếu bạn không đăng ký tài khoản này, vui lòng bỏ qua email này.</p>
+		"""
+                .formatted(username, verifyLink);
+    }
+
+    private String buildResetPasswordBody(String resetLink) {
+        return """
+		<h2>Đặt lại mật khẩu</h2>
+		<p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.</p>
+		<a href="%s" style="padding:10px 20px;background:#dc3545;color:white;
+			border-radius:5px;text-decoration:none;">Đặt lại mật khẩu</a>
+		<p>Link có hiệu lực trong 1 giờ.</p>
+		<p>Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
+		"""
+                .formatted(resetLink);
     }
 }
