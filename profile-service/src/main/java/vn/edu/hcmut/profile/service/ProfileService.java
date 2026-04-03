@@ -46,6 +46,14 @@ public class ProfileService {
      */
     @Transactional(transactionManager = "transactionManager", rollbackFor = Exception.class)
     public ProfileResponse createProfile(ProfileCreationRequest request) {
+        if (jpaRepository.existsByAccountId(request.getAccountId())) {
+            throw new AppException(ErrorCode.PROFILE_ALREADY_EXISTS);
+        }
+
+        if (jpaRepository.existsByEmail(request.getEmail())) {
+            throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        }
+
         String profileId = UUID.randomUUID().toString();
 
         University university = universityRepository

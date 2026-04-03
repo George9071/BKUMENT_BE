@@ -12,5 +12,7 @@ import vn.edu.hcmut.identity.entity.VerificationToken;
 public interface VerificationTokenRepository extends JpaRepository<VerificationToken, String> {
     Optional<VerificationToken> findByTokenAndTypeAndUsedFalse(String token, VerificationToken.TokenType type);
 
+    Optional<VerificationToken> findByTokenAndAccountIdAndTypeAndUsedFalse(String token, String accountId, VerificationToken.TokenType type);
+
     void deleteByExpiresAtBefore(Instant now);
 }

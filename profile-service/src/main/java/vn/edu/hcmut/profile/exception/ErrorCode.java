@@ -27,11 +27,14 @@ public enum ErrorCode {
     // ----------------------------------------------------------------------
     // 3xxx: PROFILE BUSINESS LOGIC
     // ----------------------------------------------------------------------
-    ACCOUNT_ALREADY_EXISTS(3001, "Account already exists", HttpStatus.BAD_REQUEST), // Fixed grammar
-    ACCOUNT_NOT_FOUND(3002, "Account not found", HttpStatus.NOT_FOUND), // Fixed grammar
+    ACCOUNT_ALREADY_EXISTS(3001, "Account already exists", HttpStatus.BAD_REQUEST),
+    PROFILE_ALREADY_EXISTS(3001, "Profile already exists", HttpStatus.BAD_REQUEST),
+    EMAIL_ALREADY_EXISTS(3001, "This email address has already been registered for a different account", HttpStatus.BAD_REQUEST),
+    ACCOUNT_NOT_FOUND(3002, "Account not found", HttpStatus.NOT_FOUND),
     UNIVERSITY_NOT_FOUND(3003, "University not found", HttpStatus.NOT_FOUND),
     PROFILE_NOT_FOUND(3004, "Profile not found", HttpStatus.NOT_FOUND),
     CANNOT_FOLLOW_YOURSELF(3005, "Profile not found", HttpStatus.BAD_REQUEST),
+
 
     // ----------------------------------------------------------------------
     // 9xxx: SYSTEM ERRORS

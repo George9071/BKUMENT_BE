@@ -54,8 +54,9 @@ public class AuthenticationController {
     }
 
     @PostMapping("/verify-email")
-    public APIResponse<Void> verifyEmail(@RequestParam String token) {
-        accountService.verifyEmail(token);
+    public APIResponse<Void> verifyEmail(@RequestBody @Valid VerifyEmailRequest request) {
+        accountService.verifyEmail(request.getToken());
+
         return APIResponse.<Void>builder()
                 .message("Email đã được xác minh thành công")
                 .build();
@@ -71,8 +72,12 @@ public class AuthenticationController {
 
     @PostMapping("/reset-password")
     public APIResponse<Void> resetPassword(
-            @RequestParam String token, @RequestBody @Valid ResetPasswordRequest request) {
-        accountService.resetPassword(token, request.getPassword());
+            @RequestBody @Valid ResetPasswordRequest request) {
+        accountService.resetPassword(
+                request.getEmail(),
+                request.getOtp(),
+                request.getNewPassword()
+        );
         return APIResponse.<Void>builder()
                 .message("Mật khẩu đã được đặt lại thành công")
                 .build();

@@ -40,6 +40,9 @@ public class EmailService {
             log.error("Feign error status: {}", e.status());
             log.error("Feign error body: {}", e.getMessage());
             throw new AppException(ErrorCode.CANNOT_SEND_EMAIL);
+        } catch (Exception e) {
+            log.error("Unexpected Error: ", e);
+            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
         }
     }
 }
