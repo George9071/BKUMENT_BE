@@ -41,14 +41,14 @@ spring:
                 - Path=${app.api-prefix}/communication/**
               filters:
                 - StripPrefix=2
-                -
+
             - id: email_service
               uri: http://email-service:8084
               predicates:
                 - Path=${app.api-prefix}/email/**
               filters:
                 - StripPrefix=2
-                -
+
             - id: blog_service
               uri: http://blog-service:8085
               predicates:
