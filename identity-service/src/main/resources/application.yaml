@@ -41,6 +41,7 @@ app:
     profile: http://localhost:8081/profile
     lms: http://localhost:8082/lms
   base-url: http://localhost:8888
+  fe-url: http://localhost:3000
 
   init:
     admin:

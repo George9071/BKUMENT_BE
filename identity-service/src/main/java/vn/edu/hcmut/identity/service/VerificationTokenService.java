@@ -2,6 +2,7 @@ package vn.edu.hcmut.identity.service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Random;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +23,9 @@ public class VerificationTokenService {
     @Value("${app.base-url}")
     private String baseUrl;
 
+    @Value("${app.fe-url:http://localhost:3000}")
+    private String frontendUrl;
+
     private static final long EMAIL_VERIFY_EXPIRY_HOURS = 24;
     private static final long PASSWORD_RESET_EXPIRY_HOURS = 1;
 
@@ -37,20 +41,20 @@ public class VerificationTokenService {
                 .used(false)
                 .build());
 
-        return baseUrl + "/api/v1/identity/auth/verify-email?token=" + token;
+        return frontendUrl + "/verify-email?token=" + token;
     }
 
-    public String createPasswordResetLink(String accountId) {
-        String token = generateToken();
+    public String createPasswordResetOtp(String accountId) {
+        String otp = String.format("%06d", new Random().nextInt(999999));
+
         tokenRepository.save(VerificationToken.builder()
-                .token(token)
+                .token(otp)
                 .accountId(accountId)
                 .type(VerificationToken.TokenType.PASSWORD_RESET)
                 .expiresAt(Instant.now().plus(PASSWORD_RESET_EXPIRY_HOURS, ChronoUnit.HOURS))
                 .used(false)
                 .build());
-
-        return baseUrl + "/api/v1/identity/auth/reset-password?token=" + token;
+        return otp;
     }
 
     public VerificationToken validateToken(String token, VerificationToken.TokenType type) {
