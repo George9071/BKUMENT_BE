@@ -28,6 +28,7 @@ public class RelatedDocumentsResponse {
     String summary;
     boolean downloadable;
     List<String> keywords;
+    Long views;
 
     @Data
     @Builder

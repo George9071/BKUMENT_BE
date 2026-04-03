@@ -47,3 +47,5 @@ swagger:
 app:
   services:
     profile: http://localhost:8081/profile
+    document: http://localhost:8086/document
+    blog: http://localhost:8085/blog

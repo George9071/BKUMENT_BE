@@ -3,12 +3,19 @@ package vn.edu.hcmut.document.repository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import vn.edu.hcmut.document.entity.Document;
 
 public interface DocumentRepository extends JpaRepository<Document, String> {
+    @Modifying
+    @Transactional
+    @Query("UPDATE Resource r SET r.views = COALESCE(r.views, 0) + 1 WHERE r.id IN :ids")
+    void incrementViews(@Param("ids") java.util.List<String> ids);
+
     Page<Document> findByTitleContainingIgnoreCase(String keyword, Pageable pageable);
 
     Page<Document> findByUniversityContainingIgnoreCase(String keyword, Pageable pageable);
@@ -16,6 +23,8 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
     Page<Document> findByCourseContainingIgnoreCase(String keyword, Pageable pageable);
 
     Page<Document> findByCourseId(String courseId, Pageable pageable);
+
+    Page<Document> findByOwnerId(String ownerId, Pageable pageable);
 
     @Query(
             value =

@@ -132,6 +132,19 @@ public class ProfileService {
         UserProfile user = jpaRepository.findById(id).orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
         return toProfileResponse(user);
     }
+  
+    @Transactional(transactionManager = "transactionManager", rollbackFor = Exception.class)
+    public void updatePoints(String profileId, long delta) {
+        UserProfile user =
+                jpaRepository.findById(profileId).orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
+
+        if (user.getPoints() == null) user.setPoints(0L);
+
+        user.setPoints(user.getPoints() + delta);
+        jpaRepository.save(user);
+
+        log.info("Updated points for profile {}: delta={}, new total={}", profileId, delta, user.getPoints());
+    }
 
     @Transactional(readOnly = true)
     public ProfileResponse getProfileByAccountId(String accountId) {
