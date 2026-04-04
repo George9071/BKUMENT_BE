@@ -99,9 +99,8 @@ public class ConversationService {
             String hash = generateParticipantHash(participantIds.stream().sorted().toList());
 
             var conversation = conversationRepository.findByParticipantsHash(hash);
-            if (conversation.isPresent()) return toConversationResponse(conversation.get());
+            return conversation.map(this::toConversationResponse).orElseGet(() -> createConversation(request, participantIds, hash));
 
-            return createConversation(request, participantIds, hash);
         } else {
             return createConversation(request, participantIds, null);
         }
@@ -118,16 +117,14 @@ public class ConversationService {
         for (String id : participantsIds) {
             initialReadStatus.put(id, true);
             var profile = profileClient.getProfile(id);
-            if (profile == null || profile.getResult() == null) continue;
-
-            var info = profile.getResult();
+            if (profile == null) continue;
 
             participantInfos.add(ParticipantInfo.builder()
-                    .userId(info.getId())
-                    .username(info.getLastName() + " " + info.getFirstName())
-                    .firstName(info.getFirstName())
-                    .lastName(info.getLastName())
-                    .avatar(info.getAvatarUrl())
+                    .userId(profile.getId())
+                    .username(profile.getLastName() + " " + profile.getFirstName())
+                    .firstName(profile.getFirstName())
+                    .lastName(profile.getLastName())
+                    .avatar(profile.getAvatarUrl())
                     .build());
         }
 

@@ -8,8 +8,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.edu.hcmut.event.TutorApplicationEvent;
 import vn.edu.hcmut.lms.constant.ApplicationStatus;
 import vn.edu.hcmut.lms.dto.request.TutorRegistrationRequest;
 import vn.edu.hcmut.lms.dto.response.ApplicationResponse;
@@ -42,6 +44,8 @@ public class TutorApplicationService {
     TutorApplicationMapper mapper;
     TutorSyncService syncService;
 
+    KafkaTemplate<String, Object> kafkaTemplate;
+
     @Transactional(rollbackFor = Exception.class)
     public ApplicationResponse registerTutor(TutorRegistrationRequest request){
         String profileId = utils.getProfileId();
@@ -50,7 +54,7 @@ public class TutorApplicationService {
             throw new AppException(ErrorCode.TUTOR_ALREADY_REGISTERED);
         }
 
-        var user = profileClient.getProfile(profileId).getResult();
+        var user = profileClient.getProfile(profileId);
         if (user == null) throw new AppException(ErrorCode.PROFILE_NOT_FOUND);
         if (user.getPoints() <= 100) throw new AppException(ErrorCode.NOT_ENOUGH_POINTS);
 
@@ -113,6 +117,14 @@ public class TutorApplicationService {
         tutorRepository.save(tutor);
 
         syncService.grantTutorRole(application.getProfileId(), application.getSubjectIds());
+
+        TutorApplicationEvent event = TutorApplicationEvent.builder()
+                .profileId(application.getProfileId())
+                .action("APPROVED")
+                .build();
+
+        kafkaTemplate.send("tutor-events", event);
+        log.info("Published APPROVED event for profile {}", application.getProfileId());
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -132,6 +144,14 @@ public class TutorApplicationService {
         application.setReviewedBy(solver);
 
         applicationRepository.save(application);
+
+        TutorApplicationEvent event = TutorApplicationEvent.builder()
+                .profileId(application.getProfileId())
+                .action("REJECTED")
+                .reason(reason)
+                .build();
+        kafkaTemplate.send("tutor-events", event);
+        log.info("Published REJECTED event for profile {}", application.getProfileId());
     }
 
     @Transactional(readOnly = true)

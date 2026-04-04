@@ -132,6 +132,23 @@ services:
     depends_on:
       - kafka
 
+  email-service:
+    build: ./email-service
+    container_name: email-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=deploy
+      - DB_HOST=${DB_HOST}
+      - PUBLIC_IP=${PUBLIC_IP}
+      - BREVO_URL=${BREVO_URL}
+      - BREVO_API_KEY=${BREVO_API_KEY}
+    env_file:
+      - .env
+    networks:
+      - bkument-net
+    restart: unless-stopped
+    depends_on:
+      - kafka
+
   resource-service:
     build: ./resource-service
     container_name: resource-service

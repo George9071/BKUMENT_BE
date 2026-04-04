@@ -16,5 +16,6 @@ public class UniversityNode {
     Integer id;
 
     String name;
+
     String abbreviation;
 }

@@ -70,7 +70,7 @@ public class EnrollmentService {
         String topicId = classRoom.getTopic() != null ? classRoom.getTopic().getId() : null;
         graphSyncService.handleEnrollmentEvent(userId, classId, topicId);
 
-        var profile = profileClient.getProfile(userId).getResult();
+        var profile = profileClient.getProfile(userId);
 
         notificationService.sendEnrollmentRequested(
                 classRoom.getId(),
@@ -296,7 +296,6 @@ public class EnrollmentService {
 
         Map<String, ProfileResponse> profileMap = profileClient
                 .getProfiles(new ArrayList<>(studentIds))
-                .getResult()
                 .stream()
                 .collect(Collectors.toMap(ProfileResponse::getId, Function.identity()));
 

@@ -109,7 +109,8 @@ public class AuthenticationServiceTest {
             when(profileClient.getProfileByAccountId("acc-001"))
                     .thenReturn(APIResponse.<ProfileResponse>builder()
                             .result(mockProfile)
-                            .build());
+                            .build()
+                            .getResult());
 
             AuthenticationResponse response =
                     authenticationService.authenticate(new AuthenticationRequest("testuser", "raw_password"));
@@ -278,7 +279,8 @@ public class AuthenticationServiceTest {
             when(profileClient.getProfileByAccountId("acc-001"))
                     .thenReturn(APIResponse.<ProfileResponse>builder()
                             .result(mockProfile)
-                            .build());
+                            .build()
+                            .getResult());
 
             AuthenticationResponse response = authenticationService.refreshToken(new RefreshRequest(oldToken));
 

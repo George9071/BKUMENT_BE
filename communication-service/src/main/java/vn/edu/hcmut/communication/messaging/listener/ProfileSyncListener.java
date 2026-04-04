@@ -9,7 +9,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import vn.edu.hcmut.communication.messaging.entity.Conversation;
-import vn.edu.hcmut.event.dto.ProfileUpdatedEvent;
+import vn.edu.hcmut.communication.messaging.event.ProfileUpdatedEvent;
 
 @Slf4j
 @Service
@@ -17,7 +17,7 @@ import vn.edu.hcmut.event.dto.ProfileUpdatedEvent;
 public class ProfileSyncListener {
     private final MongoTemplate mongoTemplate;
 
-    @KafkaListener(topics = "profile-events", groupId = "communication-group")
+    @KafkaListener(topics = "profile-update-events", groupId = "communication-group")
     public void onProfileUpdated(ProfileUpdatedEvent event) {
         log.info("Received profile update event for user: {}", event.getProfileId());
         log.info("Received payload: last_name: {}, first_name: {}, avatar: {}",

@@ -1,0 +1,10 @@
+spring:
+  kafka:
+    bootstrap-servers: kafka:9092
+
+#  data:
+#    mongodb:
+#      uri: mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@${DB_HOST}:27017/communication?authSource=admin
+
+swagger:
+  host-url: http://${PUBLIC_IP}:8888/api/v1/email
