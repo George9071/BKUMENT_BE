@@ -50,7 +50,13 @@ jobs:
         username: ${{ secrets.DO_USERNAME }}
         password: ${{ secrets.DO_PASSWORD }}
         
-        source: "."
+        source: |
+          docker-compose.yml
+          api-gateway/target
+          api-gateway/Dockerfile
+          social-service/target
+          social-service/Dockerfile
+          ai-service
         target: "/root/bkument-backend" 
 
     - name: Execute SSH to restart Docker
