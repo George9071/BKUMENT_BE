@@ -11,6 +11,6 @@ import vn.edu.hcmut.blog.dto.response.ResourceEngagementStatsResponse;
 @FeignClient(name = "social-service", url = "${app.services.social}")
 public interface SocialClient {
 
-    @GetMapping("/ratings/engagement-stats")
+    @GetMapping("/ratings/internal/engagement-stats")
     APIResponse<List<ResourceEngagementStatsResponse>> getEngagementStats();
 }

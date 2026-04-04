@@ -101,7 +101,7 @@ public class RatingController {
                 .build();
     }
 
-    @GetMapping("/engagement-stats")
+    @GetMapping("/internal/engagement-stats")
     public APIResponse<List<ResourceEngagementStatsResponse>> getEngagementStats() {
         return APIResponse.<List<ResourceEngagementStatsResponse>>builder()
                 .result(ratingService.getEngagementStats())
