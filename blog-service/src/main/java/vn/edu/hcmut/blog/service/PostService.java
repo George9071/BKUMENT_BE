@@ -178,6 +178,7 @@ public class PostService {
     private BlogMetadataResponse toBlogMetadataResponse(Post post, boolean detailed) {
         APIResponse<ProfileResponse> apiResponse = profileClient.findUserProfileById(post.getOwnerId());
         ProfileResponse profile = apiResponse.getResult();
+        log.info("Profile data for ownerId [{}]: {}", post.getOwnerId(), profile);
 
         BlogMetadataResponse.Author authorDto = null;
         if (profile != null) {
