@@ -51,3 +51,11 @@ class DocumentProcessResponse(BaseModel):
     summary: str
     content: str
     vector: List[float]
+
+class APIKeyStatus(BaseModel):
+    service_name: str
+    status: str
+    message: Optional[str] = None
+
+class APIKeyValidationResponse(BaseModel):
+    results: List[APIKeyStatus]
