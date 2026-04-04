@@ -12,6 +12,7 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v3
       
+    # ================= JAVA =================
     - name: Set up JDK 21
       uses: actions/setup-java@v3
       with:
@@ -19,7 +20,7 @@ jobs:
         distribution: 'temurin'
         cache: maven
         
-    - name: Build all microservices
+    - name: Build all Java microservices
       run: |
         for dir in */ ; do
           if [ -f "$dir/pom.xml" ]; then
@@ -28,14 +29,32 @@ jobs:
           fi
         done
 
-    - name: Copy JARs to DigitalOcean
+    # ================= PYTHON =================
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Validate Python service (optional but good)
+      run: |
+        if [ -f "ai-service/requirements.txt" ]; then
+          echo "🐍 Installing Python deps for validation..."
+          pip install -r ai-service/requirements.txt
+        fi
+
+    # ================= DEPLOY =================
+    - name: Copy files to DigitalOcean
       uses: appleboy/scp-action@v0.1.4
       with:
         host: ${{ secrets.DO_HOST }}
         username: ${{ secrets.DO_USERNAME }}
         password: ${{ secrets.DO_PASSWORD }}
         
-        source: "docker-compose.yml,*/Dockerfile,*/target/*.jar"
+        source: |
+          docker-compose.yml
+          */Dockerfile
+          */target/*.jar
+          ai-service/**
         target: "/root/bkument-backend" 
 
     - name: Execute SSH to restart Docker
@@ -46,4 +65,5 @@ jobs:
         password: ${{ secrets.DO_PASSWORD }}
         script: |
           cd /root/bkument-backend
+          docker compose down
           docker compose up -d --build
