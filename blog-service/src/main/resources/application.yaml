@@ -40,7 +40,7 @@ swagger:
 app:
   services:
     profile: http://localhost:8081/profile
-    social: http://localhost:8084/social
+    social: http://localhost:8089/social
 
   trending:
     w1: 100.0
