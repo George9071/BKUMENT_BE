@@ -1,4 +1,0 @@
-mvn clean package -DskipTests
-docker build --no-cache -t kl2k4/bkment-resource-service:latest .
-docker rm -f $(docker ps -aq --filter ancestor=kl2k4/bkment-resource-service)
-docker run --rm -p 8084:8084 kl2k4/bkment-resource-service:latest
