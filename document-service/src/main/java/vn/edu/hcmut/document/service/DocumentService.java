@@ -124,6 +124,7 @@ public class DocumentService {
         document.setKeywords(processResult.fastResult.getKeywords());
         document.setSummary(processResult.fastResult.getSummary());
         document.setDownloadCount(0);
+        document.setViews(0L);
         document.setDocumentType("application/pdf");
 
         document = documentRepository.save(document);
