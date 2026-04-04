@@ -10,3 +10,4 @@ sentence-transformers==2.6.1
 psycopg2-binary
 numpy>=1.23.5,<2.0.0
 openai
+PyMuPDF>=1.23.0
