@@ -63,6 +63,13 @@ spring:
               filters:
                 - StripPrefix=2
 
+            - id: ai_service
+              uri: http://ai-service:8087
+              predicates:
+                - Path=${app.api-prefix}/ai/**
+              filters:
+                - StripPrefix=2
+
             - id: social_service
               uri: http://social-service:8089
               predicates:

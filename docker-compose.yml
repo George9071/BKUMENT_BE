@@ -207,19 +207,30 @@ services:
     restart: unless-stopped
     depends_on:
       - kafka
-#
-#  ai-service:
-#    build: ./ai-service
-#    container_name: ai-service
-#    environment:
-#      - SPRING_PROFILES_ACTIVE=deploy
-#      - DB_HOST=${DB_HOST}
-#    networks:
-#      - bkument-net
-#    restart: unless-stopped
-#    depends_on:
-#      - kafka
-#
+  ai-service:
+    build: ./ai-service
+    container_name: ai-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=deploy
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - POSTGRES_USERNAME=${POSTGRES_USERNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - UNSTRUCTURED_API_KEY=${UNSTRUCTURED_API_KEY}
+      - UNSTRUCTURED_API_URL=${UNSTRUCTURED_API_URL}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL}
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:50 * 1024 * 1024}
+      - PROFILE_SERVICE_URL=${PROFILE_SERVICE_URL}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
+    networks:
+      - bkument-net
+    restart: unless-stopped
+    depends_on:
+      - kafka
+
   social-service:
     build: ./social-service
     container_name: social-service

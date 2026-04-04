@@ -219,6 +219,7 @@ public class PostService {
         post.setCreatedAt(LocalDateTime.now());
         post.setTitle(request.getTitle());
         post.setType("POST");
+        post.setViews(0L);
         post.setUpdatedAt(LocalDateTime.now());
         post.setVisibility(request.getVisibility());
 

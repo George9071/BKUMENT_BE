@@ -2,13 +2,18 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from typing import Annotated
 import time
 import logging
+import httpx
+import google.generativeai as genai
+from openai import AsyncOpenAI
 
 from app.schemas import (
     AnalysisResult, AnalyzeRequest, DocumentProcessResponse, 
     PDFConversionResponse, 
     VectorRequest, VectorResponse,
-    SearchRequest, SearchResponse
+    SearchRequest, SearchResponse,
+    APIKeyStatus, APIKeyValidationResponse
 )
+from app.config import get_settings
 from app.services.gemini_service import GeminiService
 from app.services.open_router_service import OpenRouterService
 from app.services.mpnet_service import VectorService
@@ -19,7 +24,7 @@ router = APIRouter(prefix="/ai")
 logger = logging.getLogger("uvicorn.error")
 
 def get_ai_service():
-    return OpenRouterService()
+    return GeminiService()
 
 def get_vector_service(request: Request):
     return request.app.state.vector_service
@@ -158,3 +163,71 @@ async def health_check(request: Request):
             "vector_model": "loaded" if is_vector_loaded else "not_loaded",
         }
     }
+
+@router.get("/validate-keys", response_model=APIKeyValidationResponse, summary="Kiểm tra tính hợp lệ của các API Key")
+async def validate_api_keys():
+    settings = get_settings()
+    results = []
+
+    try:
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        genai.get_model(settings.GEMINI_MODEL)
+        results.append(APIKeyStatus(
+            service_name="Google Gemini",
+            status="valid",
+            message="Successfully connected to Gemini API"
+        ))
+    except Exception as e:
+        results.append(APIKeyStatus(
+            service_name="Google Gemini",
+            status="invalid",
+            message=str(e)
+        ))
+
+    try:
+        client = AsyncOpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=settings.OPENROUTER_API_KEY,
+        )
+        await client.models.list()
+        results.append(APIKeyStatus(
+            service_name="OpenRouter",
+            status="valid",
+            message="Successfully connected to OpenRouter API"
+        ))
+    except Exception as e:
+        results.append(APIKeyStatus(
+            service_name="OpenRouter",
+            status="invalid",
+            message=str(e)
+        ))
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                settings.UNSTRUCTURED_API_URL,
+                headers={
+                    "unstructured-api-key": settings.UNSTRUCTURED_API_KEY,
+                    "accept": "application/json"
+                }
+            )
+            if response.status_code == 401:
+                results.append(APIKeyStatus(
+                    service_name="Unstructured API",
+                    status="invalid",
+                    message="Invalid API Key (Unauthorized)"
+                ))
+            else:
+                results.append(APIKeyStatus(
+                    service_name="Unstructured API",
+                    status="valid",
+                    message=f"Connected (Status Code: {response.status_code})"
+                ))
+    except Exception as e:
+        results.append(APIKeyStatus(
+            service_name="Unstructured API",
+            status="error",
+            message=str(e)
+        ))
+
+    return APIKeyValidationResponse(results=results)

@@ -130,6 +130,7 @@ public class DocumentController {
                             + "/resource/download/asset/" + doc.getAssetId())
                     .downloadCount(doc.getDownloadCount())
                     .previewImageUrl(doc.getPreviewImageUrl())
+                    .views(doc.getViews())
                     .createdAt(doc.getCreatedAt())
                     .summary(doc.getSummary())
                     .build();
