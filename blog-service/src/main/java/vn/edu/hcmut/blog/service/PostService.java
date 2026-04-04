@@ -26,7 +26,6 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.blog.dto.request.BlogMetadataRequest;
-import vn.edu.hcmut.blog.dto.response.APIResponse;
 import vn.edu.hcmut.blog.dto.response.BlogMetadataResponse;
 import vn.edu.hcmut.blog.dto.response.ProfileResponse;
 import vn.edu.hcmut.blog.dto.response.ResourceEngagementStatsResponse;
@@ -112,9 +111,9 @@ public class PostService {
 
         Map<String, ResourceEngagementStatsResponse> engagementMap = new HashMap<>();
         try {
-            APIResponse<List<ResourceEngagementStatsResponse>> response = socialClient.getEngagementStats();
-            if (response.getResult() != null) {
-                engagementMap = response.getResult().stream()
+            List<ResourceEngagementStatsResponse> engagementStats = socialClient.getEngagementStats();
+            if (engagementStats != null) {
+                engagementMap = engagementStats.stream()
                         .collect(Collectors.toMap(ResourceEngagementStatsResponse::getResourceId, s -> s));
             }
         } catch (Exception e) {
@@ -176,9 +175,8 @@ public class PostService {
     }
 
     private BlogMetadataResponse toBlogMetadataResponse(Post post, boolean detailed) {
-        APIResponse<ProfileResponse> apiResponse = profileClient.findUserProfileById(post.getOwnerId());
-        ProfileResponse profile = apiResponse.getResult();
-        log.info("FULL RESPONSE from profile-service: {}", apiResponse);
+        ProfileResponse profile = profileClient.findUserProfileById(post.getOwnerId());
+        log.info("FULL RESPONSE from profile-service: {}", profile);
 
         BlogMetadataResponse.Author authorDto = null;
         if (profile != null) {

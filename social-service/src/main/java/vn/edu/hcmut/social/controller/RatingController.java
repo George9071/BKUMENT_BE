@@ -101,11 +101,13 @@ public class RatingController {
                 .build();
     }
 
+    @GetMapping("/internal/ranking-stats")
+    public RankingStatsResponse getRankingStatsInternal() {
+        return ratingService.getRankingStats();
+    }
+
     @GetMapping("/internal/engagement-stats")
-    public APIResponse<List<ResourceEngagementStatsResponse>> getEngagementStats() {
-        return APIResponse.<List<ResourceEngagementStatsResponse>>builder()
-                .result(ratingService.getEngagementStats())
-                .message("Get engagement stats successfully")
-                .build();
+    public List<ResourceEngagementStatsResponse> getEngagementStats() {
+        return ratingService.getEngagementStats();
     }
 }
