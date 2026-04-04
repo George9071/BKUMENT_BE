@@ -152,7 +152,7 @@ async def endpoint_search(
         print(f"Endpoint Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
-@router.get("/", summary="Kiểm tra trạng thái hệ thống")
+@router.get("", summary="Kiểm tra trạng thái hệ thống")
 async def health_check(request: Request):
     is_vector_loaded = hasattr(request.app.state, "vector_service") and request.app.state.vector_service is not None
     
