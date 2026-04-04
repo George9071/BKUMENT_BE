@@ -192,8 +192,7 @@ public class DocumentService {
 
         RankingStatsResponse rankingStats = null;
         try {
-            APIResponse<RankingStatsResponse> response = socialClient.getRankingStats();
-            rankingStats = response.getResult();
+            rankingStats = socialClient.getRankingStats();
         } catch (Exception e) {
             log.error("Failed to fetch ranking stats from social service", e);
         }
@@ -367,8 +366,7 @@ public class DocumentService {
         String viewUrl =
                 gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/resource/download/asset/" + docId;
 
-        APIResponse<ProfileResponse> apiResponse = profileClient.findUserProfileById(document.getOwnerId());
-        ProfileResponse profile = apiResponse.getResult();
+        ProfileResponse profile = profileClient.findUserProfileById(document.getOwnerId());
         DocumentMetadataResponse.Author authorDto = DocumentMetadataResponse.Author.builder()
                 .id(profile.getId())
                 .name(profile.getFullName())
@@ -511,9 +509,9 @@ public class DocumentService {
 
         Map<String, ProfileResponse> profileMap = new HashMap<>();
         for (String ownerId : ownerIds) {
-            APIResponse<ProfileResponse> res = profileClient.findUserProfileById(ownerId);
-            if (res.getResult() != null) {
-                profileMap.put(ownerId, res.getResult());
+            ProfileResponse res = profileClient.findUserProfileById(ownerId);
+            if (res != null) {
+                profileMap.put(ownerId, res);
             }
         }
 
@@ -572,9 +570,9 @@ public class DocumentService {
 
         Map<String, ProfileResponse> profileMap = new HashMap<>();
         for (String ownerId : ownerIds) {
-            APIResponse<ProfileResponse> res = profileClient.findUserProfileById(ownerId);
-            if (res.getResult() != null) {
-                profileMap.put(ownerId, res.getResult());
+            ProfileResponse res = profileClient.findUserProfileById(ownerId);
+            if (res != null) {
+                profileMap.put(ownerId, res);
             }
         }
 

@@ -23,7 +23,6 @@ import vn.edu.hcmut.profile.exception.AppException;
 import vn.edu.hcmut.profile.exception.ErrorCode;
 import vn.edu.hcmut.profile.mapper.ProfileMapper;
 import vn.edu.hcmut.profile.repository.UniversityRepository;
-import vn.edu.hcmut.profile.repository.UserProfileNodeRepository;
 import vn.edu.hcmut.profile.repository.UserProfileRepository;
 
 @Service
@@ -140,7 +139,7 @@ public class ProfileService {
         UserProfile user = jpaRepository.findById(id).orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
         return toProfileResponse(user);
     }
-  
+
     @Transactional(transactionManager = "transactionManager", rollbackFor = Exception.class)
     public void updatePoints(String profileId, long delta) {
         UserProfile user =
