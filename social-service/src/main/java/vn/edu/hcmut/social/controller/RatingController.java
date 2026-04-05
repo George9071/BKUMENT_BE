@@ -18,13 +18,12 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import vn.edu.hcmut.social.dto.request.RatingRequest;
-import vn.edu.hcmut.social.dto.response.APIResponse;
-import vn.edu.hcmut.social.dto.response.RankingStatsResponse;
-import vn.edu.hcmut.social.dto.response.RatingResponse;
-import vn.edu.hcmut.social.dto.response.ResourceEngagementStatsResponse;
+import vn.edu.hcmut.social.dto.request.TutorReviewRequest;
+import vn.edu.hcmut.social.dto.response.*;
 import vn.edu.hcmut.social.exception.AppException;
 import vn.edu.hcmut.social.exception.ErrorCode;
 import vn.edu.hcmut.social.service.RatingService;
+import vn.edu.hcmut.social.service.TutorReviewService;
 
 @RestController
 @RequestMapping("/ratings")
@@ -33,6 +32,7 @@ import vn.edu.hcmut.social.service.RatingService;
 @Tag(name = "Rating", description = "Rating APIs for resources")
 public class RatingController {
     RatingService ratingService;
+    TutorReviewService tutorReviewService;
 
     private String getProfileIdFromToken() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -55,7 +55,7 @@ public class RatingController {
         throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
 
-    @PostMapping
+    @PostMapping("/resource")
     public APIResponse<RatingResponse> createOrUpdateRating(@RequestBody @Valid RatingRequest request) {
         String userId = getProfileIdFromToken();
         return APIResponse.<RatingResponse>builder()
@@ -109,5 +109,64 @@ public class RatingController {
     @GetMapping("/internal/engagement-stats")
     public List<ResourceEngagementStatsResponse> getEngagementStats() {
         return ratingService.getEngagementStats();
+    }
+
+    // Tutor Review Endpoints
+
+    @PostMapping("/tutor")
+    public APIResponse<TutorReviewResponse> createTutorReview(@RequestBody @Valid TutorReviewRequest request) {
+        String userId = getProfileIdFromToken();
+        return APIResponse.<TutorReviewResponse>builder()
+                .result(tutorReviewService.createReview(request, userId))
+                .message("Review created successfully")
+                .build();
+    }
+
+    @PutMapping("/tutor/{reviewId}")
+    public APIResponse<TutorReviewResponse> updateTutorReview(
+            @PathVariable String reviewId, @RequestBody @Valid TutorReviewRequest request) {
+        String userId = getProfileIdFromToken();
+        return APIResponse.<TutorReviewResponse>builder()
+                .result(tutorReviewService.updateReview(reviewId, request, userId))
+                .message("Review updated successfully")
+                .build();
+    }
+
+    @DeleteMapping("/tutor/{reviewId}")
+    public APIResponse<Void> deleteTutorReview(@PathVariable String reviewId) {
+        String userId = getProfileIdFromToken();
+        tutorReviewService.deleteReview(reviewId, userId);
+        return APIResponse.<Void>builder()
+                .message("Review deleted successfully")
+                .build();
+    }
+
+    @GetMapping("/tutor/{tutorId}")
+    public APIResponse<Page<TutorReviewResponse>> getTutorReviews(
+            @PathVariable String tutorId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return APIResponse.<Page<TutorReviewResponse>>builder()
+                .result(tutorReviewService.getReviewsByTutor(tutorId, pageable))
+                .message("Get tutor reviews successfully")
+                .build();
+    }
+
+    @GetMapping("/tutor/{tutorId}/summary")
+    public APIResponse<TutorReviewSummaryResponse> getTutorReviewSummary(@PathVariable String tutorId) {
+        return APIResponse.<TutorReviewSummaryResponse>builder()
+                .result(tutorReviewService.getSummary(tutorId))
+                .message("Get tutor review summary successfully")
+                .build();
+    }
+
+    @GetMapping("/tutor/{tutorId}/user/{userId}")
+    public APIResponse<TutorReviewResponse> getTutorReviewByUser(
+            @PathVariable String tutorId, @PathVariable String userId) {
+        return APIResponse.<TutorReviewResponse>builder()
+                .result(tutorReviewService.getReviewByUserAndTutor(userId, tutorId))
+                .message("Get tutor review by user successfully")
+                .build();
     }
 }

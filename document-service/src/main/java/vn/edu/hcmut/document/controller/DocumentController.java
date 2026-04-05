@@ -90,6 +90,18 @@ public class DocumentController {
         return mapToDocumentMetadataResponsePage(documents, "Get my documents successfully");
     }
 
+    @GetMapping("/user/{userId}")
+    public APIResponse<Page<DocumentMetadataResponse>> getDocumentsByUserId(
+            @PathVariable String userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Document> documents = documentService.getDocumentsByOwnerId(userId, pageable);
+
+        return mapToDocumentMetadataResponsePage(documents, "Get documents by user id successfully");
+    }
+
     @GetMapping("/top-documents")
     public APIResponse<Page<DocumentMetadataResponse>> getTopRankedDocuments(
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
