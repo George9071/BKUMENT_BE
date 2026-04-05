@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str
 
     class Config:
+        env_file = "../.env"
         case_sensitive = True
         extra="ignore"
 

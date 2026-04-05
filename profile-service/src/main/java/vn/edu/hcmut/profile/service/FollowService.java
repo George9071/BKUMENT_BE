@@ -47,8 +47,8 @@ public class FollowService {
             throw new AppException(ErrorCode.CANNOT_FOLLOW_YOURSELF);
         }
 
-        UserProfile follower = jpaRepository.findById(followerId)
-                .orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
+        UserProfile follower =
+                jpaRepository.findById(followerId).orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
 
         if (!jpaRepository.existsById(followeeId)) {
             throw new AppException(ErrorCode.PROFILE_NOT_FOUND);
@@ -61,8 +61,8 @@ public class FollowService {
 
         log.info("Profile {} started following Profile {}", followerId, followeeId);
 
-        String followerName = (follower.getLastName() != null ? follower.getLastName() : "")
-                + " " + (follower.getFirstName() != null ? follower.getFirstName() : "");
+        String followerName = (follower.getLastName() != null ? follower.getLastName() : "") + " "
+                + (follower.getFirstName() != null ? follower.getFirstName() : "");
 
         FollowNotificationEvent event = FollowNotificationEvent.builder()
                 .followerId(followerId)
