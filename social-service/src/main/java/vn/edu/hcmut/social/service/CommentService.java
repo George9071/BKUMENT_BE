@@ -9,7 +9,6 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import vn.edu.hcmut.social.dto.request.CommentRequest;
-import vn.edu.hcmut.social.dto.response.APIResponse;
 import vn.edu.hcmut.social.dto.response.CommentResponse;
 import vn.edu.hcmut.social.dto.response.ProfileResponse;
 import vn.edu.hcmut.social.entity.Comment;
@@ -69,8 +68,7 @@ public class CommentService {
     }
 
     private CommentResponse toCommentResponse(Comment comment) {
-        APIResponse<ProfileResponse> apiResponse = profileClient.findUserProfileById(comment.getProfileId());
-        ProfileResponse profile = apiResponse.getResult();
+        ProfileResponse profile = profileClient.findUserProfileById(comment.getProfileId());
         CommentResponse.Author authorDto = CommentResponse.Author.builder()
                 .id(profile.getId())
                 .name(profile.getFullName())
