@@ -93,6 +93,22 @@ public class BlogController {
                 .build();
     }
 
+    @GetMapping("/user/{userId}")
+    public APIResponse<Page<BlogMetadataResponse>> getBlogsByUserId(
+            @PathVariable String userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+
+        Page<BlogMetadataResponse> result = postService.getBlogsByOwnerId(userId, pageable);
+
+        return APIResponse.<Page<BlogMetadataResponse>>builder()
+                .result(result)
+                .message("Get blogs by user id successfully")
+                .build();
+    }
+
     @GetMapping("/top-blog")
     public APIResponse<Page<BlogMetadataResponse>> getTopBlogs(
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
