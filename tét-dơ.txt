@@ -1,0 +1,11 @@
+curl 'http://143.198.80.199:8888/api/v1/ai' \
+  -H 'Accept: application/json, text/plain, */*' \
+  -H 'Accept-Language: vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiI0YzFkNzU4MC03NzFmLTRkNTYtYjRmMS0wNmY3OWY5OGNjMjAiLCJ1bml2ZXJzaXR5X2lkIjoxOCwicHJvZmlsZV9pZCI6ImY2OGQ3YzcwLTY5YTItNDI0Ny1hN2Y1LTVjMmUxNzY1MWU5MCIsInNjb3BlIjoiVFVUT1IgVVNFUiIsImlzcyI6ImJrdW1lbnQudm4uZWR1LmhjbXV0IiwibmFtZSI6IlBo4bqhbSBOZ-G7jWMgSHV54buBbiIsImV4cCI6MTc3NTMxOTI1NSwiaWF0IjoxNzc1MzE1NjU1LCJqdGkiOiJlNDgwZjVmNS1hZTkyLTRkZmMtYThhZC1hYjMwYWM0OTA3MDMiLCJlbWFpbCI6Imh1eWVuLnBoYW1AdW5pLmVkdS52biIsInVzZXJuYW1lIjoibmdvYy5odXllbiJ9.rBIzQF2M9EYEsbLC0vqilh0ICXIkn5lPcuM-5t0hwejDDMf3jkYHGkfxUyrfyAnFl8DiO6d5oqhjOBagdFin0Q' \
+  -H 'Cache-Control: no-cache' \
+  -H 'Connection: keep-alive' \
+  -H 'Origin: http://localhost:3000' \
+  -H 'Pragma: no-cache' \
+  -H 'Referer: http://localhost:3000/' \
+  -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36' \
+  --insecure

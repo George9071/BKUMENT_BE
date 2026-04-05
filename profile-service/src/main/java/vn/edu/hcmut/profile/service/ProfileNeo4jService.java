@@ -68,11 +68,11 @@ public class ProfileNeo4jService {
 
     @Transactional
     public void addRole(String profileId, String role) {
-        neo4jClient.query(CypherQueries.USER_ADD_ROLE)
+        neo4jClient
+                .query(CypherQueries.USER_ADD_ROLE)
                 .bindAll(Map.of(
                         "profileId", profileId,
-                        "role", role
-                ))
+                        "role", role))
                 .run();
 
         log.info("Added role '{}' to profile '{}' via direct Cypher execution", role, profileId);

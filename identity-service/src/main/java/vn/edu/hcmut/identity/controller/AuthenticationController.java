@@ -71,13 +71,8 @@ public class AuthenticationController {
     }
 
     @PostMapping("/reset-password")
-    public APIResponse<Void> resetPassword(
-            @RequestBody @Valid ResetPasswordRequest request) {
-        accountService.resetPassword(
-                request.getEmail(),
-                request.getOtp(),
-                request.getNewPassword()
-        );
+    public APIResponse<Void> resetPassword(@RequestBody @Valid ResetPasswordRequest request) {
+        accountService.resetPassword(request.getEmail(), request.getOtp(), request.getNewPassword());
         return APIResponse.<Void>builder()
                 .message("Mật khẩu đã được đặt lại thành công")
                 .build();

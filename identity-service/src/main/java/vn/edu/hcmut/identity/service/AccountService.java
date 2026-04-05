@@ -237,14 +237,16 @@ public class AccountService {
         if (profile == null) throw new AppException(ErrorCode.ACCOUNT_NOT_FOUND);
 
         VerificationToken vToken = tokenRepository
-                .findByTokenAndAccountIdAndTypeAndUsedFalse(otp, profile.getAccountId(), VerificationToken.TokenType.PASSWORD_RESET)
+                .findByTokenAndAccountIdAndTypeAndUsedFalse(
+                        otp, profile.getAccountId(), VerificationToken.TokenType.PASSWORD_RESET)
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_VERIFICATION_TOKEN));
 
         if (vToken.getExpiresAt().isBefore(Instant.now())) {
             throw new AppException(ErrorCode.VERIFICATION_TOKEN_EXPIRED);
         }
 
-        Account account = accountRepository.findById(profile.getAccountId())
+        Account account = accountRepository
+                .findById(profile.getAccountId())
                 .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_FOUND));
 
         account.setPassword(passwordEncoder.encode(newPassword));
@@ -270,16 +272,16 @@ public class AccountService {
     private String buildResetPasswordBody(String otp) {
         return """
 <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-    <h2>Đặt lại mật khẩu</h2>
-    <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.</p>
-    <p>Dưới đây là mã xác nhận (OTP) của bạn. Vui lòng nhập mã này vào trang đổi mật khẩu:</p>
-    
-    <div style="background-color: #f8f9fa; border: 1px dashed #ccc; border-radius: 8px; padding: 15px; text-align: center; margin: 20px 0; max-width: 300px;">
-        <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #dc3545;">%s</span>
-    </div>
-    
-    <p>Mã này có hiệu lực trong 1 giờ.</p>
-    <p>Nếu bạn không yêu cầu, vui lòng bỏ qua email này để bảo vệ tài khoản.</p>
+	<h2>Đặt lại mật khẩu</h2>
+	<p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.</p>
+	<p>Dưới đây là mã xác nhận (OTP) của bạn. Vui lòng nhập mã này vào trang đổi mật khẩu:</p>
+
+	<div style="background-color: #f8f9fa; border: 1px dashed #ccc; border-radius: 8px; padding: 15px; text-align: center; margin: 20px 0; max-width: 300px;">
+		<span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #dc3545;">%s</span>
+	</div>
+
+	<p>Mã này có hiệu lực trong 1 giờ.</p>
+	<p>Nếu bạn không yêu cầu, vui lòng bỏ qua email này để bảo vệ tài khoản.</p>
 </div>
 """
                 .formatted(otp);
