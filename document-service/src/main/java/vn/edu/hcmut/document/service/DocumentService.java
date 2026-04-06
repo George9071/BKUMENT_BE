@@ -473,6 +473,10 @@ public class DocumentService {
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
     }
 
+    public boolean existsById(String docId) {
+        return documentRepository.existsById(docId);
+    }
+
     public PresignResponse generatePresignedUrl(String fileName) {
         String assetId = minioService.generateUniqueAssetName(fileName);
         String url = minioService.getPresignedUrl(assetId, 10);
