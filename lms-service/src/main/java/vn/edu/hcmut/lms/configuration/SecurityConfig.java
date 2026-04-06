@@ -21,6 +21,9 @@ public class SecurityConfig {
 
 
     private static final String[] PUBLIC_ENDPOINTS = {
+            "/classes/search",
+            "/classes/[a-zA-Z0-9-]+", // GET /classes/{classId}
+            "/classes/tutors/[a-zA-Z0-9-]+",
             "/admin/**", // synchronize tasks
     };
 
@@ -48,7 +51,9 @@ public class SecurityConfig {
                         // Allow OPTIONS requests for preflight CORS checks and specific POST requests
                         .requestMatchers(HttpMethod.OPTIONS, PUBLIC_ENDPOINTS)
                         .permitAll()
-                        .requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS)
+                        .requestMatchers(HttpMethod.POST, "/admin/**")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, PUBLIC_ENDPOINTS)
                         .permitAll()
 
                         // Allow swagger documentation, actuator health checks, and internal API calls
@@ -58,6 +63,7 @@ public class SecurityConfig {
                         // All other endpoints require authentication
                         .anyRequest()
                         .authenticated())
+                .exceptionHandling(exceptionHandling -> exceptionHandling.authenticationEntryPoint(new JwtAuthenticationEntryPoint()))
 
                 // Configure OAuth2 Resource Server to use custom JWT decoder and converter
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->

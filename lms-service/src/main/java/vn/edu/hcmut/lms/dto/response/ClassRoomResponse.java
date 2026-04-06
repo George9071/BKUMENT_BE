@@ -31,6 +31,7 @@ public class ClassRoomResponse {
 
     String topicName;
     String subjectName;
+    String coverImageUrl;
 
     String userStatus;
 
