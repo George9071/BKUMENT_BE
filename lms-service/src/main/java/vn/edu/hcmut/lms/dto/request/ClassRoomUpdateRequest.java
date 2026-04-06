@@ -48,6 +48,7 @@ public class ClassRoomUpdateRequest {
     String location;
 
     LearningFormat format;
+    String coverImageUrl;
 
     /**
      * When provided, replaces ALL existing schedules entirely.

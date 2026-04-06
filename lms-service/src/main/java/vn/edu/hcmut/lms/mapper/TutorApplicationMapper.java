@@ -1,5 +1,8 @@
 package vn.edu.hcmut.lms.mapper;
 
+import java.util.ArrayList;
+
+import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
@@ -9,6 +12,7 @@ import vn.edu.hcmut.lms.entity.TutorApplication;
 
 @Mapper(componentModel = "spring")
 public interface TutorApplicationMapper {
+
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "profileId", ignore = true)
     @Mapping(target = "status", ignore = true)
@@ -27,5 +31,15 @@ public interface TutorApplicationMapper {
     @Mapping(target = "reviewedBy", ignore = true)
     @Mapping(target = "reviewedAt", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
-    void updateEntityFromRequest(TutorRegistrationRequest request, @MappingTarget TutorApplication application);
+    void updateEntityFromRequest(TutorRegistrationRequest request,
+                                 @MappingTarget TutorApplication application);
+
+    @AfterMapping
+    default void handleSubjectIds(TutorRegistrationRequest request,
+                                  @MappingTarget TutorApplication application) {
+
+        if (request.getSubjectIds() != null) {
+            application.setSubjectIds(new ArrayList<>(request.getSubjectIds()));
+        }
+    }
 }

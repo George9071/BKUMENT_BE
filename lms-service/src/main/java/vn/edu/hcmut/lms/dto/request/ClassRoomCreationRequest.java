@@ -41,6 +41,7 @@ public class ClassRoomCreationRequest {
     List<ScheduleRequest> schedules;
 
     String location;
+    String coverImageUrl;
 
     LearningFormat format;
 

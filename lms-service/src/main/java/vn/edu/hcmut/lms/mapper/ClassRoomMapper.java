@@ -13,6 +13,7 @@ public interface ClassRoomMapper {
     @Mapping(target = "status",   ignore = true)
     @Mapping(target = "tutor",    ignore = true)
     @Mapping(target = "topic",    ignore = true)
+    @Mapping(target = "coverImageUrl", source = "coverImageUrl")
     ClassRoom toClassRoom(ClassRoomCreationRequest request);
 
     @Mapping(target = "id",        ignore = true)
@@ -25,6 +26,7 @@ public interface ClassRoomMapper {
     @Mapping(target = "topic",     ignore = true)
     @Mapping(target = "status",    ignore = true)
     @Mapping(target = "schedules", ignore = true)
+    @Mapping(target = "coverImageUrl", source = "coverImageUrl")
     void updateClass(@MappingTarget ClassRoom classRoom, ClassRoomUpdateRequest request);
 
     @Mapping(target = "id",        ignore = true)
@@ -37,6 +39,7 @@ public interface ClassRoomMapper {
     @Mapping(target = "topicName",   source = "topic.name")
     @Mapping(target = "subjectName", source = "topic.subject.name")
     @Mapping(target = "userStatus",  ignore = true)
+    @Mapping(target = "coverImageUrl", source = "coverImageUrl")
     ClassRoomResponse toResponse(ClassRoom classRoom);
 
     @AfterMapping

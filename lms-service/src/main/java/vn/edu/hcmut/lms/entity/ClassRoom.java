@@ -23,6 +23,7 @@ public class ClassRoom {
     String id;
     String name;
     String description;
+    String coverImageUrl;
 
     LocalDate startDate;
     LocalDate endDate;
