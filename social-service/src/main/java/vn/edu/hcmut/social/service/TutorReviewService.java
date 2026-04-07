@@ -60,7 +60,7 @@ public class TutorReviewService {
     public TutorReviewResponse updateReview(String reviewId, TutorReviewRequest request, String userId) {
         UserReviewTutor review = userReviewTutorRepository
                 .findById(reviewId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
+                .orElseThrow(() -> new AppException(ErrorCode.TUTOR_REVIEW_NOT_FOUND));
 
         if (!review.getUserId().equals(userId)) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
@@ -81,7 +81,7 @@ public class TutorReviewService {
     public void deleteReview(String reviewId, String userId) {
         UserReviewTutor review = userReviewTutorRepository
                 .findById(reviewId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
+                .orElseThrow(() -> new AppException(ErrorCode.TUTOR_REVIEW_NOT_FOUND));
 
         if (!review.getUserId().equals(userId)) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
@@ -142,7 +142,7 @@ public class TutorReviewService {
         return userReviewTutorRepository
                 .findByUserIdAndTutorId(userId, tutorId)
                 .map(this::toTutorReviewResponse)
-                .orElse(null);
+                .orElseThrow(() -> new AppException(ErrorCode.TUTOR_REVIEW_NOT_FOUND));
     }
 
     private TutorReviewResponse toTutorReviewResponse(UserReviewTutor review) {

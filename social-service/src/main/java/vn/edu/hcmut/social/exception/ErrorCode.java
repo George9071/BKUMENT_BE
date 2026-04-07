@@ -13,6 +13,7 @@ public enum ErrorCode {
     DOCUMENT_NOT_FOUND(404, "Document not found"),
     INVALID_TOKEN_CLAIMS(401, "Invalid token"),
     ALREADY_RATED(1100, "You have already rated this resource"),
+    TUTOR_REVIEW_NOT_FOUND(1101, "Tutor review not found"),
     UNAUTHORIZED(1007, "You do not have permission to perform this action");
 
     ErrorCode(int code, String message) {
