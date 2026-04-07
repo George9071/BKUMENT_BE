@@ -3,10 +3,8 @@ package vn.edu.hcmut.lms.controller.internal;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import vn.edu.hcmut.lms.dto.request.internal.InternalTutorRatingRequest;
 import vn.edu.hcmut.lms.service.TutorService;
 
 @RestController
@@ -20,5 +18,12 @@ public class InternalTutorController {
     @DeleteMapping("/{profileId}")
     public void deleteTutor(@PathVariable String profileId) {
         tutorService.deleteTutor(profileId);
+    }
+
+    @PostMapping("/{profileId}/rating")
+    public void updateTutorRating(
+            @PathVariable String profileId,
+            @RequestBody InternalTutorRatingRequest request) {
+        tutorService.updateTutorRating(profileId, request);
     }
 }

@@ -31,6 +31,21 @@ import vn.edu.hcmut.social.service.ReportService;
 public class ReportController {
     ReportService reportService;
 
+    private void checkAdminRole() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!isAdmin) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+    }
+
     private String getProfileIdFromToken() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
 
@@ -64,6 +79,7 @@ public class ReportController {
     @PutMapping("/{reportId}/status")
     public APIResponse<ReportResponse> updateReportStatus(
             @PathVariable String reportId, @RequestBody @Valid ReportStatusUpdateRequest request) {
+        checkAdminRole();
         String resolverId = getProfileIdFromToken();
         return APIResponse.<ReportResponse>builder()
                 .result(reportService.updateReportStatus(reportId, request.getStatus(), resolverId))
@@ -73,6 +89,7 @@ public class ReportController {
 
     @DeleteMapping("/{reportId}")
     public APIResponse<String> deleteReport(@PathVariable String reportId) {
+        checkAdminRole();
         reportService.deleteReport(reportId);
         return APIResponse.<String>builder()
                 .message("Report deleted successfully")

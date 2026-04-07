@@ -9,6 +9,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.edu.hcmut.lms.dto.request.internal.InternalTutorRatingRequest;
 import vn.edu.hcmut.lms.dto.request.TutorUpdateRequest;
 import vn.edu.hcmut.lms.dto.response.PageResponse;
 import vn.edu.hcmut.lms.dto.response.SubjectResponse;
@@ -38,6 +39,19 @@ public class TutorService {
     TutorMapper tutorMapper;
     TutorSyncService syncService;
     SecurityUtils utils;
+
+    @Transactional(rollbackFor = Exception.class)
+    public void updateTutorRating(String profileId, InternalTutorRatingRequest request) {
+        Tutor tutor = tutorRepository.findById(profileId)
+                .orElseThrow(() -> new AppException(ErrorCode.TUTOR_NOT_FOUND));
+
+        tutor.setAverageRating(request.getAverageRating());
+        tutor.setRatingCount(request.getRatingCount());
+
+        tutorRepository.save(tutor);
+        log.info("Updated tutor rating stats for id: {}, avg: {}, count: {}", 
+                profileId, request.getAverageRating(), request.getRatingCount());
+    }
 
     @Transactional(rollbackFor = Exception.class)
     public TutorResponse updateTutorProfile(TutorUpdateRequest request) {

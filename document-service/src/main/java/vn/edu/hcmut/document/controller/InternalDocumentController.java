@@ -1,5 +1,6 @@
 package vn.edu.hcmut.document.controller;
 
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,5 +21,15 @@ public class InternalDocumentController {
     @GetMapping("/{id}/owner")
     public String getOwnerId(@PathVariable String id) {
         return documentService.getOwnerId(id);
+    }
+
+    @GetMapping("/{id}/exists")
+    public boolean existsById(@PathVariable String id) {
+        return documentService.existsById(id);
+    }
+
+    @DeleteMapping("/{id}")
+    public void deleteDocument(@PathVariable String id) {
+        documentService.deleteDocument(id);
     }
 }

@@ -274,6 +274,17 @@ public class PostService {
         return post.getOwnerId();
     }
 
+    public boolean existsById(String blogId) {
+        return postRepository.existsById(blogId);
+    }
+
+    @Transactional
+    public void deleteBlog(String blogId) {
+        Post post = postRepository.findById(blogId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
+        postAssetRepository.deleteByResourceId(blogId);
+        postRepository.delete(post);
+    }
+
     public String htmlToTextWithoutImages(String html) {
         if (html == null || html.isBlank()) return "";
 

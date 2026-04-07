@@ -16,12 +16,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.social.dto.request.TutorReviewRequest;
+import vn.edu.hcmut.social.dto.request.internal.InternalTutorRatingRequest;
 import vn.edu.hcmut.social.dto.response.TutorReviewResponse;
 import vn.edu.hcmut.social.dto.response.TutorReviewSummaryResponse;
 import vn.edu.hcmut.social.entity.UserReviewTutor;
 import vn.edu.hcmut.social.exception.AppException;
 import vn.edu.hcmut.social.exception.ErrorCode;
 import vn.edu.hcmut.social.repository.UserReviewTutorRepository;
+import vn.edu.hcmut.social.repository.httpclient.LmsClient;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +31,7 @@ import vn.edu.hcmut.social.repository.UserReviewTutorRepository;
 @Slf4j
 public class TutorReviewService {
     UserReviewTutorRepository userReviewTutorRepository;
+    LmsClient lmsClient;
 
     @Transactional
     public TutorReviewResponse createReview(TutorReviewRequest request, String userId) {
@@ -47,6 +50,9 @@ public class TutorReviewService {
                 .build();
 
         review = userReviewTutorRepository.save(review);
+
+        syncTutorStats(request.getTutorId());
+
         return toTutorReviewResponse(review);
     }
 
@@ -54,7 +60,7 @@ public class TutorReviewService {
     public TutorReviewResponse updateReview(String reviewId, TutorReviewRequest request, String userId) {
         UserReviewTutor review = userReviewTutorRepository
                 .findById(reviewId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
+                .orElseThrow(() -> new AppException(ErrorCode.TUTOR_REVIEW_NOT_FOUND));
 
         if (!review.getUserId().equals(userId)) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
@@ -65,6 +71,9 @@ public class TutorReviewService {
         review.setUpdatedAt(LocalDateTime.now());
 
         review = userReviewTutorRepository.save(review);
+
+        syncTutorStats(review.getTutorId());
+
         return toTutorReviewResponse(review);
     }
 
@@ -72,13 +81,33 @@ public class TutorReviewService {
     public void deleteReview(String reviewId, String userId) {
         UserReviewTutor review = userReviewTutorRepository
                 .findById(reviewId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
+                .orElseThrow(() -> new AppException(ErrorCode.TUTOR_REVIEW_NOT_FOUND));
 
         if (!review.getUserId().equals(userId)) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
+        String tutorId = review.getTutorId();
         userReviewTutorRepository.delete(review);
+
+        syncTutorStats(tutorId);
+    }
+
+    private void syncTutorStats(String tutorId) {
+        try {
+            Double avg = userReviewTutorRepository.getAverageScoreByTutorId(tutorId);
+            long total = userReviewTutorRepository.countByTutorId(tutorId);
+
+            InternalTutorRatingRequest statsRequest = InternalTutorRatingRequest.builder()
+                    .averageRating(avg != null ? avg : 0.0)
+                    .ratingCount((int) total)
+                    .build();
+
+            lmsClient.updateTutorRating(tutorId, statsRequest);
+            log.info("Synced tutor stats for id {}: avg={}, count={}", tutorId, avg, total);
+        } catch (Exception e) {
+            log.error("Failed to sync tutor stats for id {}: {}", tutorId, e.getMessage());
+        }
     }
 
     public Page<TutorReviewResponse> getReviewsByTutor(String tutorId, Pageable pageable) {
@@ -113,7 +142,7 @@ public class TutorReviewService {
         return userReviewTutorRepository
                 .findByUserIdAndTutorId(userId, tutorId)
                 .map(this::toTutorReviewResponse)
-                .orElse(null);
+                .orElseThrow(() -> new AppException(ErrorCode.TUTOR_REVIEW_NOT_FOUND));
     }
 
     private TutorReviewResponse toTutorReviewResponse(UserReviewTutor review) {
