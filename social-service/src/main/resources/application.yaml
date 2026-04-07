@@ -49,3 +49,5 @@ app:
     profile: http://localhost:8081/profile
     document: http://localhost:8086/document
     blog: http://localhost:8085/blog
+    lms: http://localhost:8082/lms
+    email: http://localhost:8084/email
