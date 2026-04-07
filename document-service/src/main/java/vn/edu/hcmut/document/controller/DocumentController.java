@@ -62,6 +62,18 @@ public class DocumentController {
         throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
 
+    private String getProfileIdFromTokenOrNull() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
+            return null;
+        }
+        if (authentication instanceof JwtAuthenticationToken jwtAuth) {
+            Jwt jwt = jwtAuth.getToken();
+            return jwt.getClaimAsString("profile_id");
+        }
+        return null;
+    }
+
     @GetMapping("/health")
     public String healthCheck() {
         return "Document Service is running";
@@ -110,6 +122,18 @@ public class DocumentController {
         Page<Document> documents = documentService.getTopRankedDocuments(pageable);
 
         return mapToDocumentMetadataResponsePage(documents, "Get top ranked documents successfully");
+    }
+
+    @GetMapping("/for-you")
+    public APIResponse<Page<DocumentMetadataResponse>> getForYouFeed(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        String userId = getProfileIdFromTokenOrNull();
+
+        Page<Document> documents = documentService.getForYouFeed(userId, pageable);
+
+        return mapToDocumentMetadataResponsePage(documents, "Get For You feed successfully");
     }
 
     private APIResponse<Page<DocumentMetadataResponse>> mapToDocumentMetadataResponsePage(

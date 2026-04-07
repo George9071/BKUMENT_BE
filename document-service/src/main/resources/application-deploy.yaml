@@ -23,6 +23,8 @@ spring:
     authentication:
       username: ${NEO4J_USERNAME}
       password: ${NEO4J_PASSWORD}
+  kafka:
+    bootstrap-servers: kafka:9092
 
 minio:
   endpoint: http://${MINIO_HOST}:9000

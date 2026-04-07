@@ -52,6 +52,10 @@ public class Resource {
     @Builder.Default
     Long views = 0L;
 
+    @Column(name = "trending_score")
+    @Builder.Default
+    Double trendingScore = 0.0;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

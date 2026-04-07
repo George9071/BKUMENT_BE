@@ -4,10 +4,12 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -17,12 +19,12 @@ import javax.imageio.ImageIO;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -31,7 +33,6 @@ import io.minio.StatObjectResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.document.configuration.GatewayProperties;
 import vn.edu.hcmut.document.dto.request.DocumentMetadataRequest;
@@ -39,6 +40,7 @@ import vn.edu.hcmut.document.dto.response.*;
 import vn.edu.hcmut.document.entity.Document;
 import vn.edu.hcmut.document.entity.DocumentDownload;
 import vn.edu.hcmut.document.entity.Resource;
+import vn.edu.hcmut.document.event.UserDownloadedDocumentEvent;
 import vn.edu.hcmut.document.exception.AppException;
 import vn.edu.hcmut.document.exception.ErrorCode;
 import vn.edu.hcmut.document.repository.DocumentDownloadRepository;
@@ -46,7 +48,6 @@ import vn.edu.hcmut.document.repository.DocumentRepository;
 import vn.edu.hcmut.document.repository.ResourceRepository;
 import vn.edu.hcmut.document.repository.httpclient.AiClient;
 import vn.edu.hcmut.document.repository.httpclient.ProfileClient;
-import vn.edu.hcmut.document.repository.httpclient.SocialClient;
 import vn.edu.hcmut.document.utils.StreamMultipartFile;
 
 @Slf4j
@@ -60,19 +61,12 @@ public class DocumentService {
     GatewayProperties gatewayProperties;
 
     MinioService minioService;
+    KafkaTemplate<String, Object> kafkaTemplate;
     GraphSyncService graphSyncService;
     ProfileClient profileClient;
-    SocialClient socialClient;
     AiClient aiClient;
     DocumentAsyncService documentAsyncService;
-
-    @NonFinal
-    @Value("${app.ranking.weight-rating:0.7}")
-    double weightRating;
-
-    @NonFinal
-    @Value("${app.ranking.weight-download:0.3}")
-    double weightDownload;
+    DocumentRecommendationService documentRecommendationService;
 
     public DocAnalyzeResponse processAndCreateDocument(String assetId, String originalFileName, String ownerId) {
         log.info("[ASSET][{}] Bắt đầu xử lý với AI Service", assetId);
@@ -181,70 +175,26 @@ public class DocumentService {
     }
 
     public Page<Document> getTopRankedDocuments(Pageable pageable) {
-        // Step 1: Fetch a batch of candidate documents (e.g., top 1000 by download or overall)
-        // For simplicity and to ensure accuracy, we'll fetch a larger set than just one page
-        // But in a real-world scenario, we might want a specialized query or caching
-        List<Document> documents = documentRepository.findAll();
+        LocalDateTime since = LocalDateTime.now().minusDays(90);
+        List<Document> pagedDocs = documentRepository.findRecentDocumentsOrderByRankingScore(since, pageable);
 
-        if (documents.isEmpty()) {
-            return Page.empty(pageable);
+        if (pagedDocs.isEmpty()) {
+            // Fallback: lấy tất cả documents sort theo createdAt giảm dần
+            Pageable sortedByCreatedAt = PageRequest.of(
+                    pageable.getPageNumber(),
+                    pageable.getPageSize(),
+                    Sort.by("createdAt").descending());
+            pagedDocs = documentRepository.findAll(sortedByCreatedAt).getContent();
         }
-
-        RankingStatsResponse rankingStats = null;
-        try {
-            rankingStats = socialClient.getRankingStats();
-        } catch (Exception e) {
-            log.error("Failed to fetch ranking stats from social service", e);
-        }
-
-        final Map<String, ResourceRatingStatsResponse> statsMap =
-                (rankingStats != null && rankingStats.getStats() != null)
-                        ? rankingStats.getStats().stream()
-                                .collect(Collectors.toMap(ResourceRatingStatsResponse::getResourceId, s -> s))
-                        : new HashMap<>();
-
-        // Step 3: Calculate score for each document
-        List<DocumentScore> scoredDocs = documents.stream()
-                .map(doc -> {
-                    ResourceRatingStatsResponse stats = statsMap.get(doc.getId());
-                    double R = (stats != null && stats.getAverageRating() != null) ? stats.getAverageRating() : 0.0;
-
-                    // Final Score = w1 * R + w2 * log10(1 + Downloads)
-                    double downloads = doc.getDownloadCount() != null ? doc.getDownloadCount() : 0.0;
-                    double finalScore = (weightRating * R) + (weightDownload * Math.log10(1 + downloads));
-
-                    return new DocumentScore(doc, finalScore);
-                })
-                .sorted((a, b) -> Double.compare(b.score, a.score))
-                .collect(Collectors.toList());
-
-        // Step 4: Paginate
-        int start = (int) pageable.getOffset();
-        int end = Math.min((start + pageable.getPageSize()), scoredDocs.size());
-
-        if (start > scoredDocs.size()) {
-            return new PageImpl<>(List.of(), pageable, scoredDocs.size());
-        }
-
-        List<Document> pagedDocs =
-                scoredDocs.subList(start, end).stream().map(ds -> ds.document).collect(Collectors.toList());
 
         if (!pagedDocs.isEmpty()) {
             documentRepository.incrementViews(
                     pagedDocs.stream().map(Document::getId).toList());
         }
 
-        return new PageImpl<>(pagedDocs, pageable, scoredDocs.size());
-    }
+        long total = documentRepository.findRecentDocumentsForScoring(since).size();
 
-    private static class DocumentScore {
-        Document document;
-        double score;
-
-        public DocumentScore(Document document, double score) {
-            this.document = document;
-            this.score = score;
-        }
+        return new PageImpl<>(pagedDocs, pageable, Math.max(total, pagedDocs.size()));
     }
 
     // TODO: move to search service
@@ -420,9 +370,15 @@ public class DocumentService {
         documentDownload.setProfileId(userId);
         documentDownloadRepository.save(documentDownload);
 
-        // Notify graph sync service
+        // Notify graph sync service via Kafka Event
         if (document.getTopicId() != null) {
-            graphSyncService.handleDownloadEvent(userId, docId, document.getTopicId());
+            UserDownloadedDocumentEvent event = UserDownloadedDocumentEvent.builder()
+                    .profileId(userId)
+                    .documentId(docId)
+                    .topicId(document.getTopicId())
+                    .timestamp(java.time.LocalDateTime.now().toString())
+                    .build();
+            kafkaTemplate.send("document-download-events", event);
         }
 
         // Get file from MinIO
@@ -555,7 +511,8 @@ public class DocumentService {
         String queryString = queryBuilder.toString().trim();
         if (queryString.isEmpty()) queryString = " ";
 
-        Page<String> docIdsPage = documentRepository.findRelatedDocumentIds(vectorStr, queryString, docId, pageable);
+        Page<String> docIdsPage =
+                documentRecommendationService.getHybridRelatedDocumentIds(docId, vectorStr, queryString, pageable);
 
         if (docIdsPage.isEmpty()) {
             return Page.empty(pageable);
@@ -595,6 +552,23 @@ public class DocumentService {
         }
 
         return new PageImpl<>(dtos, pageable, docIdsPage.getTotalElements());
+    }
+
+    public Page<Document> getForYouFeed(String userId, Pageable pageable) {
+        Page<String> docIdsPage = documentRecommendationService.getForYouFeed(userId, pageable);
+
+        if (docIdsPage.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        List<String> docIds = docIdsPage.getContent();
+        Map<String, Document> docMap = documentRepository.findAllById(docIds).stream()
+                .collect(Collectors.toMap(Document::getId, Function.identity()));
+
+        List<Document> documents =
+                docIds.stream().map(docMap::get).filter(Objects::nonNull).toList();
+
+        return new PageImpl<>(documents, pageable, docIdsPage.getTotalElements());
     }
 
     private RelatedDocumentsResponse toRelatedDocument(Document document, ProfileResponse profile) {

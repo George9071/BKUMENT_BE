@@ -4,13 +4,14 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 import org.springframework.data.neo4j.core.Neo4jClient;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import vn.edu.hcmut.document.event.UserDownloadedDocumentEvent;
 
 @Service
 @RequiredArgsConstructor
@@ -19,9 +20,14 @@ public class GraphSyncService {
 
     private final Neo4jClient neo4jClient;
 
-    @Async("graphExecutor")
-    public void handleDownloadEvent(String profileId, String documentId, String topicId) {
-        String timeNow = LocalDateTime.now().toString();
+    @KafkaListener(topics = "document-download-events", groupId = "document-graph-sync-group")
+    public void handleDownloadEvent(UserDownloadedDocumentEvent event) {
+        String profileId = event.getProfileId();
+        String documentId = event.getDocumentId();
+        String topicId = event.getTopicId();
+        String timeNow = event.getTimestamp() != null
+                ? event.getTimestamp()
+                : LocalDateTime.now().toString();
 
         String baseQuery =
                 """
