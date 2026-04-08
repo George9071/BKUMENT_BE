@@ -1,5 +1,6 @@
 package vn.edu.hcmut.lms.dto.request;
 
+import jakarta.validation.constraints.Size;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import vn.edu.hcmut.lms.constant.ClassStatus;
@@ -19,6 +20,7 @@ public class ClassRoomUpdateRequest {
 
     String name;
 
+    @Size(max = 5000, message = "INVALID_FORMAT")
     String description;
 
     LocalDate startDate;

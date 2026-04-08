@@ -14,6 +14,7 @@ import jakarta.transaction.Transactional;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.jsoup.safety.Safelist;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -81,7 +82,8 @@ public class PostService {
                     .orElseGet(() -> new PageImpl<>(List.of(), pageable, 0L));
             isUuidQuery = true;
         } else {
-            posts = postRepository.findByTitleContainingIgnoreCase(keyword, pageable);
+            posts = postRepository.findByTitleContainingIgnoreCaseOrContentContainingIgnoreCase(
+                    keyword, keyword, pageable);
         }
 
         if (!posts.isEmpty()) {
@@ -212,7 +214,7 @@ public class PostService {
     @Transactional
     public Post createBlog(BlogMetadataRequest request, String ownerId) {
         Post post = new Post();
-        post.setContent(request.getContent());
+        post.setContent(sanitizeHtml(request.getContent()));
         post.setOwnerId(ownerId);
         post.setCoverImage(request.getCoverImage());
         post.setCreatedAt(LocalDateTime.now());
@@ -251,7 +253,7 @@ public class PostService {
         });
         postAssetRepository.deleteByResourceId(blogId);
 
-        post.setContent(request.getContent());
+        post.setContent(sanitizeHtml(request.getContent()));
         post.setCoverImage(request.getCoverImage());
         resource.setTitle(request.getTitle());
         resource.setType("POST");
@@ -283,6 +285,11 @@ public class PostService {
         Post post = postRepository.findById(blogId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
         postAssetRepository.deleteByResourceId(blogId);
         postRepository.delete(post);
+    }
+
+    private String sanitizeHtml(String html) {
+        if (html == null) return null;
+        return Jsoup.clean(html, Safelist.relaxed());
     }
 
     public String htmlToTextWithoutImages(String html) {

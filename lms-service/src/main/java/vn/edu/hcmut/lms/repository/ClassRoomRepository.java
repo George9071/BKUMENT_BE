@@ -44,7 +44,7 @@ public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
             "(:subjectName IS NULL OR LOWER(FUNCTION('unaccent', s.name)) LIKE :subjectName) AND " +
             "(:topicName IS NULL OR LOWER(FUNCTION('unaccent', t.name)) LIKE :topicName) AND " +
             "(:format IS NULL OR c.format = :format) AND " +
-            "(:keyword IS NULL OR LOWER(FUNCTION('unaccent', c.name)) LIKE :keyword OR LOWER(FUNCTION('unaccent', tu.name)) LIKE :keyword) AND " +
+            "(:keyword IS NULL OR LOWER(FUNCTION('unaccent', c.name)) LIKE :keyword OR LOWER(FUNCTION('unaccent', tu.name)) LIKE :keyword OR LOWER(FUNCTION('unaccent', c.description)) LIKE :keyword) AND " +
             "c.status = 'ENROLLING'")
     List<ClassRoom> searchAvailableClasses(
             @Param("subjectName") String subjectName,
