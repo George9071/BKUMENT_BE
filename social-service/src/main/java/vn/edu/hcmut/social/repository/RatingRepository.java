@@ -29,4 +29,6 @@ public interface RatingRepository extends JpaRepository<Rating, String> {
 
     @Query("SELECT AVG(r.score) FROM Rating r")
     Double getGlobalAverageScore();
+
+    void deleteByResourceId(String resourceId);
 }

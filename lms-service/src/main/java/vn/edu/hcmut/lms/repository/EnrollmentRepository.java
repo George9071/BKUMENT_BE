@@ -48,4 +48,6 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, String> 
             Pageable pageable);
 
     List<Enrollment> findByStudentProfileIdAndClassRoomIdIn(String studentProfileId, List<String> classRoomIds);
+
+    void deleteByClassRoomIdIn(List<String> classRoomIds);
 }

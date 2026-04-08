@@ -22,7 +22,10 @@ public class ClassRoom {
     @GeneratedValue(strategy = GenerationType.UUID)
     String id;
     String name;
+
+    @Column(columnDefinition = "TEXT")
     String description;
+    
     String coverImageUrl;
 
     LocalDate startDate;

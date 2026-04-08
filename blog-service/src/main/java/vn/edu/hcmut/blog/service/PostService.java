@@ -211,6 +211,12 @@ public class PostService {
         postRepository.delete(post);
     }
 
+    @Transactional
+    public void deleteByOwnerId(String ownerId) {
+        postRepository.deleteByOwnerId(ownerId);
+        log.info("Deleted all blogs for owner {}", ownerId);
+    }
+
     public String htmlToTextWithoutImages(String html) {
         if (html == null || html.isBlank()) return "";
 

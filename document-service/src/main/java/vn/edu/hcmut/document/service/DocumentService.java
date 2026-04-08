@@ -301,7 +301,7 @@ public class DocumentService {
         return documentRepository.save(document);
     }
 
-    public DocumentMetadataResponse getDocumentInfo(String docId) {
+    public DocumentMetadataResponse getDocumentInfo(String docId, String userId) {
         Resource resource =
                 resourceRepository.findById(docId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
 
@@ -309,6 +309,11 @@ public class DocumentService {
                 documentRepository.findById(docId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
 
         documentRepository.incrementViews(List.of(docId));
+
+        // Sync view event to Neo4j
+        if (userId != null) {
+            graphSyncService.handleViewEvent(userId, docId);
+        }
 
         String downloadUrl =
                 gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/document/asset/" + docId;
@@ -420,6 +425,23 @@ public class DocumentService {
         }
 
         documentRepository.delete(document);
+    }
+
+    @Transactional
+    public void deleteByOwnerId(String ownerId) {
+        List<Document> documents = documentRepository.findByOwnerId(ownerId);
+        for (Document doc : documents) {
+            if (doc.getAssetId() != null && !doc.getAssetId().isBlank()) {
+                try {
+                    minioService.deleteFile(doc.getAssetId());
+                } catch (Exception e) {
+                    log.error(
+                            "Failed to delete asset {} for doc {}: {}", doc.getAssetId(), doc.getId(), e.getMessage());
+                }
+            }
+        }
+        documentRepository.deleteByOwnerId(ownerId);
+        log.info("Deleted all documents and assets for owner {}", ownerId);
     }
 
     public String getOwnerId(String docId) {

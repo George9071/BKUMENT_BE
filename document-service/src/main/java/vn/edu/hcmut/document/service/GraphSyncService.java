@@ -60,7 +60,34 @@ public class GraphSyncService {
 
             log.info("Neo4j: User {} downloaded Doc {}", profileId, documentId);
         } catch (Exception e) {
-            log.error("Lỗi đồng bộ Neo4j: {}", e.getMessage());
+            log.error("Lỗi đồng bộ Neo4j (Download): {}", e.getMessage());
+        }
+    }
+
+    @Async("graphExecutor")
+    public void handleViewEvent(String profileId, String documentId) {
+        String timeNow = LocalDateTime.now().toString();
+
+        String query =
+                """
+				MERGE (a:UserProfile {id: $profileId})
+				MERGE (d:Document {id: $documentId})
+				MERGE (a)-[r:VIEWED]->(d)
+				ON CREATE SET r.firstViewedAt = datetime($time), r.viewCount = 1
+				ON MATCH SET r.lastViewedAt = datetime($time), r.viewCount = r.viewCount + 1
+				""";
+
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("profileId", profileId);
+            params.put("documentId", documentId);
+            params.put("time", timeNow);
+
+            neo4jClient.query(query).bindAll(params).run();
+
+            log.info("Neo4j: User {} viewed Doc {}", profileId, documentId);
+        } catch (Exception e) {
+            log.error("Lỗi đồng bộ Neo4j (View): {}", e.getMessage());
         }
     }
 

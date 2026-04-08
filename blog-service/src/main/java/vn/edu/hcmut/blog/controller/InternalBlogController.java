@@ -32,4 +32,9 @@ public class InternalBlogController {
     public void deleteBlog(@PathVariable String id) {
         postService.deleteBlog(id);
     }
+
+    @DeleteMapping("/owner/{ownerId}")
+    public void deleteByOwnerId(@PathVariable String ownerId) {
+        postService.deleteByOwnerId(ownerId);
+    }
 }

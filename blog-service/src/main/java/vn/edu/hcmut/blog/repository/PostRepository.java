@@ -17,6 +17,8 @@ public interface PostRepository extends JpaRepository<Post, String> {
 
     Page<Post> findByOwnerId(String ownerId, Pageable pageable);
 
+    void deleteByOwnerId(String ownerId);
+
     @Modifying
     @Transactional
     @Query("UPDATE Resource r SET r.views = COALESCE(r.views, 0) + 1 WHERE r.id IN :ids")

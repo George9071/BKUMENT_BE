@@ -27,6 +27,10 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
 
     Page<Document> findByCourseId(String courseId, Pageable pageable);
 
+    List<Document> findByOwnerId(String ownerId);
+
+    void deleteByOwnerId(String ownerId);
+
     Page<Document> findByOwnerId(String ownerId, Pageable pageable);
 
     // --- Time-Decay Ranking Queries ---
