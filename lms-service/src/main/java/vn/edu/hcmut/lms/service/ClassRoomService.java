@@ -4,6 +4,8 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.jsoup.Jsoup;
+import org.jsoup.safety.Safelist;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -70,6 +72,7 @@ public class ClassRoomService {
         ClassRoom classRoom = classMapper.toClassRoom(request);
         classRoom.setTutor(tutor);
         classRoom.setStatus(ClassStatus.ENROLLING);
+        classRoom.setDescription(sanitizeHtml(request.getDescription()));
 
         assignTopicIfPresent(request.getTopicId(), null, classRoom);
 
@@ -107,6 +110,10 @@ public class ClassRoomService {
         }
 
         classMapper.updateClass(classRoom, request);
+        
+        if (request.getDescription() != null) {
+            classRoom.setDescription(sanitizeHtml(request.getDescription()));
+        }
 
         if (request.getStatus() != null) {
             classRoom.setStatus(request.getStatus());
@@ -341,6 +348,11 @@ public class ClassRoomService {
                 .totalElements(totalElements)
                 .data(paged)
                 .build();
+    }
+
+    private String sanitizeHtml(String html) {
+        if (html == null) return null;
+        return Jsoup.clean(html, Safelist.basic());
     }
 
     private Pageable toPageable(int page, int size) {
