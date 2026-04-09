@@ -352,7 +352,7 @@ public class ClassRoomService {
 
     private String sanitizeHtml(String html) {
         if (html == null) return null;
-        return Jsoup.clean(html, Safelist.basic());
+        return Jsoup.clean(html, Safelist.relaxed());
     }
 
     private Pageable toPageable(int page, int size) {
