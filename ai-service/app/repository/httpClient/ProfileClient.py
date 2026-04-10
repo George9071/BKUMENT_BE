@@ -19,11 +19,11 @@ class ProfileClient:
         self.base_url = base_url
         self.client = httpx.AsyncClient(base_url=self.base_url)
 
-    async def find_user_profile_by_id(self, id: str) -> APIResponse[ProfileResponse]:
+    async def find_user_profile_by_id(self, id: str) -> ProfileResponse:
         response = await self.client.get(f"/internal/users/{id}")
         response.raise_for_status()
         
-        return APIResponse[ProfileResponse](**response.json())
+        return ProfileResponse(**response.json())
 
     async def close(self):
         await self.client.aclose()

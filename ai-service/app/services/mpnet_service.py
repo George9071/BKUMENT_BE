@@ -140,11 +140,12 @@ class VectorService:
                     return
                 try:
                     profile_resp = await profile_client.find_user_profile_by_id(owner_id)
-                    if profile_resp and profile_resp.result:
+                    print(profile_resp)
+                    if profile_resp and profile_resp:
                         doc["author"] = {
-                            "id": profile_resp.result.id,
-                            "name": profile_resp.result.fullName,
-                            "avatarUrl": profile_resp.result.avatarUrl
+                            "id": profile_resp.id,
+                            "name": profile_resp.fullName,
+                            "avatarUrl": profile_resp.avatarUrl
                         }
                 except Exception as e:
                     print(f"Lỗi khi gọi profile-service cho user {owner_id}: {e}")
