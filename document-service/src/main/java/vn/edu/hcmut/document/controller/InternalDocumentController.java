@@ -32,4 +32,9 @@ public class InternalDocumentController {
     public void deleteDocument(@PathVariable String id) {
         documentService.deleteDocument(id);
     }
+
+    @DeleteMapping("/owner/{ownerId}")
+    public void deleteByOwnerId(@PathVariable String ownerId) {
+        documentService.deleteByOwnerId(ownerId);
+    }
 }

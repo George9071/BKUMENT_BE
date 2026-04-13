@@ -32,6 +32,8 @@ import vn.edu.hcmut.identity.mapper.AccountMapper;
 import vn.edu.hcmut.identity.mapper.ProfileMapper;
 import vn.edu.hcmut.identity.repository.AccountRepository;
 import vn.edu.hcmut.identity.repository.VerificationTokenRepository;
+import vn.edu.hcmut.identity.repository.httpclient.BlogClient;
+import vn.edu.hcmut.identity.repository.httpclient.DocumentClient;
 import vn.edu.hcmut.identity.repository.httpclient.LmsClient;
 import vn.edu.hcmut.identity.repository.httpclient.ProfileClient;
 
@@ -49,6 +51,8 @@ public class AccountService {
 
     ProfileClient profileClient;
     LmsClient lmsClient;
+    DocumentClient documentClient;
+    BlogClient blogClient;
 
     VerificationTokenService verificationTokenService;
 
@@ -151,6 +155,18 @@ public class AccountService {
         }
 
         if (profileId != null) {
+            try {
+                documentClient.deleteByOwnerId(profileId);
+            } catch (Exception e) {
+                log.error("Error deleting documents for profile: {}", profileId, e);
+            }
+
+            try {
+                blogClient.deleteByOwnerId(profileId);
+            } catch (Exception e) {
+                log.error("Error deleting blogs for profile: {}", profileId, e);
+            }
+
             try {
                 lmsClient.deleteTutor(profileId);
             } catch (Exception e) {

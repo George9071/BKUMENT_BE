@@ -4,13 +4,14 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 import org.springframework.data.neo4j.core.Neo4jClient;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import vn.edu.hcmut.document.event.UserDownloadedDocumentEvent;
 
 @Service
 @RequiredArgsConstructor
@@ -19,9 +20,14 @@ public class GraphSyncService {
 
     private final Neo4jClient neo4jClient;
 
-    @Async("graphExecutor")
-    public void handleDownloadEvent(String profileId, String documentId, String topicId) {
-        String timeNow = LocalDateTime.now().toString();
+    @KafkaListener(topics = "document-download-events", groupId = "document-graph-sync-group")
+    public void handleDownloadEvent(UserDownloadedDocumentEvent event) {
+        String profileId = event.getProfileId();
+        String documentId = event.getDocumentId();
+        String topicId = event.getTopicId();
+        String timeNow = event.getTimestamp() != null
+                ? event.getTimestamp()
+                : LocalDateTime.now().toString();
 
         String baseQuery =
                 """
@@ -54,7 +60,34 @@ public class GraphSyncService {
 
             log.info("Neo4j: User {} downloaded Doc {}", profileId, documentId);
         } catch (Exception e) {
-            log.error("Lỗi đồng bộ Neo4j: {}", e.getMessage());
+            log.error("Lỗi đồng bộ Neo4j (Download): {}", e.getMessage());
+        }
+    }
+
+    @Async("graphExecutor")
+    public void handleViewEvent(String profileId, String documentId) {
+        String timeNow = LocalDateTime.now().toString();
+
+        String query =
+                """
+				MERGE (a:UserProfile {id: $profileId})
+				MERGE (d:Document {id: $documentId})
+				MERGE (a)-[r:VIEWED]->(d)
+				ON CREATE SET r.firstViewedAt = datetime($time), r.viewCount = 1
+				ON MATCH SET r.lastViewedAt = datetime($time), r.viewCount = r.viewCount + 1
+				""";
+
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("profileId", profileId);
+            params.put("documentId", documentId);
+            params.put("time", timeNow);
+
+            neo4jClient.query(query).bindAll(params).run();
+
+            log.info("Neo4j: User {} viewed Doc {}", profileId, documentId);
+        } catch (Exception e) {
+            log.error("Lỗi đồng bộ Neo4j (View): {}", e.getMessage());
         }
     }
 

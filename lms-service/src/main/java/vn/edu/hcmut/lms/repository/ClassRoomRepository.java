@@ -60,4 +60,7 @@ public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
             "LEFT JOIN FETCH c.schedules " +
             "WHERE c.id = :classId")
     Optional<ClassRoom> findClassRoomById(@Param("classId") String classId);
+
+    List<ClassRoom> findByTutorId(String tutorId);
+    void deleteByTutorId(String tutorId);
 }

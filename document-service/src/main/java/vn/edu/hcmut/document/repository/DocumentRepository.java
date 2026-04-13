@@ -1,5 +1,8 @@
 package vn.edu.hcmut.document.repository;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,7 +17,7 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
     @Modifying
     @Transactional
     @Query("UPDATE Resource r SET r.views = COALESCE(r.views, 0) + 1 WHERE r.id IN :ids")
-    void incrementViews(@Param("ids") java.util.List<String> ids);
+    void incrementViews(@Param("ids") List<String> ids);
 
     Page<Document> findByTitleContainingIgnoreCase(String keyword, Pageable pageable);
 
@@ -24,7 +27,25 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
 
     Page<Document> findByCourseId(String courseId, Pageable pageable);
 
+    List<Document> findByOwnerId(String ownerId);
+
+    void deleteByOwnerId(String ownerId);
+
     Page<Document> findByOwnerId(String ownerId, Pageable pageable);
+
+    // --- Time-Decay Ranking Queries ---
+
+    @Query(
+            "SELECT d FROM Document d JOIN Resource r ON d.id = r.id WHERE r.createdAt >= :since ORDER BY r.rankingScore DESC")
+    List<Document> findRecentDocumentsOrderByRankingScore(@Param("since") LocalDateTime since, Pageable pageable);
+
+    @Query("SELECT d FROM Document d JOIN Resource r ON d.id = r.id WHERE r.createdAt >= :since")
+    List<Document> findRecentDocumentsForScoring(@Param("since") LocalDateTime since);
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE Resource r SET r.rankingScore = :score WHERE r.id = :id")
+    void updateRankingScore(@Param("id") String id, @Param("score") double score);
 
     @Query(
             value =
