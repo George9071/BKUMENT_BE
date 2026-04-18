@@ -20,4 +20,6 @@ public interface CommentRepository extends JpaRepository<Comment, String> {
 
     @Query("SELECT c.resourceId, COUNT(c) FROM Comment c GROUP BY c.resourceId")
     List<Object[]> countCommentsGroupByResourceId();
+
+    void deleteByResourceId(String resourceId);
 }
