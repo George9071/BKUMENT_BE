@@ -25,12 +25,12 @@ spring:
       password: ${NEO4J_PASSWORD}
 
 gateway:
-  base-url: http://${PUBLIC_IP}:8888
+  base-url: ${BACKEND_HOST}
   api-prefix: /api/v1
 
 swagger:
-  gateway-url: http://${PUBLIC_IP}:8888/api/v1/social
-  host-url: http://${PUBLIC_IP}:8089/social
+  gateway-url: ${BACKEND_HOST}/social
+  host-url: ${BACKEND_HOST}/social
 
 app:
   services:
