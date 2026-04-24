@@ -13,4 +13,4 @@ spring:
     password: ${POSTGRES_PASSWORD}
 
 swagger:
-  host-url: http://${PUBLIC_IP}:8888/api/v1/profile
+  host-url: ${BACKEND_HOST}/profile

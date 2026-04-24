@@ -20,4 +20,4 @@ app:
       url: http://lms-service:8082/lms
 
 swagger:
-  host-url: http://${PUBLIC_IP}:8888/api/v1/communication
+  host-url: ${BACKEND_HOST}/communication
