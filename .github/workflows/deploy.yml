@@ -54,5 +54,7 @@ jobs:
         password: ${{ secrets.DO_PASSWORD }}
         script: |
           cd /root/bkument-backend
+          docker system prune -a -f || true
+          docker builder prune -a -f || true
           docker compose down
           docker compose up -d --build
