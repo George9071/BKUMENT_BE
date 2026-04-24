@@ -104,6 +104,19 @@ public class ProfileNeo4jService {
                 profileId);
     }
 
+    @Transactional
+    public void updateUserInterests(String profileId, List<String> topicIds) {
+        neo4jClient
+                .query(CypherQueries.USER_REPLACE_INTERESTS)
+                .bindAll(Map.of(
+                        "profileId", profileId, "topicIds", topicIds != null ? topicIds : Collections.emptyList()))
+                .run();
+        log.info(
+                "Updated {} INTERESTED_IN relationships for profile {}",
+                topicIds != null ? topicIds.size() : 0,
+                profileId);
+    }
+
     public int countFollowers(String profileId) {
         Integer count = neo4jRepository.countFollowers(profileId);
         return count != null ? count : 0;

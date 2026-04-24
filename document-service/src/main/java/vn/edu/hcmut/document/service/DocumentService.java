@@ -534,7 +534,7 @@ public class DocumentService {
         if (queryString.isEmpty()) queryString = " ";
 
         Page<String> docIdsPage =
-                documentRecommendationService.getHybridRelatedDocumentIds(docId, vectorStr, queryString, pageable);
+                documentRecommendationService.getHybridRelatedDocumentIds(queryString, docId, vectorStr, pageable);
 
         if (docIdsPage.isEmpty()) {
             return Page.empty(pageable);

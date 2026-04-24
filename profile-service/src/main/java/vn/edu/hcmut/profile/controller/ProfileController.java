@@ -114,6 +114,17 @@ public class ProfileController {
                 .build();
     }
 
+    @Operation(
+            summary = "Update my interests",
+            description = "Replaces the current list of interested topics with a new one.")
+    @PutMapping("/me/interests")
+    public APIResponse<String> updateInterests(@RequestBody List<String> topicIds) {
+        profileService.updateMyInterests(topicIds);
+        return APIResponse.<String>builder()
+                .result("Interests updated successfully")
+                .build();
+    }
+
     @GetMapping("/mayKnow")
     public APIResponse<PageResponse<ProfileResponse>> getPeopleYouMayKnow(
             @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "10") int size) {

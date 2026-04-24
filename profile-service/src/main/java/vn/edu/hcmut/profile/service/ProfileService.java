@@ -140,6 +140,16 @@ public class ProfileService {
         return toProfileResponse(user);
     }
 
+    @Transactional
+    public void updateMyInterests(List<String> topicIds) {
+        String accountId = getCurrentAccountId();
+        UserProfile user = jpaRepository
+                .findByAccountId(accountId)
+                .orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
+
+        profileNeo4jService.updateUserInterests(user.getId(), topicIds);
+    }
+
     @Transactional(transactionManager = "transactionManager", rollbackFor = Exception.class)
     public void updatePoints(String profileId, long delta) {
         UserProfile user =

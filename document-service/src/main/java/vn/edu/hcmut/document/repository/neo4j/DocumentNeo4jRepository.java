@@ -19,7 +19,7 @@ public interface DocumentNeo4jRepository extends Neo4jRepository<DocumentNode, S
      */
     @Query(
             """
-			MATCH (d:DocumentNode {id: $docId})<-[:DOWNLOADED]-(u:UserNode)-[:DOWNLOADED]->(rec:DocumentNode)
+			MATCH (d:Document {id: $docId})<-[:DOWNLOADED]-(u:UserProfile)-[:DOWNLOADED]->(rec:Document)
 			WHERE rec.id <> $docId
 			RETURN rec.id AS recommendedDocId, count(u) AS weight
 			ORDER BY weight DESC
@@ -28,18 +28,36 @@ public interface DocumentNeo4jRepository extends Neo4jRepository<DocumentNode, S
     List<Map<String, Object>> findItemBasedCFRecommendations(@Param("docId") String docId, @Param("limit") int limit);
 
     /**
-     * User-based Collaborative Filtering Query ("For You" Feed):
+     * User-based Collaborative Filtering Query ("For For You" Feed):
      * Tìm những user khác có hành vi download tương tự user hiện tại `$userId`.
      * Xem họ tải tài liệu gì mà `$userId` chưa tải.
      * Trả về danh sách tài liệu gợi ý cá nhân hóa dựa trên cộng đồng.
      */
     @Query(
             """
-			MATCH (u:UserNode {id: $userId})-[:DOWNLOADED]->(doc:DocumentNode)<-[:DOWNLOADED]-(similarUser:UserNode)-[:DOWNLOADED]->(rec:DocumentNode)
+			MATCH (u:UserProfile {id: $userId})-[:DOWNLOADED]->(doc:Document)<-[:DOWNLOADED]-(similarUser:UserProfile)-[:DOWNLOADED]->(rec:Document)
 			WHERE NOT (u)-[:DOWNLOADED]->(rec)
 			RETURN rec.id AS recommendedDocId, count(similarUser) AS weight
 			ORDER BY weight DESC
 			LIMIT $limit
 			""")
     List<Map<String, Object>> findUserBasedCFRecommendations(@Param("userId") String userId, @Param("limit") int limit);
+
+    /**
+     * Cold-start Layer 2: Gợi ý theo Topic user quan tâm hoặc lớp học đang tham gia.
+     */
+    @Query(
+            """
+			MATCH (u:UserProfile {id: $userId})
+			OPTIONAL MATCH (u)-[:INTERESTED_IN]->(t1:Topic)<-[:HAS_TOPIC]-(d1:Document)
+			OPTIONAL MATCH (u)-[:ENROLLED_IN]->(:ClassRoom)-[:COVERS]->(t2:Topic)<-[:HAS_TOPIC]-(d2:Document)
+			WITH u, collect(d1) + collect(d2) AS allDocs
+			UNWIND allDocs AS d
+			WHERE d IS NOT NULL AND NOT (u)-[:DOWNLOADED]->(d)
+			RETURN d.id AS recommendedDocId, count(d) AS weight
+			ORDER BY weight DESC
+			LIMIT $limit
+			""")
+    List<Map<String, Object>> findColdStartRecommendationsByTopics(
+            @Param("userId") String userId, @Param("limit") int limit);
 }

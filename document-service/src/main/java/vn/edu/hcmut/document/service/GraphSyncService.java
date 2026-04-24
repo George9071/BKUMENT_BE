@@ -5,6 +5,7 @@ import java.util.*;
 
 import org.springframework.data.neo4j.core.Neo4jClient;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import lombok.AllArgsConstructor;

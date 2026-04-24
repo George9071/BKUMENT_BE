@@ -72,3 +72,9 @@ app:
     weight-view: 0.1
     gravity: 1.5
     window-days: 90
+  hybrid:
+    threshold-words: 10
+    weight-semantic-short: 0.2
+    weight-cf-short: 0.8
+    weight-semantic-long: 0.7
+    weight-cf-long: 0.3

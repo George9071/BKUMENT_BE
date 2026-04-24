@@ -23,20 +23,28 @@ public class DocumentRecommendationService {
     final DocumentRepository documentRepository;
     final DocumentNeo4jRepository neo4jRepository;
 
-    @Value("${app.hybrid.weight-semantic:0.4}")
-    double weightSemantic;
+    @Value("${app.hybrid.threshold-words:10}")
+    int thresholdWords;
 
-    @Value("${app.hybrid.weight-cf:0.6}")
-    double weightCf;
+    @Value("${app.hybrid.weight-semantic-short:0.2}")
+    double weightSemanticShort;
+
+    @Value("${app.hybrid.weight-cf-short:0.8}")
+    double weightCfShort;
+
+    @Value("${app.hybrid.weight-semantic-long:0.7}")
+    double weightSemanticLong;
+
+    @Value("${app.hybrid.weight-cf-long:0.3}")
+    double weightCfLong;
 
     static final int RRF_K = 60; // Hằng số phổ biến trong Reciprocal Rank Fusion
 
-    public Page<String> getHybridRelatedDocumentIds(
-            String docId, String vectorStr, String queryString, Pageable pageable) {
+    public Page<String> getHybridRelatedDocumentIds(String context, String docId, String vectorStr, Pageable pageable) {
 
         // Lấy top 50 từ Semantic Search (PGVector)
         Page<String> semanticPage =
-                documentRepository.findRelatedDocumentIds(vectorStr, queryString, docId, PageRequest.of(0, 50));
+                documentRepository.findRelatedDocumentIds(vectorStr, context, docId, PageRequest.of(0, 50));
         List<String> semanticDocs = semanticPage.getContent();
 
         // Lấy top 50 từ Item-based CF (Neo4j)
@@ -54,7 +62,21 @@ public class DocumentRecommendationService {
 
         // Nếu CF không có kết quả, fallback hoàn toàn bằng Semantic
         if (cfDocs.isEmpty()) {
-            return documentRepository.findRelatedDocumentIds(vectorStr, queryString, docId, pageable);
+            return documentRepository.findRelatedDocumentIds(vectorStr, context, docId, pageable);
+        }
+
+        // --- CONTEXTUAL HYBRID LOGIC ---
+        int wordCount =
+                (context == null || context.isBlank()) ? 0 : context.trim().split("\\s+").length;
+        double dynamicWeightSemantic;
+        double dynamicWeightCf;
+
+        if (wordCount > thresholdWords) {
+            dynamicWeightSemantic = weightSemanticLong;
+            dynamicWeightCf = weightCfLong;
+        } else {
+            dynamicWeightSemantic = weightSemanticShort;
+            dynamicWeightCf = weightCfShort;
         }
 
         // Tính rrf score
@@ -64,14 +86,14 @@ public class DocumentRecommendationService {
         for (int i = 0; i < semanticDocs.size(); i++) {
             String id = semanticDocs.get(i);
             double rrf = 1.0 / (RRF_K + i + 1);
-            finalScores.merge(id, weightSemantic * rrf, Double::sum);
+            finalScores.merge(id, dynamicWeightSemantic * rrf, Double::sum);
         }
 
         // Add CF RRF
         for (int i = 0; i < cfDocs.size(); i++) {
             String id = cfDocs.get(i);
             double rrf = 1.0 / (RRF_K + i + 1);
-            finalScores.merge(id, weightCf * rrf, Double::sum);
+            finalScores.merge(id, dynamicWeightCf * rrf, Double::sum);
         }
 
         // Sort theo score giảm dần
@@ -93,29 +115,56 @@ public class DocumentRecommendationService {
     }
 
     public Page<String> getForYouFeed(String userId, Pageable pageable) {
-        // Lấy từ user-based CF
-        List<Map<String, Object>> cfResults;
+        int pageSize = pageable.getPageSize();
+        Set<String> recommendedIds = new LinkedHashSet<>();
+
+        // Layer 1: User-based CF (Community behavior)
         try {
-            cfResults = neo4jRepository.findUserBasedCFRecommendations(userId, pageable.getPageSize());
+            List<Map<String, Object>> cfResults = neo4jRepository.findUserBasedCFRecommendations(userId, pageSize);
+            for (Map<String, Object> map : cfResults) {
+                String docId = (String) map.get("recommendedDocId");
+                if (docId != null) recommendedIds.add(docId);
+            }
         } catch (Exception e) {
-            cfResults = new ArrayList<>();
+            // Log and continue to fallback
         }
 
-        List<String> cfDocs = cfResults.stream()
-                .map(map -> (String) map.get("recommendedDocId"))
-                .filter(Objects::nonNull)
-                .toList();
-
-        if (!cfDocs.isEmpty()) {
-            return new PageImpl<>(cfDocs, pageable, cfDocs.size());
+        // Layer 2: Onboarding Topics & Enrolled Classes (Interest/Domain based) - COLD START SOLUTION
+        if (recommendedIds.size() < pageSize) {
+            try {
+                List<Map<String, Object>> topicResults =
+                        neo4jRepository.findColdStartRecommendationsByTopics(userId, pageSize);
+                for (Map<String, Object> map : topicResults) {
+                    String docId = (String) map.get("recommendedDocId");
+                    if (docId != null) recommendedIds.add(docId);
+                    if (recommendedIds.size() >= pageSize) break;
+                }
+            } catch (Exception e) {
+                // Log and continue to fallback
+            }
         }
 
-        // Fallback Logic: Lấy Top Trending (RankingScore) nếu feed rỗng (người dùng mới)
-        java.time.LocalDateTime since = java.time.LocalDateTime.now().minusDays(90);
-        List<String> fallbackIds = documentRepository.findRecentDocumentsOrderByRankingScore(since, pageable).stream()
-                .map(vn.edu.hcmut.document.entity.Document::getId)
-                .toList();
+        // Layer 3: General Trending (Global fallback)
+        if (recommendedIds.size() < pageSize) {
+            java.time.LocalDateTime since = java.time.LocalDateTime.now().minusDays(90);
+            List<vn.edu.hcmut.document.entity.Document> trendingDocs =
+                    documentRepository.findRecentDocumentsOrderByRankingScore(since, PageRequest.of(0, pageSize));
+            for (vn.edu.hcmut.document.entity.Document doc : trendingDocs) {
+                recommendedIds.add(doc.getId());
+                if (recommendedIds.size() >= pageSize) break;
+            }
+        }
 
-        return new PageImpl<>(fallbackIds, pageable, fallbackIds.size());
+        List<String> finalIds = new ArrayList<>(recommendedIds);
+
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), finalIds.size());
+
+        if (start > finalIds.size() || start < 0) {
+            return new PageImpl<>(List.of(), pageable, finalIds.size());
+        }
+
+        List<String> pagedIds = finalIds.subList(start, end);
+        return new PageImpl<>(pagedIds, pageable, finalIds.size());
     }
 }

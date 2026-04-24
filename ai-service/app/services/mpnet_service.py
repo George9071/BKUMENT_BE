@@ -66,7 +66,14 @@ class VectorService:
             )
             cur = conn.cursor()
 
-            sql = """
+            # --- CONTEXTUAL HYBRID LOGIC ---
+            word_count = len(query_text.split())
+            if word_count > 5:
+                w_vector, w_keyword = 0.8, 0.2
+            else:
+                w_vector, w_keyword = 0.4, 0.6
+
+            sql = f"""
                 WITH hybrid_scores AS (
                     SELECT 
                         d.id,
@@ -96,7 +103,7 @@ class VectorService:
                     owner_id,           -- index 8
                     COUNT(*) OVER() AS total_count -- index 9
                 FROM (
-                    SELECT *, (vector_score * 0.7) + (keyword_score * 0.3) AS final_score 
+                    SELECT *, (vector_score * {w_vector}) + (keyword_score * {w_keyword}) AS final_score 
                     FROM hybrid_scores
                 ) sub
                 ORDER BY final_score DESC
