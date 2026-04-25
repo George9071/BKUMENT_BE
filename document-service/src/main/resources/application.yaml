@@ -42,12 +42,12 @@ minio:
   secure: false
 
 gateway:
-  base-url: http://${PUBLIC_IP}:8888
+  base-url: ${BACKEND_HOST}
   api-prefix: /api/v1
 
 swagger:
-  gateway-url: http://${PUBLIC_IP}:8888/api/v1/document
-  host-url: http://${PUBLIC_IP}:8086/document
+  gateway-url: ${BACKEND_HOST}/document
+  host-url: ${BACKEND_HOST}/document
 
 app:
   services:

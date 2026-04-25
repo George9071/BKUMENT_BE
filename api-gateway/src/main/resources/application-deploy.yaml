@@ -92,13 +92,13 @@ spring:
               - http://localhost:5173
               - http://localhost:3000
               - https://bkument-fe.vercel.app
-              - http://${PUBLIC_IP}:8888
+              - ${BACKEND_HOST}
             allowedMethods: "*"
             allowedHeaders: "*"
             allow-credentials: true
 
 swagger:
-  host-url: http://${PUBLIC_IP}:8888
+  host-url: ${BACKEND_HOST}
 
 app:
   services:
