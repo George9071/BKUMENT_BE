@@ -60,4 +60,22 @@ public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
             "LEFT JOIN FETCH c.schedules " +
             "WHERE c.id = :classId")
     Optional<ClassRoom> findClassRoomById(@Param("classId") String classId);
+
+    @Query(value = """
+        SELECT c.* FROM class_room c
+        JOIN tutor t ON c.tutor_id = t.id
+        LEFT JOIN (
+            SELECT class_id, COUNT(*) as enroll_count\s
+            FROM enrollments\s
+            GROUP BY class_id
+        ) e ON c.id = e.class_id
+        WHERE c.status IN ('ENROLLING', 'ONGOING')
+        ORDER BY (COALESCE(t.average_rating, 0) * 10 + COALESCE(e.enroll_count, 0)) DESC
+    """, 
+    countQuery = """
+        SELECT count(*) FROM class_room c\s
+        WHERE c.status IN ('ENROLLING', 'ONGOING')
+    """,
+    nativeQuery = true)
+    Page<ClassRoom> findTopTrendingClasses(Pageable pageable);
 }

@@ -270,4 +270,28 @@ public class GraphSyncService {
         neo4jClient.query(query).bindAll(Map.of("data", params)).run();
         log.info("Neo4j: Synced {} topics with BELONGS_TO relationships.", topics.size());
     }
+
+    public List<String> getRecommendedClassRoomIds(String profileId, int limit) {
+        String query = """
+            MATCH (u:UserProfile {id: $profileId})-[:DOWNLOADED]->(d:Document)-[:HAS_TOPIC]->(t:Topic)<-[:COVERS]-(c:ClassRoom)
+            WHERE NOT (u)-[:ENROLLED_IN]->(c)
+            RETURN c.id AS classroomId, count(d) AS weight
+            ORDER BY weight DESC
+            LIMIT $limit
+            """;
+
+        try {
+            return neo4jClient.query(query)
+                    .bind(profileId).to("profileId")
+                    .bind(limit).to("limit")
+                    .fetch()
+                    .all()
+                    .stream()
+                    .map(row -> (String) row.get("classroomId"))
+                    .toList();
+        } catch (Exception e) {
+            log.error("Neo4j: Failed to get course recommendations for user {}", profileId, e);
+            return List.of();
+        }
+    }
 }

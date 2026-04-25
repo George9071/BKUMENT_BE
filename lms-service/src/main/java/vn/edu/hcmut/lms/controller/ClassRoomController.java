@@ -152,6 +152,28 @@ public class ClassRoomController {
                 .build();
     }
 
+    @Operation(summary = "Get top trending classes",
+            description = "Retrieve classrooms ranked by tutor rating and popularity.")
+    @GetMapping("/trending")
+    public APIResponse<PageResponse<ClassRoomResponse>> getTopTrendingClasses(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return APIResponse.<PageResponse<ClassRoomResponse>>builder()
+                .result(classRoomService.getTopTrendingClasses(page, size))
+                .build();
+    }
+
+    @Operation(summary = "Get recommended classes",
+            description = "Recommend courses based on users' downloaded documents by topic.")
+    @GetMapping("/recommendations")
+    public APIResponse<PageResponse<ClassRoomResponse>> getRecommendedClasses(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return APIResponse.<PageResponse<ClassRoomResponse>>builder()
+                .result(classRoomService.getRecommendedClasses(page, size))
+                .build();
+    }
+
     @Operation(
             summary = "Student leaves a class",
             description = "The student voluntarily left the classroom."
