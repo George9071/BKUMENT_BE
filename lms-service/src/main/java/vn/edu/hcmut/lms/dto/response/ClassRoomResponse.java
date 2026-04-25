@@ -34,6 +34,7 @@ public class ClassRoomResponse {
     String coverImageUrl;
 
     String userStatus;
+    Integer numberOfStudent;
 
     @Data
     @Builder

@@ -162,7 +162,9 @@ public class ClassRoomService {
                     res.setUserStatus("OWNER");
                     return res;
                 })
-                .toList();
+                .collect(Collectors.toList());
+
+        populateEnrollmentCounts(responses);
 
         return buildPageResponse(responses, page, classes);
     }
@@ -187,7 +189,9 @@ public class ClassRoomService {
                     res.setUserStatus(e.getStatus().name());
                     return res;
                 })
-                .toList();
+                .collect(Collectors.toList());
+
+        populateEnrollmentCounts(responses);
 
         return buildPageResponse(responses, page, enrollments);
     }
@@ -209,7 +213,9 @@ public class ClassRoomService {
                     res.setUserStatus(statusMap.get(c.getId()));
                     return res;
                 })
-                .toList();
+                .collect(Collectors.toList());
+
+        populateEnrollmentCounts(responses);
 
         return buildPageResponse(responses, page, classes);
     }
@@ -227,6 +233,8 @@ public class ClassRoomService {
 
         ClassRoomResponse response = classMapper.toResponse(classroom);
         response.setUserStatus(statusResolver.resolve(classroom, userId));
+        
+        populateEnrollmentCounts(Collections.singletonList(response));
 
         return response;
     }
@@ -323,14 +331,16 @@ public class ClassRoomService {
 
                     List<ClassRoomResponse> classResponses = classes.stream()
                             .map(classMapper::toResponse)
-                            .toList();
+                            .collect(Collectors.toList());
+
+                    populateEnrollmentCounts(classResponses);
 
                     return TutorSearchResponse.builder()
                             .tutor(tutorResponse)
                             .matchingClasses(classResponses)
                             .build();
                 })
-                .toList();
+                .collect(Collectors.toList());
     }
 
     private <T> PageResponse<T> paginateInMemory(List<T> data, int page, int size) {
@@ -364,7 +374,9 @@ public class ClassRoomService {
                     res.setUserStatus(statusMap.get(c.getId()));
                     return res;
                 })
-                .toList();
+                .collect(Collectors.toList());
+
+        populateEnrollmentCounts(responses);
 
         return buildPageResponse(responses, page, classes);
     }
@@ -392,7 +404,7 @@ public class ClassRoomService {
         List<ClassRoom> sortedClasses = recommendedIds.stream()
                 .map(classMap::get)
                 .filter(Objects::nonNull)
-                .toList();
+                .collect(Collectors.toList());
 
         int totalElements = sortedClasses.size();
         int from = Math.max(0, (page > 0 ? page - 1 : 0) * size);
@@ -407,7 +419,9 @@ public class ClassRoomService {
                     res.setUserStatus(statusMap.get(c.getId()));
                     return res;
                 })
-                .toList();
+                .collect(Collectors.toList());
+
+        populateEnrollmentCounts(responses);
 
         return PageResponse.<ClassRoomResponse>builder()
                 .currentPage(page)
@@ -435,5 +449,17 @@ public class ClassRoomService {
                 .totalElements(source.getTotalElements())
                 .data(data)
                 .build();
+    }
+
+    private void populateEnrollmentCounts(List<ClassRoomResponse> responses) {
+        if (responses.isEmpty()) return;
+        List<String> ids = responses.stream().map(ClassRoomResponse::getId).toList();
+        List<Object[]> counts = enrollmentRepository.countByClassRoomIdIn(ids);
+        Map<String, Integer> countMap = counts.stream()
+                .collect(Collectors.toMap(
+                        row -> (String) row[0],
+                        row -> ((Long) row[1]).intValue()
+                ));
+        responses.forEach(res -> res.setNumberOfStudent(countMap.getOrDefault(res.getId(), 0)));
     }
 }

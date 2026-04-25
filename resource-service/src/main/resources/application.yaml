@@ -13,5 +13,10 @@ minio:
 
 # Swagger Configuration
 swagger:
+<<<<<<< Updated upstream
   gateway-url: ${BACKEND_HOST}/resource
   host-url: ${BACKEND_HOST}/resource
+=======
+  gateway-url: ${BACKEND_HOST}/api/v1/resource
+  host-url: http://localhost:8090/resource
+>>>>>>> Stashed changes

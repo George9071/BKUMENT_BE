@@ -18,4 +18,8 @@ app:
     identity: http://identity-service:8080/identity
 
 swagger:
+<<<<<<< Updated upstream
   host-url: ${BACKEND_HOST}/lms
+=======
+  gateway-url: ${BACKEND_HOST}/api/v1/lms
+>>>>>>> Stashed changes

@@ -34,7 +34,7 @@ jwt:
 
 swagger:
   host-url: http://localhost:8080/identity
-  gateway-url: http://localhost:8888/api/v1/identity
+  gateway-url: ${BACKEND_HOST}/api/v1/identity
 
 app:
   services:

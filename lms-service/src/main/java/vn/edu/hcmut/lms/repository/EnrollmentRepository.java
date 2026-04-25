@@ -48,4 +48,10 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, String> 
             Pageable pageable);
 
     List<Enrollment> findByStudentProfileIdAndClassRoomIdIn(String studentProfileId, List<String> classRoomIds);
+
+    @Query("SELECT e.classRoom.id as classId, count(e) as count " +
+            "FROM Enrollment e " +
+            "WHERE e.classRoom.id IN :classIds " +
+            "GROUP BY e.classRoom.id")
+    List<Object[]> countByClassRoomIdIn(@Param("classIds") List<String> classIds);
 }
