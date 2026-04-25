@@ -13,8 +13,4 @@ spring:
     password: ${POSTGRES_PASSWORD}
 
 swagger:
-<<<<<<< Updated upstream
-  host-url: ${BACKEND_HOST}/profile
-=======
   gateway-url: ${BACKEND_HOST}/api/v1/profile
->>>>>>> Stashed changes

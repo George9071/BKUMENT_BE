@@ -20,8 +20,4 @@ app:
       url: http://lms-service:8082/lms
 
 swagger:
-<<<<<<< Updated upstream
-  host-url: ${BACKEND_HOST}/communication
-=======
   gateway-url: ${BACKEND_HOST}/api/v1/communication
->>>>>>> Stashed changes

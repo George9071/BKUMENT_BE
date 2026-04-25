@@ -29,12 +29,7 @@ gateway:
   api-prefix: /api/v1
 
 swagger:
-<<<<<<< Updated upstream
-  gateway-url: ${BACKEND_HOST}/social
-  host-url: ${BACKEND_HOST}/social
-=======
   gateway-url: ${BACKEND_HOST}/api/v1/social
->>>>>>> Stashed changes
 
 app:
   services:
