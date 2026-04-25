@@ -13,8 +13,4 @@ app:
     lms: http://lms-service:8082/lms
 
 swagger:
-<<<<<<< Updated upstream
-  host-url: ${BACKEND_HOST}/identity
-=======
   gateway-url: ${BACKEND_HOST}/api/v1/identity
->>>>>>> Stashed changes
