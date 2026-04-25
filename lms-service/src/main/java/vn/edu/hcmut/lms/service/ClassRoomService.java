@@ -38,24 +38,24 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 public class ClassRoomService {
     // --- Repositories ---
-    ClassRoomRepository classRoomRepository;
-    TopicRepository topicRepository;
-    TutorRepository tutorRepository;
-    EnrollmentRepository enrollmentRepository;
+    private final ClassRoomRepository classRoomRepository;
+    private final TopicRepository topicRepository;
+    private final TutorRepository tutorRepository;
+    private final EnrollmentRepository enrollmentRepository;
 
     // --- Mappers ---
-    ClassRoomMapper classMapper;
-    TutorMapper tutorMapper;
+    private final ClassRoomMapper classMapper;
+    private final TutorMapper tutorMapper;
 
     // --- Supporting services ---
-    ValidationService validationService;
-    ClassRoomSyncService classRoomSyncService;
-    ClassroomUserStatusResolver statusResolver;
-    SecurityUtils securityUtils;
+    private final ValidationService validationService;
+    private final ClassRoomSyncService classRoomSyncService;
+    private final GraphSyncService graphSyncService;
+    private final ClassroomUserStatusResolver statusResolver;
+    private final SecurityUtils securityUtils;
 
     /**
      * Creates a new classroom with the authenticated user as the tutor.
@@ -347,6 +347,74 @@ public class ClassRoomService {
                 .pageSize(size)
                 .totalElements(totalElements)
                 .data(paged)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ClassRoomResponse> getTopTrendingClasses(int page, int size) {
+        Pageable pageable = toPageable(page, size);
+        Page<ClassRoom> classes = classRoomRepository.findTopTrendingClasses(pageable);
+
+        String userId = securityUtils.getSafeProfileId();
+        Map<String, String> statusMap = statusResolver.resolveBatch(classes.getContent(), userId);
+
+        List<ClassRoomResponse> responses = classes.getContent().stream()
+                .map(c -> {
+                    ClassRoomResponse res = classMapper.toResponse(c);
+                    res.setUserStatus(statusMap.get(c.getId()));
+                    return res;
+                })
+                .toList();
+
+        return buildPageResponse(responses, page, classes);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ClassRoomResponse> getRecommendedClasses(int page, int size) {
+        String profileId = securityUtils.getProfileId();
+
+        List<String> recommendedIds = graphSyncService.getRecommendedClassRoomIds(profileId, 50);
+
+        if (recommendedIds.isEmpty()) {
+            return PageResponse.<ClassRoomResponse>builder()
+                    .currentPage(page)
+                    .totalPages(0)
+                    .pageSize(size)
+                    .totalElements(0L)
+                    .data(new ArrayList<>())
+                    .build();
+        }
+
+        List<ClassRoom> classes = classRoomRepository.findAllById(recommendedIds);
+        Map<String, ClassRoom> classMap = classes.stream()
+                .collect(Collectors.toMap(ClassRoom::getId, c -> c));
+
+        List<ClassRoom> sortedClasses = recommendedIds.stream()
+                .map(classMap::get)
+                .filter(Objects::nonNull)
+                .toList();
+
+        int totalElements = sortedClasses.size();
+        int from = Math.max(0, (page > 0 ? page - 1 : 0) * size);
+        int to = Math.min(from + size, totalElements);
+        List<ClassRoom> pagedClasses = (from < totalElements) ? sortedClasses.subList(from, to) : new ArrayList<>();
+
+        Map<String, String> statusMap = statusResolver.resolveBatch(pagedClasses, profileId);
+
+        List<ClassRoomResponse> responses = pagedClasses.stream()
+                .map(c -> {
+                    ClassRoomResponse res = classMapper.toResponse(c);
+                    res.setUserStatus(statusMap.get(c.getId()));
+                    return res;
+                })
+                .toList();
+
+        return PageResponse.<ClassRoomResponse>builder()
+                .currentPage(page)
+                .totalPages((int) Math.ceil((double) totalElements / size))
+                .pageSize(size)
+                .totalElements(totalElements)
+                .data(responses)
                 .build();
     }
 
