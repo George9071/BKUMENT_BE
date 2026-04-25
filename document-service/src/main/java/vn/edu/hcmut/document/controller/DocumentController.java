@@ -160,7 +160,7 @@ public class DocumentController {
                     .university(doc.getUniversity())
                     .course(doc.getCourse())
                     .description(doc.getDescription())
-                    .downloadable(doc.isDownloadable())
+                    .downloadable(doc.getDownloadable())
                     .downloadUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()
                             + "/document/download/" + doc.getId())
                     .viewUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()

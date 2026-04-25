@@ -115,29 +115,31 @@ public class DocumentRecommendationService {
     }
 
     public Page<String> getForYouFeed(String userId, Pageable pageable) {
-        int pageSize = pageable.getPageSize();
+        int poolSize = 200; // Tập hợp tối đa 200 gợi ý để hỗ trợ phân trang
         Set<String> recommendedIds = new LinkedHashSet<>();
 
         // Layer 1: User-based CF (Community behavior)
-        try {
-            List<Map<String, Object>> cfResults = neo4jRepository.findUserBasedCFRecommendations(userId, pageSize);
-            for (Map<String, Object> map : cfResults) {
-                String docId = (String) map.get("recommendedDocId");
-                if (docId != null) recommendedIds.add(docId);
+        if (userId != null) {
+            try {
+                List<Map<String, Object>> cfResults = neo4jRepository.findUserBasedCFRecommendations(userId, poolSize);
+                for (Map<String, Object> map : cfResults) {
+                    String docId = (String) map.get("recommendedDocId");
+                    if (docId != null) recommendedIds.add(docId);
+                }
+            } catch (Exception e) {
+                // Log and continue to fallback
             }
-        } catch (Exception e) {
-            // Log and continue to fallback
         }
 
         // Layer 2: Onboarding Topics & Enrolled Classes (Interest/Domain based) - COLD START SOLUTION
-        if (recommendedIds.size() < pageSize) {
+        if (recommendedIds.size() < poolSize && userId != null) {
             try {
                 List<Map<String, Object>> topicResults =
-                        neo4jRepository.findColdStartRecommendationsByTopics(userId, pageSize);
+                        neo4jRepository.findColdStartRecommendationsByTopics(userId, poolSize);
                 for (Map<String, Object> map : topicResults) {
                     String docId = (String) map.get("recommendedDocId");
                     if (docId != null) recommendedIds.add(docId);
-                    if (recommendedIds.size() >= pageSize) break;
+                    if (recommendedIds.size() >= poolSize) break;
                 }
             } catch (Exception e) {
                 // Log and continue to fallback
@@ -145,13 +147,13 @@ public class DocumentRecommendationService {
         }
 
         // Layer 3: General Trending (Global fallback)
-        if (recommendedIds.size() < pageSize) {
+        if (recommendedIds.size() < poolSize) {
             java.time.LocalDateTime since = java.time.LocalDateTime.now().minusDays(90);
             List<vn.edu.hcmut.document.entity.Document> trendingDocs =
-                    documentRepository.findRecentDocumentsOrderByRankingScore(since, PageRequest.of(0, pageSize));
+                    documentRepository.findRecentDocumentsOrderByRankingScore(since, PageRequest.of(0, poolSize));
             for (vn.edu.hcmut.document.entity.Document doc : trendingDocs) {
                 recommendedIds.add(doc.getId());
-                if (recommendedIds.size() >= pageSize) break;
+                if (recommendedIds.size() >= poolSize) break;
             }
         }
 
@@ -160,7 +162,7 @@ public class DocumentRecommendationService {
         int start = (int) pageable.getOffset();
         int end = Math.min((start + pageable.getPageSize()), finalIds.size());
 
-        if (start > finalIds.size() || start < 0) {
+        if (start >= finalIds.size() || start < 0) {
             return new PageImpl<>(List.of(), pageable, finalIds.size());
         }
 

@@ -344,7 +344,7 @@ public class DocumentService {
                 .createdAt(resource.getCreatedAt())
                 .description(document.getDescription())
                 .summary(document.getSummary())
-                .downloadable(document.isDownloadable())
+                .downloadable(document.getDownloadable())
                 .previewImageUrl(document.getPreviewImageUrl())
                 .views(document.getViews())
                 .build();
@@ -618,7 +618,7 @@ public class DocumentService {
                 .createdAt(document.getCreatedAt())
                 .description(document.getDescription())
                 .summary(document.getSummary())
-                .downloadable(document.isDownloadable())
+                .downloadable(document.getDownloadable())
                 .keywords(document.getKeywords())
                 .previewImageUrl(document.getPreviewImageUrl())
                 .views(document.getViews())

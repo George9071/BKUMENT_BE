@@ -19,6 +19,8 @@ import vn.edu.hcmut.social.enums.ReportStatus;
 import vn.edu.hcmut.social.enums.ReportType;
 import vn.edu.hcmut.social.exception.AppException;
 import vn.edu.hcmut.social.exception.ErrorCode;
+import vn.edu.hcmut.social.repository.CommentRepository;
+import vn.edu.hcmut.social.repository.RatingRepository;
 import vn.edu.hcmut.social.repository.ReportRepository;
 import vn.edu.hcmut.social.repository.httpclient.BlogClient;
 import vn.edu.hcmut.social.repository.httpclient.DocumentClient;
