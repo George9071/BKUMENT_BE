@@ -16,54 +16,48 @@ import io.swagger.v3.oas.models.servers.Server;
 
 @Configuration
 public class OpenApiConfiguration {
-	private static final String SECURITY_SCHEME_NAME = "bearerAuth";
+        private static final String SECURITY_SCHEME_NAME = "bearerAuth";
 
-    @Value("${swagger.gateway-url}")
-    private String gateway;
+        @Value("${swagger.gateway-url}")
+        private String gateway;
 
-    @Value("${swagger.host-url}")
-    private String self_host;
+        // the "public" group (excludes internal paths)
+        @Bean
+        public GroupedOpenApi publicApi() {
+                return GroupedOpenApi.builder()
+                                .group("public")
+                                .pathsToMatch("/**")
+                                .pathsToExclude("/**/internal/**")
+                                .build();
+        }
 
-    // the "public" group (excludes internal paths)
-    @Bean
-    public GroupedOpenApi publicApi() {
-        return GroupedOpenApi.builder()
-                .group("public")
-                .pathsToMatch("/**")
-                .pathsToExclude("/**/internal/**")
-                .build();
-    }
+        // the "internal" group
+        @Bean
+        public GroupedOpenApi internalApi() {
+                return GroupedOpenApi.builder()
+                                .group("internal")
+                                .pathsToMatch("/**")
+                                .build();
+        }
 
-    // the "internal" group
-    @Bean
-    public GroupedOpenApi internalApi() {
-        return GroupedOpenApi.builder()
-                .group("internal")
-                .pathsToMatch("/**")
-                .build();
-    }
+        @Bean
+        public OpenAPI customOpenAPI() {
+                return new OpenAPI()
+                                .info(new Info().title("BKUMENT").version("1.0").description("APIs for lms-service"))
+                                // --- SERVER CONFIGURATION---
+                .servers(List.of(new Server().url(gateway).description("API Gateway (Default)")))
 
-    @Bean
-    public OpenAPI customOpenAPI() {
-        return new OpenAPI()
-                .info(new Info().title("BKUMENT").version("1.0").description("APIs for lms-service"))
-                // --- SERVER CONFIGURATION---
-                .servers(List.of(
-                        new Server().url(gateway).description("API Gateway (Default)"),
-                        new Server().url(self_host).description("Direct Local (Bypass Gateway)")
-                ))
-
-                // --- SECURITY CONFIGURATION---
-                .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
-                .components(new Components()
-                        .addSecuritySchemes(
-                                SECURITY_SCHEME_NAME,
-                                new SecurityScheme()
-                                        .name(SECURITY_SCHEME_NAME)
-                                        .type(SecurityScheme.Type.HTTP)
-                                        .scheme("bearer")
-                                        .bearerFormat("JWT")
-                                        .description("JWT Authorization header using the Bearer scheme. "
-                                                + "Example: \"Authorization: Bearer {token}\"")));
-    }
+                                // --- SECURITY CONFIGURATION---
+                                .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
+                                .components(new Components()
+                                                .addSecuritySchemes(
+                                                                SECURITY_SCHEME_NAME,
+                                                                new SecurityScheme()
+                                                                                .name(SECURITY_SCHEME_NAME)
+                                                                                .type(SecurityScheme.Type.HTTP)
+                                                                                .scheme("bearer")
+                                                                                .bearerFormat("JWT")
+                                                                                .description("JWT Authorization header using the Bearer scheme. "
+                                                                                                + "Example: \"Authorization: Bearer {token}\"")));
+        }
 }

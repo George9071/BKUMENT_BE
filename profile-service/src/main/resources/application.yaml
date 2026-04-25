@@ -31,7 +31,7 @@ spring:
 
 swagger:
   host-url: http://localhost:8081/profile
-  gateway-url: http://localhost:8888/api/v1/profile
+  gateway-url: ${BACKEND_HOST}/api/v1/profile
 
 jwt:
   signerKey: ${JWT_SIGNER_KEY}

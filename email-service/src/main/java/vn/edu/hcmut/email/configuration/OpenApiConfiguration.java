@@ -7,6 +7,7 @@ import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import org.springdoc.core.models.GroupedOpenApi;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,6 +16,9 @@ import java.util.List;
 @Configuration
 public class OpenApiConfiguration {
     private static final String SECURITY_SCHEME_NAME = "bearerAuth";
+
+    @Value("${swagger.gateway-url}")
+    private String gateway;
 
     // 1. Define the "Public" Group (Excludes internal paths)
     @Bean
@@ -36,9 +40,7 @@ public class OpenApiConfiguration {
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
                 .info(new Info().title("BKUMENT").version("1.0").description("APIs for email-service"))
-                .servers(List.of(
-                        new Server().url("http://localhost:8888/api/v1/email").description("Gateway"),
-                        new Server().url("http://localhost:8084/email").description("Local")))
+                .servers(List.of(new Server().url(gateway).description("API Gateway (Default)")))
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
                 .components(new Components()
                         .addSecuritySchemes(

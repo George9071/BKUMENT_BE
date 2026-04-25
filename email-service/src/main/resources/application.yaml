@@ -28,6 +28,7 @@ notification:
 
 swagger:
   host-url: http://localhost:8084/email
+  gateway-url: ${BACKEND_HOST}/api/v1/email
 
 #logging:
 #  level:

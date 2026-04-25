@@ -7,4 +7,8 @@ spring:
 #      uri: mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@${DB_HOST}:27017/communication?authSource=admin
 
 swagger:
+<<<<<<< Updated upstream
   host-url: ${BACKEND_HOST}/email
+=======
+  gateway-url: ${BACKEND_HOST}/api/v1/email
+>>>>>>> Stashed changes

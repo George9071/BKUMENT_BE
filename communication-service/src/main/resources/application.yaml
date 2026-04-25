@@ -43,4 +43,4 @@ app:
 
 swagger:
   host-url: http://localhost:8083/communication
-  gateway-url: http://localhost:8888/api/v1/communication
+  gateway-url: ${BACKEND_HOST}/api/v1/communication

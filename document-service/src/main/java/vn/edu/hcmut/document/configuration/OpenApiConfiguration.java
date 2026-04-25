@@ -21,9 +21,6 @@ public class OpenApiConfiguration {
     @Value("${swagger.gateway-url}")
     private String gateway;
 
-    @Value("${swagger.host-url}")
-    private String self_host;
-
     // the "public" group (excludes internal paths)
     @Bean
     public GroupedOpenApi publicApi() {
@@ -45,9 +42,7 @@ public class OpenApiConfiguration {
         return new OpenAPI()
                 .info(new Info().title("BKUMENT").version("1.0").description("APIs for Document-service"))
                 // --- SERVER CONFIGURATION---
-                .servers(List.of(
-                        new Server().url(gateway).description("API Gateway (Default)"),
-                        new Server().url(self_host).description("Direct Local (Bypass Gateway)")))
+                .servers(List.of(new Server().url(gateway).description("API Gateway (Default)")))
 
                 // --- SECURITY CONFIGURATION---
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
