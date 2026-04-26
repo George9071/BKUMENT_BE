@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import vn.edu.hcmut.document.dto.RecommendationItem;
 import vn.edu.hcmut.document.repository.DocumentRepository;
 import vn.edu.hcmut.document.repository.neo4j.DocumentNeo4jRepository;
 
@@ -40,7 +41,8 @@ public class DocumentRecommendationService {
 
     static final int RRF_K = 60; // Hằng số phổ biến trong Reciprocal Rank Fusion
 
-    public Page<String> getHybridRelatedDocumentIds(String context, String docId, String vectorStr, Pageable pageable) {
+    public Page<RecommendationItem> getHybridRelatedDocumentIds(
+            String context, String docId, String vectorStr, Pageable pageable) {
 
         // Lấy top 50 từ Semantic Search (PGVector)
         Page<String> semanticPage =
@@ -62,7 +64,13 @@ public class DocumentRecommendationService {
 
         // Nếu CF không có kết quả, fallback hoàn toàn bằng Semantic
         if (cfDocs.isEmpty()) {
-            return documentRepository.findRelatedDocumentIds(vectorStr, context, docId, pageable);
+            Page<String> ids = documentRepository.findRelatedDocumentIds(vectorStr, context, docId, pageable);
+            return ids.map(id -> RecommendationItem.builder()
+                    .docId(id)
+                    .reason(vn.edu.hcmut.document.dto.response.RecommendationReason.builder()
+                            .type("SIMILAR")
+                            .build())
+                    .build());
         }
 
         // --- CONTEXTUAL HYBRID LOGIC ---
@@ -110,63 +118,100 @@ public class DocumentRecommendationService {
             return new PageImpl<>(List.of(), pageable, hybridRankedIds.size());
         }
 
-        List<String> pagedIds = hybridRankedIds.subList(start, end);
-        return new PageImpl<>(pagedIds, pageable, hybridRankedIds.size());
+        List<RecommendationItem> items = hybridRankedIds.subList(start, end).stream()
+                .map(id -> RecommendationItem.builder()
+                        .docId(id)
+                        .reason(vn.edu.hcmut.document.dto.response.RecommendationReason.builder()
+                                .type("SIMILAR")
+                                .build())
+                        .build())
+                .toList();
+
+        return new PageImpl<>(items, pageable, hybridRankedIds.size());
     }
 
-    public Page<String> getForYouFeed(String userId, Pageable pageable) {
-        int poolSize = 200; // Tập hợp tối đa 200 gợi ý để hỗ trợ phân trang
-        Set<String> recommendedIds = new LinkedHashSet<>();
+    public Page<RecommendationItem> getForYouFeed(String userId, Pageable pageable) {
+        int poolSize = 200;
+        Map<String, RecommendationItem> recommendedItems = new LinkedHashMap<>();
 
-        // Layer 1: User-based CF (Community behavior)
+        // Layer 1: User-based CF
         if (userId != null) {
             try {
                 List<Map<String, Object>> cfResults = neo4jRepository.findUserBasedCFRecommendations(userId, poolSize);
                 for (Map<String, Object> map : cfResults) {
                     String docId = (String) map.get("recommendedDocId");
-                    if (docId != null) recommendedIds.add(docId);
+                    if (docId != null && !recommendedItems.containsKey(docId)) {
+                        recommendedItems.put(
+                                docId,
+                                RecommendationItem.builder()
+                                        .docId(docId)
+                                        .reason(vn.edu.hcmut.document.dto.response.RecommendationReason.builder()
+                                                .type((String) map.get("reasonType"))
+                                                .title((String) map.get("reasonTriggerId"))
+                                                .build())
+                                        .build());
+                    }
                 }
             } catch (Exception e) {
-                // Log and continue to fallback
+                // Log
             }
         }
 
-        // Layer 2: Onboarding Topics & Enrolled Classes (Interest/Domain based) - COLD START SOLUTION
-        if (recommendedIds.size() < poolSize && userId != null) {
+        // Layer 2: Topics & Classes
+        if (recommendedItems.size() < poolSize && userId != null) {
             try {
                 List<Map<String, Object>> topicResults =
                         neo4jRepository.findColdStartRecommendationsByTopics(userId, poolSize);
                 for (Map<String, Object> map : topicResults) {
                     String docId = (String) map.get("recommendedDocId");
-                    if (docId != null) recommendedIds.add(docId);
-                    if (recommendedIds.size() >= poolSize) break;
+                    if (docId != null && !recommendedItems.containsKey(docId)) {
+                        recommendedItems.put(
+                                docId,
+                                RecommendationItem.builder()
+                                        .docId(docId)
+                                        .reason(vn.edu.hcmut.document.dto.response.RecommendationReason.builder()
+                                                .type((String) map.get("reasonType"))
+                                                .title((String) map.get("reasonTriggerId"))
+                                                .build())
+                                        .build());
+                        if (recommendedItems.size() >= poolSize) break;
+                    }
                 }
             } catch (Exception e) {
-                // Log and continue to fallback
+                // Log
             }
         }
 
-        // Layer 3: General Trending (Global fallback)
-        if (recommendedIds.size() < poolSize) {
+        // Layer 3: Trending
+        if (recommendedItems.size() < poolSize) {
             java.time.LocalDateTime since = java.time.LocalDateTime.now().minusDays(90);
             List<vn.edu.hcmut.document.entity.Document> trendingDocs =
                     documentRepository.findRecentDocumentsOrderByRankingScore(since, PageRequest.of(0, poolSize));
             for (vn.edu.hcmut.document.entity.Document doc : trendingDocs) {
-                recommendedIds.add(doc.getId());
-                if (recommendedIds.size() >= poolSize) break;
+                if (!recommendedItems.containsKey(doc.getId())) {
+                    recommendedItems.put(
+                            doc.getId(),
+                            RecommendationItem.builder()
+                                    .docId(doc.getId())
+                                    .reason(vn.edu.hcmut.document.dto.response.RecommendationReason.builder()
+                                            .type("TRENDING")
+                                            .build())
+                                    .build());
+                    if (recommendedItems.size() >= poolSize) break;
+                }
             }
         }
 
-        List<String> finalIds = new ArrayList<>(recommendedIds);
+        List<RecommendationItem> finalItems = new ArrayList<>(recommendedItems.values());
 
         int start = (int) pageable.getOffset();
-        int end = Math.min((start + pageable.getPageSize()), finalIds.size());
+        int end = Math.min((start + pageable.getPageSize()), finalItems.size());
 
-        if (start >= finalIds.size() || start < 0) {
-            return new PageImpl<>(List.of(), pageable, finalIds.size());
+        if (start >= finalItems.size() || start < 0) {
+            return new PageImpl<>(List.of(), pageable, finalItems.size());
         }
 
-        List<String> pagedIds = finalIds.subList(start, end);
-        return new PageImpl<>(pagedIds, pageable, finalIds.size());
+        List<RecommendationItem> pagedItems = finalItems.subList(start, end);
+        return new PageImpl<>(pagedItems, pageable, finalItems.size());
     }
 }

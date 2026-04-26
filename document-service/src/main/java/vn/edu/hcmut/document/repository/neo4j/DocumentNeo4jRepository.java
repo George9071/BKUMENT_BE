@@ -37,7 +37,8 @@ public interface DocumentNeo4jRepository extends Neo4jRepository<DocumentNode, S
             """
 			MATCH (u:UserProfile {id: $userId})-[:DOWNLOADED]->(doc:Document)<-[:DOWNLOADED]-(similarUser:UserProfile)-[:DOWNLOADED]->(rec:Document)
 			WHERE NOT (u)-[:DOWNLOADED]->(rec)
-			RETURN rec.id AS recommendedDocId, count(similarUser) AS weight
+			RETURN rec.id AS recommendedDocId, count(similarUser) AS weight,
+				collect(DISTINCT doc.id)[0] AS reasonTriggerId, 'DOWNLOADED' AS reasonType
 			ORDER BY weight DESC
 			LIMIT $limit
 			""")
@@ -50,11 +51,14 @@ public interface DocumentNeo4jRepository extends Neo4jRepository<DocumentNode, S
             """
 			MATCH (u:UserProfile {id: $userId})
 			OPTIONAL MATCH (u)-[:INTERESTED_IN]->(t1:Topic)<-[:HAS_TOPIC]-(d1:Document)
-			OPTIONAL MATCH (u)-[:ENROLLED_IN]->(:ClassRoom)-[:COVERS]->(t2:Topic)<-[:HAS_TOPIC]-(d2:Document)
-			WITH u, collect(d1) + collect(d2) AS allDocs
-			UNWIND allDocs AS d
-			WHERE d IS NOT NULL AND NOT (u)-[:DOWNLOADED]->(d)
-			RETURN d.id AS recommendedDocId, count(d) AS weight
+			OPTIONAL MATCH (u)-[:ENROLLED_IN]->(c:ClassRoom)-[:COVERS]->(t2:Topic)<-[:HAS_TOPIC]-(d2:Document)
+			WITH u,
+				collect(DISTINCT {id: d1.id, triggerId: t1.id, type: 'INTERESTED_TOPIC'}) +
+				collect(DISTINCT {id: d2.id, triggerId: c.id, type: 'ENROLLED_CLASS'}) AS allItems
+			UNWIND allItems AS item
+			WITH u, item
+			WHERE item.id IS NOT NULL AND NOT (u)-[:DOWNLOADED]->(item.id)
+			RETURN item.id AS recommendedDocId, item.triggerId AS reasonTriggerId, item.type AS reasonType, count(*) AS weight
 			ORDER BY weight DESC
 			LIMIT $limit
 			""")

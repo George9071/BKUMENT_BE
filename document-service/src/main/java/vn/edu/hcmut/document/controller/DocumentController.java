@@ -133,9 +133,12 @@ public class DocumentController {
         Pageable pageable = PageRequest.of(page, size);
         String userId = getProfileIdFromTokenOrNull();
 
-        Page<Document> documents = documentService.getForYouFeed(userId, pageable);
+        Page<DocumentMetadataResponse> documents = documentService.getForYouFeed(userId, pageable);
 
-        return mapToDocumentMetadataResponsePage(documents, "Get For You feed successfully");
+        return APIResponse.<Page<DocumentMetadataResponse>>builder()
+                .result(documents)
+                .message("Get For You feed successfully")
+                .build();
     }
 
     private APIResponse<Page<DocumentMetadataResponse>> mapToDocumentMetadataResponsePage(
