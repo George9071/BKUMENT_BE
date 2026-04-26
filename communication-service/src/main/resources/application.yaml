@@ -7,7 +7,7 @@ spring:
       uri: mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@${DB_HOST:127.0.0.1}:27017/communication?authSource=admin
       auto-index-creation: true
   kafka:
-    bootstrap-servers: localhost:9094
+    bootstrap-servers: localhost:9092
     consumer:
       group-id: communication-group
       auto-offset-reset: earliest
