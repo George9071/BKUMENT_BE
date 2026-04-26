@@ -231,6 +231,12 @@ public class ClassRoomService {
         return response;
     }
 
+    public Map<String, String> getClassNamesBatch(List<String> ids) {
+        if (ids == null || ids.isEmpty()) return Map.of();
+        return classRoomRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(ClassRoom::getId, ClassRoom::getName));
+    }
+
     /**
      * Searches available classrooms by subject, topic, format, and keyword,
      * then groups results by tutor.

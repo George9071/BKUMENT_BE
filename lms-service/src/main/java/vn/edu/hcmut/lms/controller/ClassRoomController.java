@@ -16,6 +16,9 @@ import vn.edu.hcmut.lms.dto.response.*;
 import vn.edu.hcmut.lms.service.ClassRoomService;
 import vn.edu.hcmut.lms.service.EnrollmentService;
 
+import java.util.List;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/classes")
 @RequiredArgsConstructor
@@ -24,6 +27,13 @@ import vn.edu.hcmut.lms.service.EnrollmentService;
 public class ClassRoomController {
     ClassRoomService classRoomService;
     EnrollmentService enrollmentService;
+
+    @GetMapping("/internal/batch")
+    public APIResponse<Map<String, String>> getClassNamesBatch(@RequestParam List<String> ids) {
+        return APIResponse.<Map<String, String>>builder()
+                .result(classRoomService.getClassNamesBatch(ids))
+                .build();
+    }
 
     // ================================== //
     //              TUTOR APIs
