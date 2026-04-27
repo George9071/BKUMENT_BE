@@ -28,6 +28,7 @@ public class DocumentMetadataResponse {
     boolean downloadable;
     List<String> keywords;
     Long views;
+    RecommendationReason recommendationReason;
 
     String universityId;
     String courseId;

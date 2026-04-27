@@ -28,6 +28,18 @@ spring:
     authentication:
       username: ${NEO4J_USERNAME}
       password: ${NEO4J_PASSWORD}
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: document-graph-sync-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
 
 logging:
   level:
@@ -54,6 +66,16 @@ app:
     ai: http://localhost:8087/ai
     profile: http://localhost:8081/profile
     social: http://localhost:8089/social
+    lms: http://localhost:8082/lms
   ranking:
     weight-rating: 0.7
     weight-download: 0.3
+    weight-view: 0.1
+    gravity: 1.5
+    window-days: 90
+  hybrid:
+    threshold-words: 10
+    weight-semantic-short: 0.2
+    weight-cf-short: 0.8
+    weight-semantic-long: 0.7
+    weight-cf-long: 0.3

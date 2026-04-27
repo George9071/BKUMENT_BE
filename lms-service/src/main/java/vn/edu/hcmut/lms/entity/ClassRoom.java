@@ -26,6 +26,7 @@ public class ClassRoom {
     @Column(columnDefinition = "TEXT")
     String description;
 
+
     String coverImageUrl;
 
     LocalDate startDate;

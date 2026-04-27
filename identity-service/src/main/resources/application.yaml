@@ -17,7 +17,7 @@ spring:
       ddl-auto: update
     show-sql: true
   kafka:
-    bootstrap-servers: localhost:9094
+    bootstrap-servers: localhost:9092
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -39,6 +39,8 @@ swagger:
 app:
   services:
     profile: http://localhost:8081/profile
+    blog: http://localhost:8085/blog
+    document: http://localhost:8086/document
     lms: http://localhost:8082/lms
   base-url: http://localhost:8888
   fe-url: http://localhost:3000

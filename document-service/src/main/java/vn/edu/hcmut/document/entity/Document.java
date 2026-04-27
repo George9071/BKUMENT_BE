@@ -44,7 +44,7 @@ public class Document extends Resource {
     Integer downloadCount = 0;
 
     @Column(name = "is_downloadable")
-    boolean downloadable;
+    Boolean downloadable = true;
 
     @Column(name = "asset_id")
     String assetId;

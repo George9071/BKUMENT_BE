@@ -23,6 +23,8 @@ spring:
     authentication:
       username: ${NEO4J_USERNAME}
       password: ${NEO4J_PASSWORD}
+  kafka:
+    bootstrap-servers: kafka:9092
 
 minio:
   endpoint: http://${MINIO_HOST}:9000
@@ -44,5 +46,10 @@ app:
     profile: http://profile-service:8081/profile
     social: http://social-service:8089/social
   ranking:
-    weight-rating: 0.7
     weight-download: 0.3
+  hybrid:
+    threshold-words: 10
+    weight-semantic-short: 0.2
+    weight-cf-short: 0.8
+    weight-semantic-long: 0.7
+    weight-cf-long: 0.3

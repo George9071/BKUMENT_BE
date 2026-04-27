@@ -42,24 +42,38 @@ public class DocumentController {
     ProfileClient profileClient;
 
     private String getProfileIdFromToken() {
+        String profileId = getOptionalProfileIdFromToken();
+        if (profileId == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+        return profileId;
+    }
+
+    private String getOptionalProfileIdFromToken() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
+            return null;
         }
 
         if (authentication instanceof JwtAuthenticationToken jwtAuth) {
             Jwt jwt = jwtAuth.getToken();
-
-            String profileId = jwt.getClaimAsString("profile_id");
-            if (profileId == null || profileId.isBlank()) {
-                throw new AppException(ErrorCode.INVALID_TOKEN_CLAIMS);
-            }
-
-            return profileId;
+            return jwt.getClaimAsString("profile_id");
         }
 
-        throw new AppException(ErrorCode.UNAUTHENTICATED);
+        return null;
+    }
+
+    private String getProfileIdFromTokenOrNull() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
+            return null;
+        }
+        if (authentication instanceof JwtAuthenticationToken jwtAuth) {
+            Jwt jwt = jwtAuth.getToken();
+            return jwt.getClaimAsString("profile_id");
+        }
+        return null;
     }
 
     @GetMapping("/health")
@@ -112,6 +126,21 @@ public class DocumentController {
         return mapToDocumentMetadataResponsePage(documents, "Get top ranked documents successfully");
     }
 
+    @GetMapping("/for-you")
+    public APIResponse<Page<DocumentMetadataResponse>> getForYouFeed(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        String userId = getProfileIdFromTokenOrNull();
+
+        Page<DocumentMetadataResponse> documents = documentService.getForYouFeed(userId, pageable);
+
+        return APIResponse.<Page<DocumentMetadataResponse>>builder()
+                .result(documents)
+                .message("Get For You feed successfully")
+                .build();
+    }
+
     private APIResponse<Page<DocumentMetadataResponse>> mapToDocumentMetadataResponsePage(
             Page<Document> documents, String message) {
         Page<DocumentMetadataResponse> result = documents.map(doc -> {
@@ -134,7 +163,7 @@ public class DocumentController {
                     .university(doc.getUniversity())
                     .course(doc.getCourse())
                     .description(doc.getDescription())
-                    .downloadable(doc.isDownloadable())
+                    .downloadable(doc.getDownloadable())
                     .downloadUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()
                             + "/document/download/" + doc.getId())
                     .viewUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()
@@ -197,8 +226,9 @@ public class DocumentController {
 
     @GetMapping("/{docId}")
     public APIResponse<DocumentMetadataResponse> getDocumentInfo(@PathVariable String docId) {
+        String userId = getOptionalProfileIdFromToken();
         return APIResponse.<DocumentMetadataResponse>builder()
-                .result(documentService.getDocumentInfo(docId))
+                .result(documentService.getDocumentInfo(docId, userId))
                 .message("Get document info successfully")
                 .build();
     }

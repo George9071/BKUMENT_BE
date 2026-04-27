@@ -20,6 +20,8 @@ import vn.edu.hcmut.lms.exception.AppException;
 import vn.edu.hcmut.lms.exception.ErrorCode;
 import vn.edu.hcmut.lms.mapper.SubjectMapper;
 import vn.edu.hcmut.lms.mapper.TutorMapper;
+import vn.edu.hcmut.lms.repository.ClassRoomRepository;
+import vn.edu.hcmut.lms.repository.EnrollmentRepository;
 import vn.edu.hcmut.lms.repository.SubjectRepository;
 import vn.edu.hcmut.lms.repository.TutorRepository;
 import vn.edu.hcmut.lms.utils.SecurityUtils;
@@ -39,6 +41,8 @@ public class TutorService {
     TutorMapper tutorMapper;
     TutorSyncService syncService;
     SecurityUtils utils;
+    ClassRoomRepository classRoomRepository;
+    EnrollmentRepository enrollmentRepository;
 
     @Transactional(rollbackFor = Exception.class)
     public void updateTutorRating(String profileId, InternalTutorRatingRequest request) {
@@ -73,6 +77,22 @@ public class TutorService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteTutor(String profileId) {
         if (tutorRepository.existsById(profileId)) {
+            // 1. Find all classes of this tutor
+            List<String> classIds = classRoomRepository.findByTutorId(profileId).stream()
+                    .map(vn.edu.hcmut.lms.entity.ClassRoom::getId)
+                    .toList();
+
+            // 2. Delete enrollments for these classes
+            if (!classIds.isEmpty()) {
+                enrollmentRepository.deleteByClassRoomIdIn(classIds);
+                log.info("Deleted enrollments for classes of tutor: {}", profileId);
+            }
+
+            // 3. Delete classes
+            classRoomRepository.deleteByTutorId(profileId);
+            log.info("Deleted classes for tutor: {}", profileId);
+
+            // 4. Delete tutor profile
             tutorRepository.deleteById(profileId);
             syncService.revokeTutorRole(profileId);
             log.info("Deleted tutor profile for id: {}", profileId);
