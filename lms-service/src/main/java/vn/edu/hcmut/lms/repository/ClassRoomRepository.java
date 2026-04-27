@@ -21,6 +21,16 @@ public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
     Page<ClassRoom> findByTutorId(String tutorId, Pageable pageable);
 
     /**
+     * Retrieves all classes managed by a specific tutor.
+     */
+    List<ClassRoom> findByTutorId(String tutorId);
+
+    /**
+     * Deletes all classes managed by a specific tutor.
+     */
+    void deleteByTutorId(String tutorId);
+
+    /**
      * Retrieves all active classes (e.g., ENROLLING, ONGOING) for a specific tutor.
      */
     @Query("""
