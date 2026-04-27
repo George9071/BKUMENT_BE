@@ -17,6 +17,8 @@ import vn.edu.hcmut.lms.repository.SubjectRepository;
 import vn.edu.hcmut.lms.repository.TopicRepository;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -66,5 +68,11 @@ public class SubjectService {
                 .totalElements(topicPage.getTotalElements())
                 .data(responses)
                 .build();
+    }
+
+    public Map<String, String> getTopicNamesBatch(List<String> ids) {
+        if (ids == null || ids.isEmpty()) return Map.of();
+        return topicRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(Topic::getId, Topic::getName));
     }
 }

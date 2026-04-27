@@ -19,6 +19,8 @@ import vn.edu.hcmut.social.enums.ReportStatus;
 import vn.edu.hcmut.social.enums.ReportType;
 import vn.edu.hcmut.social.exception.AppException;
 import vn.edu.hcmut.social.exception.ErrorCode;
+import vn.edu.hcmut.social.repository.CommentRepository;
+import vn.edu.hcmut.social.repository.RatingRepository;
 import vn.edu.hcmut.social.repository.ReportRepository;
 import vn.edu.hcmut.social.repository.httpclient.BlogClient;
 import vn.edu.hcmut.social.repository.httpclient.DocumentClient;
@@ -35,6 +37,8 @@ public class ReportService {
     DocumentClient documentClient;
     BlogClient blogClient;
     EmailClient emailClient;
+    RatingRepository ratingRepository;
+    CommentRepository commentRepository;
 
     private boolean checkResourceExists(String targetId, ReportType type) {
         try {
@@ -128,11 +132,34 @@ public class ReportService {
             // 2. Delete resource
             deleteResource(report.getTargetId(), report.getType());
 
-            // 3. Notify owner
+            // 3. Cleanup social data (Rating & Comment)
+            try {
+                ratingRepository.deleteByResourceId(report.getTargetId());
+                commentRepository.deleteByResourceId(report.getTargetId());
+                log.info("Cleaned up social data for resource {}", report.getTargetId());
+            } catch (Exception e) {
+                log.error("Failed to cleanup social data for resource {}: {}", report.getTargetId(), e.getMessage());
+            }
+
+            // 4. Notify owner
             sendNotificationEmail(ownerId, report, true);
         } else if (ReportStatus.REJECTED.equals(status)) {
             // Notify owner that report was rejected (resource stays)
             sendNotificationEmail(ownerId, report, false);
+        }
+
+        // Item 2: USER/TUTOR discipline
+        if (ReportStatus.APPROVED.equals(status)
+                && (ReportType.USER.equals(report.getType()) || ReportType.TUTOR.equals(report.getType()))) {
+            try {
+                profileClient.updatePoints(report.getTargetId(), -100L);
+                log.info(
+                        "Deducted 100 points from profile {} due to approved {} report",
+                        report.getTargetId(),
+                        report.getType());
+            } catch (Exception e) {
+                log.error("Failed to deduct points from profile {}: {}", report.getTargetId(), e.getMessage());
+            }
         }
 
         report = reportRepository.save(report);

@@ -11,6 +11,8 @@ app:
   services:
     profile: http://profile-service:8081/profile
     lms: http://lms-service:8082/lms
+    blog: http://blog-service:8085/blog
+    document: http://document-service:8086/document
 
 swagger:
   gateway-url: ${BACKEND_HOST}/api/v1/identity

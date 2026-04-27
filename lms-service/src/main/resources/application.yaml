@@ -22,7 +22,7 @@ spring:
       username: ${NEO4J_USERNAME:username}
       password: ${NEO4J_PASSWORD:password}
   kafka:
-    bootstrap-servers: localhost:9094
+    bootstrap-servers: localhost:9092
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer

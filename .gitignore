@@ -10,3 +10,11 @@
 *.jar
 *.war
 .env
+.DS_Store
+plan.md
+SOCIAL_SYNC_AUDIT.md
+SYSTEM_OVERVIEW.md
+test-automation-skills-agents-main
+evaluation
+
+*.md

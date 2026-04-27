@@ -15,6 +15,9 @@ import vn.edu.hcmut.lms.service.SubjectService;
 
 import java.util.List;
 
+import java.util.List;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/subjects")
 @RequiredArgsConstructor
@@ -23,6 +26,13 @@ import java.util.List;
 public class SubjectController {
 
     SubjectService subjectService;
+
+    @GetMapping("/topics/internal/batch")
+    public APIResponse<Map<String, String>> getTopicNamesBatch(@RequestParam List<String> ids) {
+        return APIResponse.<Map<String, String>>builder()
+                .result(subjectService.getTopicNamesBatch(ids))
+                .build();
+    }
 
     @Operation(summary = "Get all subjects", description = "Retrieves a paginated list of all available subjects. Optional search by name.")
     @GetMapping

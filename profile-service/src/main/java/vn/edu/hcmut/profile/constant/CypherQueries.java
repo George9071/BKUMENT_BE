@@ -12,10 +12,21 @@ package vn.edu.hcmut.profile.constant;
 public final class CypherQueries {
     private CypherQueries() {}
 
-    /* Params: $profileId (String) */
     public static final String USER_DELETE = """
 			MATCH (u:UserProfile {id: $profileId})
 			DETACH DELETE u
+			""";
+
+    /* Params: $profileId (String), $topicIds (List<String>) */
+    public static final String USER_REPLACE_INTERESTS =
+            """
+			MATCH (u:UserProfile {id: $profileId})
+			OPTIONAL MATCH (u)-[r:INTERESTED_IN]->(:Topic)
+			DELETE r
+			WITH u
+			UNWIND $topicIds AS tid
+			MERGE (t:Topic {id: tid})
+			MERGE (u)-[:INTERESTED_IN]->(t)
 			""";
 
     /* Params: $profileId (String), $role (String) */

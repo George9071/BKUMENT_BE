@@ -1,18 +1,22 @@
-# Roots Makefile for BKUMENT Microservices
+# Root Makefile for BKUMENT Microservices
 
-# List of all services that have a local makefile
+# List of all sub-services
 SERVICES = ai-service \
            api-gateway \
            blog-service \
            communication-service \
            document-service \
+           email-service \
            identity-service \
            lms-service \
+           notification-service \
            profile-service \
            resource-service \
            social-service
 
-.PHONY: all help $(SERVICES)
+PWD = $(shell pwd)
+
+.PHONY: all help run-all $(SERVICES)
 
 # Default target: show help
 help:
@@ -25,18 +29,19 @@ help:
 		echo "  make $$service"; \
 	done
 	@echo ""
-	@echo "All services:"
-	@echo "  make run-all      - Start all services in parallel"
+	@echo "Automation (macOS only):"
+	@echo "  make run-all      - Opens a new terminal for EACH service and runs it"
 
-# Individual service targets
+# Individual service targets (runs in current terminal)
 $(SERVICES):
 	@echo ">>> Starting service: $@"
 	@$(MAKE) -C $@ run
 
-# Run all services in background
+# Run each service in a NEW terminal window (macOS)
 run-all:
-	@echo "Starting all services in parallel (background logs)..."
+	@echo "Launching $(words $(SERVICES)) services in separate terminals..."
 	@for service in $(SERVICES); do \
-		(echo ">>> Starting $$service..."; $(MAKE) -C $$service run) & \
-	done; \
-	wait
+		echo "Opening terminal for $$service..."; \
+		osascript -e "tell application \"Terminal\" to do script \"cd $(PWD)/$$service && make run\""; \
+	done
+	@echo "Done. All services are starting in separate windows."

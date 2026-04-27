@@ -4,10 +4,12 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -17,12 +19,12 @@ import javax.imageio.ImageIO;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -31,22 +33,23 @@ import io.minio.StatObjectResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.document.configuration.GatewayProperties;
+import vn.edu.hcmut.document.dto.RecommendationItem;
 import vn.edu.hcmut.document.dto.request.DocumentMetadataRequest;
 import vn.edu.hcmut.document.dto.response.*;
 import vn.edu.hcmut.document.entity.Document;
 import vn.edu.hcmut.document.entity.DocumentDownload;
 import vn.edu.hcmut.document.entity.Resource;
+import vn.edu.hcmut.document.event.UserDownloadedDocumentEvent;
 import vn.edu.hcmut.document.exception.AppException;
 import vn.edu.hcmut.document.exception.ErrorCode;
 import vn.edu.hcmut.document.repository.DocumentDownloadRepository;
 import vn.edu.hcmut.document.repository.DocumentRepository;
 import vn.edu.hcmut.document.repository.ResourceRepository;
 import vn.edu.hcmut.document.repository.httpclient.AiClient;
+import vn.edu.hcmut.document.repository.httpclient.LmsClient;
 import vn.edu.hcmut.document.repository.httpclient.ProfileClient;
-import vn.edu.hcmut.document.repository.httpclient.SocialClient;
 import vn.edu.hcmut.document.utils.StreamMultipartFile;
 
 @Slf4j
@@ -60,19 +63,13 @@ public class DocumentService {
     GatewayProperties gatewayProperties;
 
     MinioService minioService;
+    KafkaTemplate<String, Object> kafkaTemplate;
     GraphSyncService graphSyncService;
-    ProfileClient profileClient;
-    SocialClient socialClient;
-    AiClient aiClient;
-    DocumentAsyncService documentAsyncService;
-
-    @NonFinal
-    @Value("${app.ranking.weight-rating:0.7}")
-    double weightRating;
-
-    @NonFinal
-    @Value("${app.ranking.weight-download:0.3}")
-    double weightDownload;
+    final ProfileClient profileClient;
+    final AiClient aiClient;
+    final LmsClient lmsClient;
+    final DocumentAsyncService documentAsyncService;
+    final DocumentRecommendationService documentRecommendationService;
 
     public DocAnalyzeResponse processAndCreateDocument(String assetId, String originalFileName, String ownerId) {
         log.info("[ASSET][{}] Bắt đầu xử lý với AI Service", assetId);
@@ -181,70 +178,26 @@ public class DocumentService {
     }
 
     public Page<Document> getTopRankedDocuments(Pageable pageable) {
-        // Step 1: Fetch a batch of candidate documents (e.g., top 1000 by download or overall)
-        // For simplicity and to ensure accuracy, we'll fetch a larger set than just one page
-        // But in a real-world scenario, we might want a specialized query or caching
-        List<Document> documents = documentRepository.findAll();
+        LocalDateTime since = LocalDateTime.now().minusDays(90);
+        List<Document> pagedDocs = documentRepository.findRecentDocumentsOrderByRankingScore(since, pageable);
 
-        if (documents.isEmpty()) {
-            return Page.empty(pageable);
+        if (pagedDocs.isEmpty()) {
+            // Fallback: lấy tất cả documents sort theo createdAt giảm dần
+            Pageable sortedByCreatedAt = PageRequest.of(
+                    pageable.getPageNumber(),
+                    pageable.getPageSize(),
+                    Sort.by("createdAt").descending());
+            pagedDocs = documentRepository.findAll(sortedByCreatedAt).getContent();
         }
-
-        RankingStatsResponse rankingStats = null;
-        try {
-            rankingStats = socialClient.getRankingStats();
-        } catch (Exception e) {
-            log.error("Failed to fetch ranking stats from social service", e);
-        }
-
-        final Map<String, ResourceRatingStatsResponse> statsMap =
-                (rankingStats != null && rankingStats.getStats() != null)
-                        ? rankingStats.getStats().stream()
-                                .collect(Collectors.toMap(ResourceRatingStatsResponse::getResourceId, s -> s))
-                        : new HashMap<>();
-
-        // Step 3: Calculate score for each document
-        List<DocumentScore> scoredDocs = documents.stream()
-                .map(doc -> {
-                    ResourceRatingStatsResponse stats = statsMap.get(doc.getId());
-                    double R = (stats != null && stats.getAverageRating() != null) ? stats.getAverageRating() : 0.0;
-
-                    // Final Score = w1 * R + w2 * log10(1 + Downloads)
-                    double downloads = doc.getDownloadCount() != null ? doc.getDownloadCount() : 0.0;
-                    double finalScore = (weightRating * R) + (weightDownload * Math.log10(1 + downloads));
-
-                    return new DocumentScore(doc, finalScore);
-                })
-                .sorted((a, b) -> Double.compare(b.score, a.score))
-                .collect(Collectors.toList());
-
-        // Step 4: Paginate
-        int start = (int) pageable.getOffset();
-        int end = Math.min((start + pageable.getPageSize()), scoredDocs.size());
-
-        if (start > scoredDocs.size()) {
-            return new PageImpl<>(List.of(), pageable, scoredDocs.size());
-        }
-
-        List<Document> pagedDocs =
-                scoredDocs.subList(start, end).stream().map(ds -> ds.document).collect(Collectors.toList());
 
         if (!pagedDocs.isEmpty()) {
             documentRepository.incrementViews(
                     pagedDocs.stream().map(Document::getId).toList());
         }
 
-        return new PageImpl<>(pagedDocs, pageable, scoredDocs.size());
-    }
+        long total = documentRepository.findRecentDocumentsForScoring(since).size();
 
-    private static class DocumentScore {
-        Document document;
-        double score;
-
-        public DocumentScore(Document document, double score) {
-            this.document = document;
-            this.score = score;
-        }
+        return new PageImpl<>(pagedDocs, pageable, Math.max(total, pagedDocs.size()));
     }
 
     // TODO: move to search service
@@ -351,7 +304,7 @@ public class DocumentService {
         return documentRepository.save(document);
     }
 
-    public DocumentMetadataResponse getDocumentInfo(String docId) {
+    public DocumentMetadataResponse getDocumentInfo(String docId, String userId) {
         Resource resource =
                 resourceRepository.findById(docId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
 
@@ -359,6 +312,11 @@ public class DocumentService {
                 documentRepository.findById(docId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
 
         documentRepository.incrementViews(List.of(docId));
+
+        // Sync view event to Neo4j
+        if (userId != null) {
+            graphSyncService.handleViewEvent(userId, docId);
+        }
 
         String downloadUrl =
                 gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/document/asset/" + docId;
@@ -389,7 +347,7 @@ public class DocumentService {
                 .createdAt(resource.getCreatedAt())
                 .description(document.getDescription())
                 .summary(document.getSummary())
-                .downloadable(document.isDownloadable())
+                .downloadable(document.getDownloadable())
                 .previewImageUrl(document.getPreviewImageUrl())
                 .views(document.getViews())
                 .build();
@@ -420,9 +378,15 @@ public class DocumentService {
         documentDownload.setProfileId(userId);
         documentDownloadRepository.save(documentDownload);
 
-        // Notify graph sync service
+        // Notify graph sync service via Kafka Event
         if (document.getTopicId() != null) {
-            graphSyncService.handleDownloadEvent(userId, docId, document.getTopicId());
+            UserDownloadedDocumentEvent event = UserDownloadedDocumentEvent.builder()
+                    .profileId(userId)
+                    .documentId(docId)
+                    .topicId(document.getTopicId())
+                    .timestamp(java.time.LocalDateTime.now().toString())
+                    .build();
+            kafkaTemplate.send("document-download-events", event);
         }
 
         // Get file from MinIO
@@ -466,6 +430,23 @@ public class DocumentService {
         documentRepository.delete(document);
     }
 
+    @Transactional
+    public void deleteByOwnerId(String ownerId) {
+        List<Document> documents = documentRepository.findByOwnerId(ownerId);
+        for (Document doc : documents) {
+            if (doc.getAssetId() != null && !doc.getAssetId().isBlank()) {
+                try {
+                    minioService.deleteFile(doc.getAssetId());
+                } catch (Exception e) {
+                    log.error(
+                            "Failed to delete asset {} for doc {}: {}", doc.getAssetId(), doc.getId(), e.getMessage());
+                }
+            }
+        }
+        documentRepository.deleteByOwnerId(ownerId);
+        log.info("Deleted all documents and assets for owner {}", ownerId);
+    }
+
     public String getOwnerId(String docId) {
         return documentRepository
                 .findById(docId)
@@ -484,30 +465,90 @@ public class DocumentService {
     }
 
     public Page<RelatedDocumentsResponse> getRecommendedDocuments(String userId, Pageable pageable) {
-        List<String> allDocIds = graphSyncService.getCollaborativeRecommendations(userId);
+        List<Map<String, Object>> results = graphSyncService.getCollaborativeRecommendations(userId);
 
-        if (allDocIds.isEmpty()) {
+        if (results.isEmpty()) {
             return Page.empty(pageable);
         }
 
-        List<Document> realDocuments = documentRepository.findAllById(allDocIds);
-        Map<String, Document> docMap = realDocuments.stream().collect(Collectors.toMap(Document::getId, d -> d));
+        List<String> docIds = results.stream()
+                .map(res -> (String) res.get("id"))
+                .filter(Objects::nonNull)
+                .toList();
+        Map<String, Document> docMap = documentRepository.findAllById(docIds).stream()
+                .collect(Collectors.toMap(Document::getId, Function.identity()));
 
-        List<String> validIds = allDocIds.stream().filter(docMap::containsKey).toList();
+        List<Map<String, Object>> validResults = results.stream()
+                .filter(res -> docMap.containsKey((String) res.get("id")))
+                .toList();
+
+        // Hydrate trigger titles
+        List<String> triggerDocIds = validResults.stream()
+                .filter(res -> "DOWNLOADED".equals(res.get("reasonType")))
+                .map(res -> (String) res.get("reasonTriggerId"))
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        List<String> triggerClassIds = validResults.stream()
+                .filter(res -> "ENROLLED_CLASS".equals(res.get("reasonType")))
+                .map(res -> (String) res.get("reasonTriggerId"))
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        List<String> triggerTopicIds = validResults.stream()
+                .filter(res -> "INTERESTED_TOPIC".equals(res.get("reasonType")))
+                .map(res -> (String) res.get("reasonTriggerId"))
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<String, String> triggerTitleMap = new HashMap<>();
+        if (!triggerDocIds.isEmpty()) {
+            triggerTitleMap.putAll(documentRepository.findAllById(triggerDocIds).stream()
+                    .collect(Collectors.toMap(Document::getId, Document::getTitle)));
+        }
+
+        if (!triggerClassIds.isEmpty()) {
+            try {
+                log.info("[RECO] Fetching names for classes: {}", triggerClassIds);
+                APIResponse<Map<String, String>> classRes = lmsClient.getClassNamesBatch(triggerClassIds);
+                if (classRes != null && classRes.getResult() != null) {
+                    log.info("[RECO] Received class names map: {}", classRes.getResult());
+                    triggerTitleMap.putAll(classRes.getResult());
+                }
+            } catch (Exception e) {
+                log.error("[RECO] Error fetching class names from LMS: {}", e.getMessage());
+            }
+        }
+
+        if (!triggerTopicIds.isEmpty()) {
+            try {
+                log.info("[RECO] Fetching names for topics: {}", triggerTopicIds);
+                APIResponse<Map<String, String>> topicRes = lmsClient.getTopicNamesBatch(triggerTopicIds);
+                if (topicRes != null && topicRes.getResult() != null) {
+                    log.info("[RECO] Received topic names map: {}", topicRes.getResult());
+                    triggerTitleMap.putAll(topicRes.getResult());
+                }
+            } catch (Exception e) {
+                log.error("[RECO] Error fetching topic names from LMS: {}", e.getMessage());
+            }
+        }
 
         int page = pageable.getPageNumber();
         int size = pageable.getPageSize();
-        int start = Math.min(page * size, validIds.size());
-        int end = Math.min((page + 1) * size, validIds.size());
+        int start = Math.min(page * size, validResults.size());
+        int end = Math.min((page + 1) * size, validResults.size());
 
-        List<String> pagedIds = validIds.subList(start, end);
+        List<Map<String, Object>> pagedResults = validResults.subList(start, end);
 
-        if (pagedIds.isEmpty()) {
-            return new PageImpl<>(List.of(), pageable, validIds.size());
+        if (pagedResults.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, validResults.size());
         }
 
-        List<String> ownerIds = pagedIds.stream()
-                .map(id -> docMap.get(id).getOwnerId())
+        List<String> ownerIds = pagedResults.stream()
+                .map(res -> docMap.get((String) res.get("id")).getOwnerId())
                 .distinct()
                 .toList();
 
@@ -519,11 +560,19 @@ public class DocumentService {
             }
         }
 
-        List<RelatedDocumentsResponse> dtos = pagedIds.stream()
-                .map(id -> {
+        Map<String, String> finalTriggerTitleMap = triggerTitleMap;
+        List<RelatedDocumentsResponse> dtos = pagedResults.stream()
+                .map(res -> {
+                    String id = (String) res.get("id");
                     Document doc = docMap.get(id);
                     ProfileResponse profile = profileMap.get(doc.getOwnerId());
-                    return toRelatedDocument(doc, profile);
+
+                    RecommendationReason reason = RecommendationReason.builder()
+                            .type((String) res.get("reasonType"))
+                            .title(finalTriggerTitleMap.getOrDefault(
+                                    (String) res.get("reasonTriggerId"), (String) res.get("reasonTriggerId")))
+                            .build();
+                    return toRelatedDocument(doc, profile, reason);
                 })
                 .toList();
 
@@ -532,7 +581,7 @@ public class DocumentService {
                     dtos.stream().map(RelatedDocumentsResponse::getId).toList());
         }
 
-        return new PageImpl<>(dtos, pageable, validIds.size());
+        return new PageImpl<>(dtos, pageable, validResults.size());
     }
 
     public Page<RelatedDocumentsResponse> getRelatedDocuments(String docId, Pageable pageable) {
@@ -555,19 +604,22 @@ public class DocumentService {
         String queryString = queryBuilder.toString().trim();
         if (queryString.isEmpty()) queryString = " ";
 
-        Page<String> docIdsPage = documentRepository.findRelatedDocumentIds(vectorStr, queryString, docId, pageable);
+        Page<RecommendationItem> itemsPage =
+                documentRecommendationService.getHybridRelatedDocumentIds(queryString, docId, vectorStr, pageable);
 
-        if (docIdsPage.isEmpty()) {
+        if (itemsPage.isEmpty()) {
             return Page.empty(pageable);
         }
 
-        List<String> docIds = docIdsPage.getContent();
+        List<RecommendationItem> items = itemsPage.getContent();
+        List<String> docIds = items.stream().map(RecommendationItem::getDocId).toList();
+
         Map<String, Document> docMap = documentRepository.findAllById(docIds).stream()
                 .collect(Collectors.toMap(Document::getId, Function.identity()));
 
         List<String> ownerIds = docIds.stream()
                 .map(docMap::get)
-                .filter(doc -> doc != null)
+                .filter(Objects::nonNull)
                 .map(Document::getOwnerId)
                 .distinct()
                 .toList();
@@ -580,13 +632,23 @@ public class DocumentService {
             }
         }
 
-        List<RelatedDocumentsResponse> dtos = docIds.stream()
-                .map(docMap::get)
-                .filter(doc -> doc != null)
-                .map(doc -> {
+        List<RelatedDocumentsResponse> dtos = items.stream()
+                .map(item -> {
+                    Document doc = docMap.get(item.getDocId());
+                    if (doc == null) return null;
                     ProfileResponse profile = profileMap.get(doc.getOwnerId());
-                    return toRelatedDocument(doc, profile);
+
+                    RecommendationReason reason = item.getReason();
+                    // Hydration for related (usually SIMILAR, but handle generic)
+                    if (reason != null && reason.getTitle() != null) {
+                        // For related documents, we don't have a large batch usually,
+                        // but let's keep it consistent if needed.
+                        // Currently related is always SIMILAR with no trigger title.
+                    }
+
+                    return toRelatedDocument(doc, profile, reason);
                 })
+                .filter(Objects::nonNull)
                 .toList();
 
         if (!dtos.isEmpty()) {
@@ -594,10 +656,136 @@ public class DocumentService {
                     dtos.stream().map(RelatedDocumentsResponse::getId).toList());
         }
 
-        return new PageImpl<>(dtos, pageable, docIdsPage.getTotalElements());
+        return new PageImpl<>(dtos, pageable, itemsPage.getTotalElements());
     }
 
-    private RelatedDocumentsResponse toRelatedDocument(Document document, ProfileResponse profile) {
+    public Page<DocumentMetadataResponse> getForYouFeed(String userId, Pageable pageable) {
+        Page<RecommendationItem> itemsPage = documentRecommendationService.getForYouFeed(userId, pageable);
+
+        if (itemsPage.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        List<RecommendationItem> items = itemsPage.getContent();
+        List<String> docIds = items.stream().map(RecommendationItem::getDocId).toList();
+        Map<String, Document> docMap = documentRepository.findAllById(docIds).stream()
+                .collect(Collectors.toMap(Document::getId, Function.identity()));
+
+        List<String> ownerIds =
+                docMap.values().stream().map(Document::getOwnerId).distinct().toList();
+
+        Map<String, ProfileResponse> profileMap = new HashMap<>();
+        for (String ownerId : ownerIds) {
+            ProfileResponse res = profileClient.findUserProfileById(ownerId);
+            if (res != null) {
+                profileMap.put(ownerId, res);
+            }
+        }
+
+        // Hydrate trigger titles for DOWNLOADED, ENROLLED_CLASS, INTERESTED_TOPIC
+        List<String> triggerDocIds = items.stream()
+                .filter(item -> item.getReason() != null
+                        && "DOWNLOADED".equals(item.getReason().getType()))
+                .map(item -> item.getReason().getTitle()) // Trigger ID currently
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        List<String> triggerClassIds = items.stream()
+                .filter(item -> item.getReason() != null
+                        && "ENROLLED_CLASS".equals(item.getReason().getType()))
+                .map(item -> item.getReason().getTitle()) // Trigger ID currently
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        List<String> triggerTopicIds = items.stream()
+                .filter(item -> item.getReason() != null
+                        && "INTERESTED_TOPIC".equals(item.getReason().getType()))
+                .map(item -> item.getReason().getTitle()) // Trigger ID currently
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<String, String> triggerTitleMap = new HashMap<>();
+        if (!triggerDocIds.isEmpty()) {
+            triggerTitleMap.putAll(documentRepository.findAllById(triggerDocIds).stream()
+                    .collect(Collectors.toMap(Document::getId, Document::getTitle)));
+        }
+
+        if (!triggerClassIds.isEmpty()) {
+            try {
+                APIResponse<Map<String, String>> classRes = lmsClient.getClassNamesBatch(triggerClassIds);
+                if (classRes != null && classRes.getResult() != null) {
+                    triggerTitleMap.putAll(classRes.getResult());
+                }
+            } catch (Exception e) {
+                log.error("Error fetching class names from LMS: {}", e.getMessage());
+            }
+        }
+
+        if (!triggerTopicIds.isEmpty()) {
+            try {
+                APIResponse<Map<String, String>> topicRes = lmsClient.getTopicNamesBatch(triggerTopicIds);
+                if (topicRes != null && topicRes.getResult() != null) {
+                    triggerTitleMap.putAll(topicRes.getResult());
+                }
+            } catch (Exception e) {
+                log.error("Error fetching topic names from LMS: {}", e.getMessage());
+            }
+        }
+
+        Map<String, String> finalTriggerTitleMap = triggerTitleMap;
+        return itemsPage.map(item -> {
+            Document doc = docMap.get(item.getDocId());
+            if (doc == null) return null;
+            ProfileResponse profile = profileMap.get(doc.getOwnerId());
+
+            RecommendationReason reason = item.getReason();
+            if (reason != null && reason.getTitle() != null) {
+                String tid = reason.getTitle();
+                reason.setTitle(finalTriggerTitleMap.getOrDefault(tid, tid));
+            }
+
+            return toMetadataResponse(doc, profile, reason);
+        });
+    }
+
+    private DocumentMetadataResponse toMetadataResponse(
+            Document doc, ProfileResponse profile, RecommendationReason reason) {
+        DocumentMetadataResponse.Author authorDto = null;
+        if (profile != null) {
+            authorDto = DocumentMetadataResponse.Author.builder()
+                    .id(profile.getId())
+                    .name(profile.getFullName())
+                    .avatarUrl(profile.getAvatarUrl())
+                    .build();
+        }
+
+        return DocumentMetadataResponse.builder()
+                .id(doc.getId())
+                .title(doc.getTitle())
+                .author(authorDto)
+                .documentType(doc.getDocumentType())
+                .university(doc.getUniversity())
+                .course(doc.getCourse())
+                .description(doc.getDescription())
+                .downloadable(doc.getDownloadable())
+                .downloadUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/document/download/"
+                        + doc.getId())
+                .viewUrl(gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix() + "/resource/download/asset/"
+                        + doc.getAssetId())
+                .downloadCount(doc.getDownloadCount())
+                .previewImageUrl(doc.getPreviewImageUrl())
+                .views(doc.getViews())
+                .createdAt(doc.getCreatedAt())
+                .summary(doc.getSummary())
+                .recommendationReason(reason)
+                .build();
+    }
+
+    private RelatedDocumentsResponse toRelatedDocument(
+            Document document, ProfileResponse profile, RecommendationReason reason) {
         String downloadUrl = gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()
                 + "/resource/download/asset/" + document.getId();
 
@@ -622,10 +810,11 @@ public class DocumentService {
                 .createdAt(document.getCreatedAt())
                 .description(document.getDescription())
                 .summary(document.getSummary())
-                .downloadable(document.isDownloadable())
+                .downloadable(document.getDownloadable())
                 .keywords(document.getKeywords())
                 .previewImageUrl(document.getPreviewImageUrl())
                 .views(document.getViews())
+                .recommendationReason(reason)
                 .build();
     }
 

@@ -52,6 +52,10 @@ public class Resource {
     @Builder.Default
     Long views = 0L;
 
+    @Column(name = "ranking_score")
+    @Builder.Default
+    Double rankingScore = 0.0;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
