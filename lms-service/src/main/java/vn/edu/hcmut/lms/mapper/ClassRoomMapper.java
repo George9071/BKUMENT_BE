@@ -39,6 +39,7 @@ public interface ClassRoomMapper {
     @Mapping(target = "topicName",   source = "topic.name")
     @Mapping(target = "subjectName", source = "topic.subject.name")
     @Mapping(target = "userStatus",  ignore = true)
+    @Mapping(target = "numberOfStudent", ignore = true)
     @Mapping(target = "coverImageUrl", source = "coverImageUrl")
     ClassRoomResponse toResponse(ClassRoom classRoom);
 

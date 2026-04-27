@@ -49,6 +49,8 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, String> 
 
     List<Enrollment> findByStudentProfileIdAndClassRoomIdIn(String studentProfileId, List<String> classRoomIds);
 
+    void deleteByClassRoomIdIn(List<String> classRoomIds);
+
     @Query("SELECT e.classRoom.id as classId, count(e) as count " +
             "FROM Enrollment e " +
             "WHERE e.classRoom.id IN :classIds " +
