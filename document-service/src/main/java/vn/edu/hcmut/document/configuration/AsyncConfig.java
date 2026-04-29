@@ -21,4 +21,28 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+
+    /**
+     * Executor for the deep AI processing background job
+     * ({@link vn.edu.hcmut.document.service.DocumentAsyncService#runBackgroundAiProcess}).
+     * Tune these values based on:
+     *   - Average AI processing time (longer -> larger queue).
+     *   - Available CPU / memory on the server.
+     *   - Acceptable upload response latency under burst load.
+     */
+    @Bean("aiDeepProcessExecutor")
+    public Executor aiDeepProcessExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(8);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("ai-deep-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+        return executor;
+    }
+
+
 }
