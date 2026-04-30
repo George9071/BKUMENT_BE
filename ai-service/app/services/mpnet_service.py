@@ -164,166 +164,162 @@ class VectorService:
         Raises:
             Exception: Re-raises DB or unexpected errors after logging.    
         """
-        conn = None
-        try:
-            offset = (page - 1) * limit
+        offset = (page - 1) * limit
 
-            # query_vector = self.get_embedding(query_text, True)
+        loop = asyncio.get_running_loop()
 
-            loop = asyncio.get_running_loop()
-            query_vector = await loop.run_in_executor(
-                _embedding_executor,
-                functools.partial(self.get_embedding, query_text, is_query=True),
-            )
+        # query_vector = self.get_embedding(query_text, True)
+        query_vector = await loop.run_in_executor(
+            _embedding_executor,
+            functools.partial(self.get_embedding, query_text, is_query=True),
+        )
 
-            # Guard: if the query produced no vector (empty input), skip the search
-            if not query_vector:
-                return _empty_page(page, limit, offset)    
+        # Guard: if the query produced no vector (empty input), skip the search
+        if not query_vector:
+            return _empty_page(page, limit, offset)    
 
-            if hasattr(query_vector, "tolist"):
-                query_vector = query_vector.tolist()
+        if hasattr(query_vector, "tolist"):
+            query_vector = query_vector.tolist()
 
-            # TODO: replace with asyncpg connection pool for non-blocking DB I/O.
-            conn = psycopg2.connect(
-                host=settings.DB_HOST,
-                port=settings.DB_PORT,
-                dbname=settings.DB_NAME,
-                user=settings.POSTGRES_USERNAME,
-                password=settings.POSTGRES_PASSWORD,
-            )
-            cur = conn.cursor()
+        # NOTE: replace with asyncpg connection pool for non-blocking DB I/O.
+        # conn = psycopg2.connect(
+        #     host=settings.DB_HOST,
+        #     port=settings.DB_PORT,
+        #     dbname=settings.DB_NAME,
+        #     user=settings.POSTGRES_USERNAME,
+        #     password=settings.POSTGRES_PASSWORD,
+        # )
+        # cur = conn.cursor()
 
-            # --- CONTEXTUAL HYBRID LOGIC ---
-            word_count = len(query_text.split())
-            w_vector, w_keyword = (0.8, 0.2) if word_count > 5 else (0.4, 0.6)
+        # --- CONTEXTUAL HYBRID LOGIC ---
+        word_count = len(query_text.split())
+        w_vector, w_keyword = (0.8, 0.2) if word_count > 5 else (0.4, 0.6)
 
-            # Column index reference:
-            #   0: id                   4: created_at      8: owner_id
-            #   1: title                5: vector_score    9: total_count
-            #   2: preview_image_url    6: keyword_score
-            #   3: description          7: final_score
-            sql = f"""
-                WITH hybrid_scores AS (
-                    SELECT
-                        d.id,
-                        d.preview_image_url,
-                        d.description,
-                        r.created_at,
-                        r.title,
-                        r.owner_id,
-                        (1 - (d.embedding <=> %s::vector))              AS vector_score,
-                        ts_rank_cd(
-                            to_tsvector('simple',
-                                COALESCE(r.title, '') || ' ' ||
-                                COALESCE(array_to_string(d.keywords, ' '), '')),
-                            plainto_tsquery('simple', %s)
-                        )                                                AS keyword_score
-                    FROM document d
-                    JOIN resource r ON d.id = r.id
-                    WHERE d.embedding IS NOT NULL
-                )
+        sql = f"""
+            WITH hybrid_scores AS (
                 SELECT
-                    id,
-                    title,
-                    preview_image_url,
-                    description,
-                    created_at,
-                    vector_score,
-                    keyword_score,
-                    final_score,
-                    owner_id,
-                    COUNT(*) OVER() AS total_count
-                FROM (
-                    SELECT *, (vector_score * {w_vector}) + (keyword_score * {w_keyword}) AS final_score 
-                    FROM hybrid_scores
-                ) sub
-                ORDER BY final_score DESC
-                LIMIT %s OFFSET %s;
-            """            
+                    d.id,
+                    d.preview_image_url,
+                    d.description,
+                    r.created_at,
+                    r.title,
+                    r.owner_id,
+                    (1 - (d.embedding <=> $1::vector))              AS vector_score,
+                    ts_rank_cd(
+                        to_tsvector('simple',
+                            COALESCE(r.title, '') || ' ' ||
+                            COALESCE(array_to_string(d.keywords, ' '), '')),
+                        plainto_tsquery('simple', $2)
+                    )                                               AS keyword_score
+                FROM document d
+                JOIN resource r ON d.id = r.id
+                WHERE d.embedding IS NOT NULL
+            )
+            SELECT
+                id,
+                title,
+                preview_image_url,
+                description,
+                created_at,
+                vector_score,
+                keyword_score,
+                (vector_score * {w_vector}) + (keyword_score * {w_keyword}) AS final_score,
+                owner_id,
+                COUNT(*) OVER()                               AS total_count
+            FROM hybrid_scores
+            ORDER BY final_score DESC
+            LIMIT $3 OFFSET $4
+        """            
 
-            cur.execute(sql, (query_vector, query_text, limit, offset))
-            rows = cur.fetchall()
+        vector_str = str(query_vector)
 
-            total_elements = rows[0][9] if rows else 0
-
-            documents = [
-                {
-                    "id": str(row[0]),
-                    "title": row[1],
-                    "preview_image_url": row[2],
-                    "description": row[3],
-                    "createdAt": row[4],
-                    "vector_score": _safe_float(row[5]),
-                    "keyword_score": _safe_float(row[6]),
-                    "score": _safe_float(row[7]),
-                    "owner_id": str(row[8]) if row[8] else None,
-                    "author": None,
-                }
-                for row in rows
-            ]
-
-            profile_client = ProfileClient(base_url=settings.PROFILE_SERVICE_URL) 
-
-            async def fetch_and_map_profile(doc: dict) -> None:
-                """
-                Fetches the author profile and writes it into the document dict.
-                """
-                owner_id = doc.get("owner_id")
-                if not owner_id:
-                    return
-                try:
-                    profile_resp = await profile_client.find_user_profile_by_id(owner_id)
-                    # print(profile_resp)
-                    if profile_resp:
-                        doc["author"] = {
-                            "id": profile_resp.id,
-                            "name": profile_resp.fullName,
-                            "avatarUrl": profile_resp.avatarUrl
-                        }
-                except Exception as e:
-                    # print(f"Lỗi khi gọi profile-service cho user {owner_id}: {e}")
-                    logger.warning("Failed to fetch profile for owner %s: %s", owner_id, str(e))
-                finally:
-                    doc.pop("owner_id", None)
-
-            try:
-                await asyncio.gather(*(fetch_and_map_profile(doc) for doc in documents))
-            finally:
-                await profile_client.close()
-
-            # Convert 1-based page to 0-based for Spring Boot Page<T> schema.
-            spring_page = page - 1
-            total_pages = math.ceil(total_elements / limit) if limit > 0 else 0
-
-            return {
-                "content": documents,
-                "pageable": {
-                    "pageNumber": spring_page,
-                    "pageSize": limit,
-                    "sort": [],
-                    "offset": offset,
-                    "paged": True,
-                    "unpaged": False,
-                },
-                "totalPages": total_pages,
-                "totalElements": total_elements,
-                "last": spring_page >= (total_pages - 1) if total_pages > 0 else True,
-                "numberOfElements": len(documents),
-                "first": spring_page == 0,
-                "size": limit,
-                "number": spring_page,
-                "sort": [],
-                "empty": len(documents) == 0,
-            }
+        try:
+            async with self._db.acquire() as conn:
+                rows = await conn.fetch(sql, vector_str, query_text, limit, offset)
 
         except Exception as e:
-            # print(f"Hybrid Search Error: {e}")
-            logger.error("Hybrid search failed for query '%s': %s", query_text, str(e))
+            logger.error(
+                "DB query failed in search_documents (query='%s'): %s",
+                query_text,
+                str(e),
+            )
             raise
-        
+
+        # cur.execute(sql, (query_vector, query_text, limit, offset))
+        # rows = cur.fetchall()
+
+        # total_elements = rows[0][9] if rows else 0
+        total_elements = rows[0]["total_count"] if rows else 0
+
+        documents = [
+            {
+                "id": str(row["id"]),
+                "title": row["title"],
+                "preview_image_url": row["preview_image_url"],
+                "description": row["description"],
+                "createdAt": row["created_at"],
+                "vector_score": _safe_float(row["vector_score"]),
+                "keyword_score": _safe_float(row["keyword_score"]),
+                "score": _safe_float(row["final_score"]),
+                "owner_id": str(row["owner_id"]) if row["owner_id"] else None,
+                "author": None,  # populated by profile enrichment below
+            }
+            for row in rows
+        ]
+
+        profile_client = ProfileClient(base_url=settings.PROFILE_SERVICE_URL) 
+
+        async def fetch_and_map_profile(doc: dict) -> None:
+            """
+            Fetches the author profile and writes it into the document dict.
+            """
+            owner_id = doc.get("owner_id")
+            if not owner_id:
+                return
+            try:
+                profile_resp = await profile_client.find_user_profile_by_id(owner_id)
+                # print(profile_resp)
+                if profile_resp:
+                    doc["author"] = {
+                        "id": profile_resp.id,
+                        "name": profile_resp.fullName,
+                        "avatarUrl": profile_resp.avatarUrl
+                    }
+            except Exception as e:
+                # print(f"Lỗi khi gọi profile-service cho user {owner_id}: {e}")
+                logger.warning("Failed to fetch profile for owner %s: %s", owner_id, str(e))
+            finally:
+                doc.pop("owner_id", None)
+
+        try:
+            await asyncio.gather(*(fetch_and_map_profile(doc) for doc in documents))
         finally:
-            if conn:
-                conn.close()
+            await profile_client.close()
+
+        # Convert 1-based page to 0-based for Spring Boot Page<T> schema.
+        spring_page = page - 1
+        total_pages = math.ceil(total_elements / limit) if limit > 0 else 0
+
+        return {
+            "content": documents,
+            "pageable": {
+                "pageNumber": spring_page,
+                "pageSize": limit,
+                "sort": [],
+                "offset": offset,
+                "paged": True,
+                "unpaged": False,
+            },
+            "totalPages": total_pages,
+            "totalElements": total_elements,
+            "last": spring_page >= (total_pages - 1) if total_pages > 0 else True,
+            "numberOfElements": len(documents),
+            "first": spring_page == 0,
+            "size": limit,
+            "number": spring_page,
+            "sort": [],
+            "empty": len(documents) == 0,
+        }
 
 def _safe_float(val) -> float:
     """

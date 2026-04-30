@@ -62,10 +62,9 @@ async def convert_pdf_to_text(file: UploadFile) -> Dict[str, Any]:
         el_text = el.get("text", "")
         
         if el_type == "Table":
-            # Wrap table content in a visual separator so the LLM can identify and handle tabular data differently during summarisation.
-            # TODO: consider using el.get("metadata", {}).get("text_as_html", el_text)
-            #       to preserve the HTML table structure for models that benefit from it.
-            full_text_parts.append(f"\n\n=== [BẢNG SỐ LIỆU] ===\n{el_text}\n======================\n")
+            metadata = el.get("metadata", {})
+            table_content = metadata.get("text_as_html", el_text)
+            full_text_parts.append(f"\n\n=== [BẢNG SỐ LIỆU] ===\n{table_content}\n======================\n")
         
         elif el_type in _TEXT_ELEMENT_TYPES:
             full_text_parts.append(f"{el_text}\n")
