@@ -1,10 +1,12 @@
 package vn.edu.hcmut.social.service;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,16 @@ import vn.edu.hcmut.social.repository.httpclient.BlogClient;
 import vn.edu.hcmut.social.repository.httpclient.DocumentClient;
 import vn.edu.hcmut.social.repository.httpclient.ProfileClient;
 
+/**
+ * Manages resource ratings (documents and blog posts) within the social-service.
+ * * * *
+ * Core responsibilities:
+ *   - Submit a one-time rating for any rateable resource.
+ *   - Calculate and expose aggregate rating statistics used by the document ranking formula
+ *     in the document-service.
+ *   - Award or deduct gamification points on the owner's profile based on the score received.
+ *   - Compute combined engagement stats (ratings + comments) for admin dashboards.
+ */
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -39,6 +51,14 @@ public class RatingService {
     DocumentClient documentClient;
     BlogClient blogClient;
 
+    /**
+     * Maps a rating score to the gamification point delta awarded to the resource owner.
+     *   ≥ 4.5 -> +2
+     *   ≥ 3.5 -> +1
+     *   ≥ 2.5 -> 0
+     *   ≥ 1.5 -> -1
+     *   < 1.5 -> -2
+     */
     private Long getPointsForScore(Double score) {
         if (score == null) return 0L;
         if (score >= 4.5) return 2L;
@@ -48,6 +68,15 @@ public class RatingService {
         return -2L;
     }
 
+    /**
+     * OPTIMIZATION — type-based routing preferred:
+     *   If RatingRequest carried a ResourceType field (DOCUMENT / BLOG), the fallback chain
+     *   could be eliminated and replaced by a direct targeted call, halving the latency on
+     *   blog resource lookups and removing unnecessary cross-service HTTP errors.
+     *
+     * @param resourceId the ID of the rated resource
+     * @return the owner's profile ID, or null if neither service recognises the resource
+     */
     private String getOwnerId(String resourceId) {
         try {
             return documentClient.getOwnerId(resourceId);
@@ -56,7 +85,7 @@ public class RatingService {
                 return blogClient.getOwnerId(resourceId);
             } catch (Exception e2) {
                 log.warn(
-                        "Could not find owner for resource {}: document={}, blog={}",
+                        "Could not find owner for resource {}: document-service='{}', blog-service='{}'",
                         resourceId,
                         e1.getMessage(),
                         e2.getMessage());
@@ -65,12 +94,22 @@ public class RatingService {
         }
     }
 
+    /**
+     * Records a new rating for a resource.
+     * NOTE: Updates are not supported — re-rating the same resource throws ALREADY_RATED.
+     * * * *
+     * @param request the payload (resourceId, score 1.0-5.0)
+     * @param userId  the authenticated user's profile ID (from JWT)
+     */
     @Transactional
     public RatingResponse createOrUpdateRating(RatingRequest request, String userId) {
-        Optional<Rating> existingRating = ratingRepository.findByResourceIdAndUserId(request.getResourceId(), userId);
+        Optional<Rating> existing = ratingRepository.findByResourceIdAndUserId(request.getResourceId(), userId);
+        if (existing.isPresent()) throw new AppException(ErrorCode.ALREADY_RATED);
 
-        if (existingRating.isPresent()) {
-            throw new AppException(ErrorCode.ALREADY_RATED);
+        // Self-rating guard: resolve the owner and reject if the rater is the owner.
+        String ownerId = getOwnerId(request.getResourceId());
+        if (userId.equals(ownerId)) {
+            throw new AppException(ErrorCode.CANNOT_RATE_OWN_RESOURCE);
         }
 
         Rating rating = Rating.builder()
@@ -79,17 +118,22 @@ public class RatingService {
                 .score(request.getScore())
                 .build();
 
-        rating = ratingRepository.save(rating);
 
-        // Points hook: +points based on score (delta is always newPoints - 0)
-        String ownerId = getOwnerId(request.getResourceId());
+        try {
+            rating = ratingRepository.save(rating);
+        } catch (DataIntegrityViolationException e) {
+            log.debug("Concurrent duplicate rating attempt by user {} for resource {}",
+                    userId, request.getResourceId());
+            throw new AppException(ErrorCode.ALREADY_RATED);
+        }
+
         if (ownerId != null) {
-            long newPoints = getPointsForScore(request.getScore());
-            if (newPoints != 0) {
+            long delta = getPointsForScore(request.getScore());
+            if (delta != 0) {
                 try {
-                    profileClient.updatePoints(ownerId, newPoints);
+                    profileClient.updatePoints(ownerId, delta);
                 } catch (Exception e) {
-                    log.error("Failed to update points for new rating: profile={}, delta={}", ownerId, newPoints, e);
+                    log.error("Failed to update points for owner={}, delta={}", ownerId, delta, e);
                 }
             }
         }
@@ -106,6 +150,7 @@ public class RatingService {
         return avg != null ? avg : 0.0;
     }
 
+    /** Aggregate stats consumed by document-service for the ranking score formula. */
     public RankingStatsResponse getRankingStats() {
         Double globalAvg = ratingRepository.getGlobalAverageScore();
         List<ResourceRatingStatsResponse> stats = ratingRepository.getResourceRatingStats();
@@ -116,28 +161,49 @@ public class RatingService {
                 .build();
     }
 
+    /**
+     * Combined rating + comment engagement stats for admin dashboards.
+     */
     public List<ResourceEngagementStatsResponse> getEngagementStats() {
         List<ResourceRatingStatsResponse> ratingStats = ratingRepository.getResourceRatingStats();
         List<Object[]> commentCounts = commentRepository.countCommentsGroupByResourceId();
 
-        Map<String, Long> commentCountMap =
-                commentCounts.stream().collect(Collectors.toMap(row -> (String) row[0], row -> (Long) row[1]));
+        Map<String, Long> commentMap = commentCounts.stream()
+                .collect(Collectors.toMap(row -> (String) row[0], row -> (Long) row[1]));
 
-        return ratingStats.stream()
-                .map(rs -> ResourceEngagementStatsResponse.builder()
-                        .resourceId(rs.getResourceId())
-                        .averageRating(rs.getAverageRating())
-                        .ratingCount(rs.getRatingCount())
-                        .commentCount(commentCountMap.getOrDefault(rs.getResourceId(), 0L))
-                        .build())
-                .collect(Collectors.toList());
+        Map<String, ResourceEngagementStatsResponse> result = new HashMap<>();
+
+        // every rated resource — pull comment count from the map (default 0).
+        for (ResourceRatingStatsResponse rs : ratingStats) {
+            result.put(rs.getResourceId(), ResourceEngagementStatsResponse.builder()
+                    .resourceId(rs.getResourceId())
+                    .averageRating(rs.getAverageRating())
+                    .ratingCount(rs.getRatingCount())
+                    .commentCount(commentMap.getOrDefault(rs.getResourceId(), 0L))
+                    .build());
+        }
+
+        // commented-only resources that did not appear in ratingStats.
+        for (Map.Entry<String, Long> entry : commentMap.entrySet()) {
+            result.putIfAbsent(entry.getKey(), ResourceEngagementStatsResponse.builder()
+                    .resourceId(entry.getKey())
+                    .averageRating(0.0)
+                    .ratingCount(0L)
+                    .commentCount(entry.getValue())
+                    .build());
+        }
+
+        return new java.util.ArrayList<>(result.values());
     }
 
-    public RatingResponse getUserRatingForResource(String resourceId, String userId) {
+    /**
+     * Returns the user's rating for a resource.
+     * @return Optional.of(rating) if the user has rated this resource, else Optional.empty()
+     */
+    public Optional<RatingResponse> getUserRatingForResource(String resourceId, String userId) {
         return ratingRepository
                 .findByResourceIdAndUserId(resourceId, userId)
-                .map(this::toRatingResponse)
-                .orElse(null);
+                .map(this::toRatingResponse);
     }
 
     private RatingResponse toRatingResponse(Rating rating) {
