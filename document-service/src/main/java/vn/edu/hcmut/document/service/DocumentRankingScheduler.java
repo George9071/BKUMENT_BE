@@ -21,10 +21,10 @@ import vn.edu.hcmut.document.repository.DocumentRepository;
 import vn.edu.hcmut.document.repository.httpclient.SocialClient;
 
 /**
- * Cronjob chạy mỗi 1 giờ để tính lại rankingScore cho các tài liệu trong cửa sổ thời gian.
+ * Cronjob chạy mỗi 1 giờ để tính lại trendingScore cho các tài liệu trong cửa sổ thời gian.
  * Công thức Time-Decay (tương tự HackerNews):
  *   Interactions = weightRating*(avgRate*log10(1+numRates)) + weightDownload*log10(1+downloads) + weightView*log10(1+views)
- *   RankingScore  = Interactions / (ageInHours + 2)^gravity
+ *   TrendingScore  = Interactions / (ageInHours + 2)^gravity
  */
 @Slf4j
 @Component
@@ -60,8 +60,8 @@ public class DocumentRankingScheduler {
     }
 
     @Scheduled(fixedRateString = "${app.ranking.refresh-interval-ms:3600000}")
-    public void recalculateRankingScores() {
-        log.info("[DocumentRankingScheduler] Bắt đầu tính lại ranking scores...");
+    public void recalculateTrendingScores() {
+        log.info("[DocumentRankingScheduler] Bắt đầu tính lại trending scores...");
 
         LocalDateTime since = LocalDateTime.now().minusDays(windowDays);
         List<Document> documents = documentRepository.findRecentDocumentsForScoring(since);
@@ -107,7 +107,7 @@ public class DocumentRankingScheduler {
                 double denominator = Math.pow(ageInHours + 2, gravity);
                 double score = (denominator > 0) ? numerator / denominator : 0.0;
 
-                documentRepository.updateRankingScore(doc.getId(), score);
+                documentRepository.updateTrendingScore(doc.getId(), score);
                 updated++;
             } catch (Exception e) {
                 log.error(

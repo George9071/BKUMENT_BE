@@ -39,6 +39,7 @@ public class OpenApiConfiguration {
 
     @Bean
     public OpenAPI customOpenAPI() {
+        System.out.println("Gateway: " + gateway);
         return new OpenAPI()
                 .info(new Info().title("BKUMENT").version("1.0").description("APIs for Document-service"))
                 // --- SERVER CONFIGURATION---

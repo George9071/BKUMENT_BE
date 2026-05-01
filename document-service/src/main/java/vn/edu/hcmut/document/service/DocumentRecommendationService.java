@@ -186,7 +186,7 @@ public class DocumentRecommendationService {
         if (recommendedItems.size() < poolSize) {
             java.time.LocalDateTime since = java.time.LocalDateTime.now().minusDays(90);
             List<vn.edu.hcmut.document.entity.Document> trendingDocs =
-                    documentRepository.findRecentDocumentsOrderByRankingScore(since, PageRequest.of(0, poolSize));
+                    documentRepository.findRecentDocumentsOrderByTrendingScore(since, PageRequest.of(0, poolSize));
             for (vn.edu.hcmut.document.entity.Document doc : trendingDocs) {
                 if (!recommendedItems.containsKey(doc.getId())) {
                     recommendedItems.put(

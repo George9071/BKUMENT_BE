@@ -179,7 +179,7 @@ public class DocumentService {
 
     public Page<Document> getTopRankedDocuments(Pageable pageable) {
         LocalDateTime since = LocalDateTime.now().minusDays(90);
-        List<Document> pagedDocs = documentRepository.findRecentDocumentsOrderByRankingScore(since, pageable);
+        List<Document> pagedDocs = documentRepository.findRecentDocumentsOrderByTrendingScore(since, pageable);
 
         if (pagedDocs.isEmpty()) {
             // Fallback: lấy tất cả documents sort theo createdAt giảm dần

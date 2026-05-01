@@ -36,16 +36,16 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
     // --- Time-Decay Ranking Queries ---
 
     @Query(
-            "SELECT d FROM Document d JOIN Resource r ON d.id = r.id WHERE r.createdAt >= :since ORDER BY r.rankingScore DESC")
-    List<Document> findRecentDocumentsOrderByRankingScore(@Param("since") LocalDateTime since, Pageable pageable);
+            "SELECT d FROM Document d JOIN Resource r ON d.id = r.id WHERE r.createdAt >= :since ORDER BY r.trendingScore DESC")
+    List<Document> findRecentDocumentsOrderByTrendingScore(@Param("since") LocalDateTime since, Pageable pageable);
 
     @Query("SELECT d FROM Document d JOIN Resource r ON d.id = r.id WHERE r.createdAt >= :since")
     List<Document> findRecentDocumentsForScoring(@Param("since") LocalDateTime since);
 
     @Modifying
     @Transactional
-    @Query("UPDATE Resource r SET r.rankingScore = :score WHERE r.id = :id")
-    void updateRankingScore(@Param("id") String id, @Param("score") double score);
+    @Query("UPDATE Resource r SET r.trendingScore = :score WHERE r.id = :id")
+    void updateTrendingScore(@Param("id") String id, @Param("score") double score);
 
     @Query(
             value =
