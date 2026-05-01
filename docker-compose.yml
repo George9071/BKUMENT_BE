@@ -40,6 +40,7 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=deploy
       - PUBLIC_IP=${PUBLIC_IP} # Lấy từ file .env
+      - BACKEND_HOST=${BACKEND_HOST}
     networks:
       - bkument-net
     restart: unless-stopped
@@ -162,6 +163,8 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
       - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME}
+    env_file:
+      - .env
     networks:
       - bkument-net
     restart: unless-stopped
@@ -181,6 +184,8 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
       - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME}
+    env_file:
+      - .env
     networks:
       - bkument-net
     restart: unless-stopped
@@ -202,6 +207,8 @@ services:
       - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME}
       - NEO4J_USERNAME=${NEO4J_USERNAME}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+    env_file:
+      - .env
     networks:
       - bkument-net
     restart: unless-stopped
@@ -224,6 +231,8 @@ services:
       - PROFILE_SERVICE_URL=${PROFILE_SERVICE_URL}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL}
+    env_file:
+      - .env
     networks:
       - bkument-net
     restart: unless-stopped
@@ -245,6 +254,8 @@ services:
       - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME}
       - NEO4J_USERNAME=${NEO4J_USERNAME}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+    env_file:
+      - .env
     networks:
       - bkument-net
     restart: unless-stopped

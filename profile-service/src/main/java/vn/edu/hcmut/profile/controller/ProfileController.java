@@ -28,11 +28,13 @@ public class ProfileController {
     RecommendationService recommendationService;
 
     @GetMapping("/search")
-    public APIResponse<List<ProfileResponse>> searchUsers(
-            @RequestParam("keyword") String keyword, @RequestParam(value = "limit", defaultValue = "10") int limit) {
+    public APIResponse<PageResponse<ProfileResponse>> searchUsers(
+            @RequestParam("keyword") String keyword,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
 
-        return APIResponse.<List<ProfileResponse>>builder()
-                .result(profileService.searchProfile(keyword, limit))
+        return APIResponse.<PageResponse<ProfileResponse>>builder()
+                .result(profileService.searchProfile(keyword, page, size))
                 .build();
     }
 

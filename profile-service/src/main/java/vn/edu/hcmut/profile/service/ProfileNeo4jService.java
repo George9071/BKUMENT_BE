@@ -1,6 +1,7 @@
 package vn.edu.hcmut.profile.service;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import org.springframework.data.neo4j.core.Neo4jClient;
 import org.springframework.stereotype.Service;
@@ -125,6 +126,30 @@ public class ProfileNeo4jService {
     public int countFollowing(String profileId) {
         Integer count = neo4jRepository.countFollowing(profileId);
         return count != null ? count : 0;
+    }
+
+    public Map<String, Map<String, Integer>> getBatchCounts(List<String> profileIds) {
+        if (profileIds == null || profileIds.isEmpty()) return Collections.emptyMap();
+
+        return neo4jClient
+                .query(CypherQueries.USER_BATCH_COUNTS)
+                .bind(profileIds)
+                .to("profileIds")
+                .fetchAs(Map.class)
+                .mappedBy((typeSystem, record) -> {
+                    Map<String, Integer> counts = new HashMap<>();
+                    counts.put("followerCount", record.get("followerCount").asInt());
+                    counts.put("followingCount", record.get("followingCount").asInt());
+
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("id", record.get("id").asString());
+                    result.put("counts", counts);
+                    return result;
+                })
+                .all()
+                .stream()
+                .collect(Collectors.toMap(
+                        m -> (String) m.get("id"), m -> (Map<String, Integer>) m.get("counts"), (a, b) -> a));
     }
 
     private UniversityNode toUniversityNode(University university) {
