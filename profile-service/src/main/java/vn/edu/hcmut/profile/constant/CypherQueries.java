@@ -17,6 +17,15 @@ public final class CypherQueries {
 			DETACH DELETE u
 			""";
 
+    /* Params: $profileIds (List<String>) */
+    public static final String USER_BATCH_COUNTS =
+            """
+			MATCH (u:UserProfile) WHERE u.id IN $profileIds
+			RETURN u.id AS id,
+				COUNT { (u)<-[:FOLLOW]-() } AS followerCount,
+				COUNT { (u)-[:FOLLOW]->() } AS followingCount
+			""";
+
     /* Params: $profileId (String), $topicIds (List<String>) */
     public static final String USER_REPLACE_INTERESTS =
             """
