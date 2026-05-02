@@ -1,15 +1,15 @@
 package vn.edu.hcmut.resource.service;
 
 import java.io.InputStream;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 import org.springframework.stereotype.Service;
 
 import io.minio.*;
-import io.minio.http.Method;
 import io.minio.messages.Item;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -82,17 +82,29 @@ public class MinioService {
         }
     }
 
-    public String getPresignedUrl(String assetId, int expiryMinutes) {
+    public Map<String, String> getPresignedPostFormData(String assetId) {
         try {
             createBucketIfNotExists();
-            return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
-                    .method(Method.PUT)
-                    .bucket(minioProperties.getBucketName())
-                    .object(assetId)
-                    .expiry(expiryMinutes, TimeUnit.MINUTES)
-                    .build());
+            PostPolicy policy = new PostPolicy(
+                    minioProperties.getBucketName(), ZonedDateTime.now().plusDays(1));
+            policy.addEqualsCondition("key", assetId);
+            policy.addContentLengthRangeCondition(0, minioProperties.getMaxFileSize());
+
+            Map<String, String> formData = minioClient.getPresignedPostFormData(policy);
+
+            // Replace internal endpoint with external endpoint if configured
+            String internalEndpoint = minioProperties.getEndpoint();
+            String externalEndpoint = minioProperties.getExternalEndpoint();
+            if (externalEndpoint != null && !externalEndpoint.isEmpty() && !externalEndpoint.equals(internalEndpoint)) {
+                String url = formData.get("url");
+                if (url != null) {
+                    formData.put("url", url.replace(internalEndpoint, externalEndpoint));
+                }
+            }
+
+            return formData;
         } catch (Exception e) {
-            log.error("MinIO Presign URL Error: {}", e.getMessage());
+            log.error("MinIO Presign POST Error: {}", e.getMessage());
             throw new AppException(ErrorCode.MINIO_ERROR);
         }
     }
