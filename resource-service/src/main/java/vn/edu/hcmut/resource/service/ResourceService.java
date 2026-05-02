@@ -2,6 +2,7 @@ package vn.edu.hcmut.resource.service;
 
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
@@ -54,7 +55,12 @@ public class ResourceService {
 
     public PresignResponse generatePresignedUrl(String fileName) {
         String assetId = minioService.generateUniqueAssetName(fileName);
-        String url = minioService.getPresignedUrl(assetId, 10);
-        return new PresignResponse(assetId, url);
+        Map<String, String> formData = minioService.getPresignedPostFormData(assetId);
+
+        return PresignResponse.builder()
+                .assetId(assetId)
+                .url(formData.get("url"))
+                .formData(formData)
+                .build();
     }
 }
