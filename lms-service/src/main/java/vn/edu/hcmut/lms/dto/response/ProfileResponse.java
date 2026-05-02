@@ -16,4 +16,7 @@ public class ProfileResponse {
     String avatarUrl;
     String email;
     Long points;
+
+    String address;
+    String phone;
 }

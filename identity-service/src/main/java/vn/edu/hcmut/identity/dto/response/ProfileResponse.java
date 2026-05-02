@@ -19,4 +19,7 @@ public class ProfileResponse {
     String email;
     Integer universityId;
     String universityName;
+
+    String address;
+    String phone;
 }
