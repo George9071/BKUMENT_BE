@@ -82,27 +82,22 @@ public class MinioService {
         }
     }
 
-    public Map<String, String> getPresignedPostFormData(String assetId) {
+    public String getPresignedUrl(String assetId) {
         try {
             createBucketIfNotExists();
-            PostPolicy policy = new PostPolicy(
-                    minioProperties.getBucketName(), ZonedDateTime.now().plusDays(1));
-            policy.addEqualsCondition("key", assetId);
-            policy.addContentLengthRangeCondition(0, minioProperties.getMaxFileSize());
+            String url = minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                    .method(io.minio.http.Method.PUT)
+                    .bucket(minioProperties.getBucketName())
+                    .object(assetId)
+                    .build());
 
-            Map<String, String> formData = minioClient.getPresignedPostFormData(policy);
-
-            // Replace internal endpoint with external endpoint if configured
             String internalEndpoint = minioProperties.getEndpoint();
             String externalEndpoint = minioProperties.getExternalEndpoint();
             if (externalEndpoint != null && !externalEndpoint.isEmpty() && !externalEndpoint.equals(internalEndpoint)) {
-                String url = formData.get("url");
-                if (url != null) {
-                    formData.put("url", url.replace(internalEndpoint, externalEndpoint));
-                }
+                url = url.replace(internalEndpoint, externalEndpoint);
             }
 
-            return formData;
+            return url;
         } catch (Exception e) {
             log.error("MinIO Presign POST Error: {}", e.getMessage());
             throw new AppException(ErrorCode.MINIO_ERROR);

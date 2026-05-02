@@ -55,12 +55,8 @@ public class ResourceService {
 
     public PresignResponse generatePresignedUrl(String fileName) {
         String assetId = minioService.generateUniqueAssetName(fileName);
-        Map<String, String> formData = minioService.getPresignedPostFormData(assetId);
+        String url = minioService.getPresignedUrl(assetId);
 
-        return PresignResponse.builder()
-                .assetId(assetId)
-                .url(formData.get("url"))
-                .formData(formData)
-                .build();
+        return PresignResponse.builder().assetId(assetId).url(url).build();
     }
 }
