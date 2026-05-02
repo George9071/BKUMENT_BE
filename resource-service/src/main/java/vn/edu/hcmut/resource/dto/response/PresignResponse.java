@@ -1,5 +1,7 @@
 package vn.edu.hcmut.resource.dto.response;
 
+import java.util.Map;
+
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -11,4 +13,5 @@ import lombok.experimental.FieldDefaults;
 public class PresignResponse {
     String assetId;
     String url;
+    Map<String, String> formData;
 }

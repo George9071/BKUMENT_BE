@@ -1,8 +1,10 @@
 package vn.edu.hcmut.resource.service;
 
 import java.io.InputStream;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -97,7 +99,7 @@ public class MinioService {
 
             return url;
         } catch (Exception e) {
-            log.error("MinIO Presign URL Error: {}", e.getMessage());
+            log.error("MinIO Presign POST Error: {}", e.getMessage());
             throw new AppException(ErrorCode.MINIO_ERROR);
         }
     }

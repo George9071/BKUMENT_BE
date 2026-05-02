@@ -16,5 +16,6 @@ public class MinioProperties {
     String accessKey;
     String secretKey;
     String bucketName;
+    long maxFileSize;
     boolean secure;
 }
