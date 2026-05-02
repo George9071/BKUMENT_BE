@@ -29,4 +29,7 @@ public class ProfileResponse {
 
     Integer followerCount;
     Integer followingCount;
+
+    String address;
+    String phone;
 }

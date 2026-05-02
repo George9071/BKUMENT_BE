@@ -98,6 +98,11 @@ public class ProfileService {
                         .firstName(user.getFirstName())
                         .lastName(user.getLastName())
                         .avatar(user.getAvatarUrl())
+                        .dob(user.getDob())
+                        .bio(user.getBio())
+                        .address(user.getAddress())
+                        .gender(user.getGender())
+                        .phone(user.getPhone())
                         .build());
 
         return buildProfileResponse(
