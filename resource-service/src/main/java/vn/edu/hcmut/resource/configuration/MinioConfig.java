@@ -13,8 +13,12 @@ public class MinioConfig {
 
     @Bean
     public MinioClient minioClient() {
+        String endpoint = minioProperties.getExternalEndpoint();
+        if (endpoint == null || endpoint.isEmpty()) {
+            endpoint = minioProperties.getEndpoint();
+        }
         return MinioClient.builder()
-                .endpoint(minioProperties.getEndpoint())
+                .endpoint(endpoint)
                 .credentials(minioProperties.getAccessKey(), minioProperties.getSecretKey())
                 .build();
     }

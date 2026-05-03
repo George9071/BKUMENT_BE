@@ -83,19 +83,11 @@ public class MinioService {
     public String getPresignedUrl(String assetId) {
         try {
             createBucketIfNotExists();
-            String url = minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+            return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
                     .method(io.minio.http.Method.PUT)
                     .bucket(minioProperties.getBucketName())
                     .object(assetId)
                     .build());
-
-            String internalEndpoint = minioProperties.getEndpoint();
-            String externalEndpoint = minioProperties.getExternalEndpoint();
-            if (externalEndpoint != null && !externalEndpoint.isEmpty() && !externalEndpoint.equals(internalEndpoint)) {
-                url = url.replace(internalEndpoint, externalEndpoint);
-            }
-
-            return url;
         } catch (Exception e) {
             log.error("MinIO Presign URL Error: {}", e.getMessage());
             throw new AppException(ErrorCode.MINIO_ERROR);
