@@ -1,8 +1,8 @@
 package vn.edu.hcmut.resource.service;
 
 import java.io.InputStream;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -82,13 +82,22 @@ public class MinioService {
         }
     }
 
-    public String getPresignedUrl(String assetId) {
+    public String getPresignedUrl(String assetId, String contentType) {
         try {
             createBucketIfNotExists();
+
+            // 1. Tạo Map chứa header Content-Type
+            Map<String, String> extraHeaders = new HashMap<>();
+            if (contentType != null && !contentType.isEmpty()) {
+                extraHeaders.put("Content-Type", contentType);
+            }
+
+            // 2. Truyền extraHeaders vào builder
             String url = minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
                     .method(io.minio.http.Method.PUT)
                     .bucket(minioProperties.getBucketName())
                     .object(assetId)
+                    .extraHeaders(extraHeaders) // <--- DÒNG NÀY SẼ FIX LỖI 403
                     .build());
 
             String internalEndpoint = minioProperties.getEndpoint();
