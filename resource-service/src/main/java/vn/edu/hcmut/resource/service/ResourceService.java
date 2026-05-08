@@ -1,8 +1,9 @@
 package vn.edu.hcmut.resource.service;
 
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
@@ -55,7 +56,20 @@ public class ResourceService {
 
     public PresignResponse generatePresignedUrl(String fileName) {
         String assetId = minioService.generateUniqueAssetName(fileName);
-        String url = minioService.getPresignedUrl(assetId);
+
+        // Đoán Content-Type từ đuôi file (Mặc định là octet-stream nếu không đoán được)
+        String contentType = "application/octet-stream";
+        try {
+            String probedType = Files.probeContentType(Paths.get(fileName));
+            if (probedType != null) {
+                contentType = probedType;
+            }
+        } catch (Exception e) {
+            log.warn("Could not probe content type for file: {}", fileName);
+        }
+
+        // Truyền contentType xuống MinioService
+        String url = minioService.getPresignedUrl(assetId, contentType);
 
         return PresignResponse.builder().assetId(assetId).url(url).build();
     }
