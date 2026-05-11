@@ -2,14 +2,14 @@ package vn.edu.hcmut.resource.service;
 
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 import org.springframework.stereotype.Service;
 
 import io.minio.*;
-import io.minio.http.Method;
 import io.minio.messages.Item;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -82,17 +82,33 @@ public class MinioService {
         }
     }
 
-    public String getPresignedUrl(String assetId, int expiryMinutes) {
+    public String getPresignedUrl(String assetId, String contentType) {
         try {
             createBucketIfNotExists();
-            return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
-                    .method(Method.PUT)
+
+            // 1. Tạo Map chứa header Content-Type
+            Map<String, String> extraHeaders = new HashMap<>();
+            if (contentType != null && !contentType.isEmpty()) {
+                extraHeaders.put("Content-Type", contentType);
+            }
+
+            // 2. Truyền extraHeaders vào builder
+            String url = minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                    .method(io.minio.http.Method.PUT)
                     .bucket(minioProperties.getBucketName())
                     .object(assetId)
-                    .expiry(expiryMinutes, TimeUnit.MINUTES)
+                    .extraHeaders(extraHeaders) // <--- DÒNG NÀY SẼ FIX LỖI 403
                     .build());
+
+            String internalEndpoint = minioProperties.getEndpoint();
+            String externalEndpoint = minioProperties.getExternalEndpoint();
+            if (externalEndpoint != null && !externalEndpoint.isEmpty() && !externalEndpoint.equals(internalEndpoint)) {
+                url = url.replace(internalEndpoint, externalEndpoint);
+            }
+
+            return url;
         } catch (Exception e) {
-            log.error("MinIO Presign URL Error: {}", e.getMessage());
+            log.error("MinIO Presign POST Error: {}", e.getMessage());
             throw new AppException(ErrorCode.MINIO_ERROR);
         }
     }

@@ -12,8 +12,10 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class MinioProperties {
     String endpoint;
+    String externalEndpoint;
     String accessKey;
     String secretKey;
     String bucketName;
+    long maxFileSize;
     boolean secure;
 }

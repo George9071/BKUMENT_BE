@@ -92,6 +92,7 @@ spring:
               - http://localhost:5173
               - http://localhost:3000
               - https://bkument-fe.vercel.app
+              - https://app.bkument.io.vn
               - ${BACKEND_HOST}
             allowedMethods: "*"
             allowedHeaders: "*"

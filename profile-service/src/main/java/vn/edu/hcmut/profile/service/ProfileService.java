@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.event.ProfileUpdatedEvent;
 import vn.edu.hcmut.profile.dto.request.ProfileCreationRequest;
 import vn.edu.hcmut.profile.dto.request.ProfileUpdateRequest;
+import vn.edu.hcmut.profile.dto.response.PageResponse;
 import vn.edu.hcmut.profile.dto.response.ProfileResponse;
 import vn.edu.hcmut.profile.entity.jpa.University;
 import vn.edu.hcmut.profile.entity.jpa.UserProfile;
@@ -97,6 +98,11 @@ public class ProfileService {
                         .firstName(user.getFirstName())
                         .lastName(user.getLastName())
                         .avatar(user.getAvatarUrl())
+                        .dob(user.getDob())
+                        .bio(user.getBio())
+                        .address(user.getAddress())
+                        .gender(user.getGender())
+                        .phone(user.getPhone())
                         .build());
 
         return buildProfileResponse(
@@ -196,12 +202,38 @@ public class ProfileService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProfileResponse> searchProfile(String keyword, int limit) {
-        if (keyword == null || keyword.isBlank()) return List.of();
+    public PageResponse<ProfileResponse> searchProfile(String keyword, int page, int size) {
+        if (keyword == null || keyword.isBlank()) return new PageResponse<>();
 
-        return jpaRepository.search(keyword.trim(), PageRequest.of(0, limit)).getContent().stream()
+        var pageable = PageRequest.of(page - 1, size);
+        var pageData = jpaRepository.search(keyword.trim(), pageable);
+
+        List<ProfileResponse> profiles = pageData.getContent().stream()
                 .map(profileMapper::toProfileResponse)
                 .toList();
+
+        // Batch fetch follower/following counts from Neo4j
+        List<String> profileIds = profiles.stream().map(ProfileResponse::getId).toList();
+        Map<String, Map<String, Integer>> countsMap = profileNeo4jService.getBatchCounts(profileIds);
+
+        profiles.forEach(p -> {
+            Map<String, Integer> counts = countsMap.get(p.getId());
+            if (counts != null) {
+                p.setFollowerCount(counts.getOrDefault("followerCount", 0));
+                p.setFollowingCount(counts.getOrDefault("followingCount", 0));
+            } else {
+                p.setFollowerCount(0);
+                p.setFollowingCount(0);
+            }
+        });
+
+        return PageResponse.<ProfileResponse>builder()
+                .currentPage(page)
+                .pageSize(size)
+                .totalPages(pageData.getTotalPages())
+                .totalElements(pageData.getTotalElements())
+                .data(profiles)
+                .build();
     }
 
     // -------------------------------------------------------------------------

@@ -127,12 +127,20 @@ public class MinioService {
     public String getPresignedUrl(String assetId, int expiryMinutes) {
         try {
             createBucketIfNotExists();
-            return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+            String url = minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
                     .method(Method.PUT)
                     .bucket(minioProperties.getBucketName())
                     .object(assetId)
                     .expiry(expiryMinutes, TimeUnit.MINUTES)
                     .build());
+
+            // Replace internal endpoint with external endpoint if configured
+            String internalEndpoint = minioProperties.getEndpoint();
+            String externalEndpoint = minioProperties.getExternalEndpoint();
+            if (externalEndpoint != null && !externalEndpoint.isEmpty() && !externalEndpoint.equals(internalEndpoint)) {
+                url = url.replace(internalEndpoint, externalEndpoint);
+            }
+            return url;
         } catch (Exception e) {
             log.error("MinIO presigned URL generation failed for asset {}: {}", assetId, e.getMessage());
             throw new AppException(ErrorCode.MINIO_ERROR);
