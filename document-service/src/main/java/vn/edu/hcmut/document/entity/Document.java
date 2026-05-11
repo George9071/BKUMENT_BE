@@ -7,6 +7,7 @@ import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
+import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.ColumnTransformer;
 
 import lombok.*;
@@ -20,6 +21,7 @@ import vn.edu.hcmut.document.converter.VectorConverter;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
+@SuperBuilder
 @Table(name = "document")
 public class Document extends Resource {
     @Column(columnDefinition = "TEXT")

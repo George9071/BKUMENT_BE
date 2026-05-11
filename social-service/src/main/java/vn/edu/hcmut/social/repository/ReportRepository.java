@@ -10,7 +10,10 @@ import vn.edu.hcmut.social.enums.ReportStatus;
 
 @Repository
 public interface ReportRepository extends JpaRepository<Report, String> {
-    Page<Report> findByIsDeletedFalse(Pageable pageable);
+    Page<Report> findByDeletedFalse(Pageable pageable);
 
-    Page<Report> findByStatusAndIsDeletedFalse(ReportStatus status, Pageable pageable);
+    Page<Report> findByStatusAndDeletedFalse(ReportStatus status, Pageable pageable);
+
+    boolean existsByReporterIdAndTargetIdAndStatusAndDeletedFalse(
+            String reporterId, String targetId, ReportStatus status);
 }

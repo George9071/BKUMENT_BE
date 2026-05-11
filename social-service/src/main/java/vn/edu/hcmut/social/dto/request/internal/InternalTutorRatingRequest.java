@@ -11,5 +11,5 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class InternalTutorRatingRequest {
     Double averageRating;
-    Integer ratingCount;
+    Long ratingCount;
 }

@@ -88,7 +88,7 @@ public class RatingController {
     public APIResponse<RatingResponse> getUserRatingForResource(@PathVariable String resourceId) {
         String userId = getProfileIdFromToken();
         return APIResponse.<RatingResponse>builder()
-                .result(ratingService.getUserRatingForResource(resourceId, userId))
+                .result(ratingService.getUserRatingForResource(resourceId, userId).orElse(null))
                 .message("Get user rating successfully")
                 .build();
     }

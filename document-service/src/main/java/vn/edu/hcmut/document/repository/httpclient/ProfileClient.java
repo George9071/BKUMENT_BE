@@ -1,14 +1,13 @@
 package vn.edu.hcmut.document.repository.httpclient;
 
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 import vn.edu.hcmut.document.dto.response.ProfilePageResponse;
 import vn.edu.hcmut.document.dto.response.ProfileResponse;
 import vn.edu.hcmut.document.dto.response.UniversityResponse;
+
+import java.util.List;
 
 @FeignClient(name = "profile-service", url = "${app.services.profile}")
 public interface ProfileClient {
@@ -21,4 +20,7 @@ public interface ProfileClient {
 
     @PostMapping("/internal/users/{id}/points")
     void updatePoints(@PathVariable String id, @RequestParam Long delta);
+
+    @PostMapping("/internal/users/batch")
+    List<ProfileResponse> getProfiles(@RequestBody List<String> profileIds);
 }

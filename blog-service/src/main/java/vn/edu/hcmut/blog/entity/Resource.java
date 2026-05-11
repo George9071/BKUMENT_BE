@@ -6,10 +6,11 @@ import jakarta.persistence.*;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import lombok.experimental.SuperBuilder;
 
 @Getter
 @Setter
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
@@ -52,7 +53,7 @@ public class Resource {
     @Builder.Default
     Long views = 0L;
 
-    @Column(name = "trending_score")
+    @Column(name = "trending_score", nullable = false)
     @Builder.Default
     Double trendingScore = 0.0;
 

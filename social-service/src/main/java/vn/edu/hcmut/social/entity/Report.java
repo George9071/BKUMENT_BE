@@ -47,7 +47,7 @@ public class Report {
 
     @Column(name = "is_deleted")
     @Builder.Default
-    boolean isDeleted = false;
+    boolean deleted = false;
 
     @Column(name = "created_at", updatable = false)
     LocalDateTime createdAt;
