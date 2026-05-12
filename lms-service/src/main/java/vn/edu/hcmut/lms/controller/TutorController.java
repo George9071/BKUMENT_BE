@@ -36,6 +36,15 @@ public class TutorController {
                 .build();
     }
 
+    @Operation(summary = "Get my tutor application",
+            description = "Retrieves the tutor application submitted by the currently authenticated user.")
+    @GetMapping("/registration/me")
+    public APIResponse<ApplicationResponse> getMyApplication() {
+        return APIResponse.<ApplicationResponse>builder()
+                .result(applicationService.getMyApplication())
+                .build();
+    }
+
     @Operation(summary = "Get list of tutor applications (Admin)",
             description = "Retrieve a paginated list of applications. Can filter by status (PENDING, APPROVED, REJECTED).")
     @GetMapping("/admin/applications")

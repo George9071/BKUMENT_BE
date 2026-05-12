@@ -172,6 +172,14 @@ public class TutorApplicationService {
         return buildPageResponse(responseList, page, applicationPage);
     }
 
+    @Transactional(readOnly = true)
+    public ApplicationResponse getMyApplication() {
+        String profileId = utils.getProfileId();
+        return applicationRepository.findByProfileId(profileId)
+                .map(mapper::toResponse)
+                .orElseThrow(() -> new AppException(ErrorCode.APPLICATION_NOT_FOUND));
+    }
+
     private boolean isCooldownActive(TutorApplication application) {
         return application.getReviewedAt() != null &&
                 application.getReviewedAt()
