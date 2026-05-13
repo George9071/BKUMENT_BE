@@ -9,6 +9,7 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,6 +25,7 @@ import lombok.experimental.FieldDefaults;
 import vn.edu.hcmut.blog.dto.request.BlogMetadataRequest;
 import vn.edu.hcmut.blog.dto.response.APIResponse;
 import vn.edu.hcmut.blog.dto.response.BlogMetadataResponse;
+import vn.edu.hcmut.blog.dto.response.ReportedBlogResponse;
 import vn.edu.hcmut.blog.entity.Post;
 import vn.edu.hcmut.blog.exception.AppException;
 import vn.edu.hcmut.blog.exception.ErrorCode;
@@ -148,7 +150,51 @@ public class BlogController {
                         .id(post.getId())
                         .name(post.getTitle())
                         .build())
-                .message("Blog created successfully")
+                .message("Blog updated successfully")
                 .build();
+    }
+
+    @DeleteMapping("{blogId}")
+    public APIResponse<Void> deleteBlog(@PathVariable String blogId) {
+        String userId = getProfileIdFromToken();
+        String ownerId = postService.getOwnerId(blogId);
+
+        if (!userId.equals(ownerId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        postService.deleteBlog(blogId);
+
+        return APIResponse.<Void>builder().message("Blog deleted successfully").build();
+    }
+
+    @GetMapping("/admin/reported")
+    public APIResponse<Page<ReportedBlogResponse>> getReportedBlogs(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+
+        checkAdminRole();
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ReportedBlogResponse> result = postService.getReportedBlogs(pageable);
+
+        return APIResponse.<Page<ReportedBlogResponse>>builder()
+                .result(result)
+                .message("Get reported blogs successfully")
+                .build();
+    }
+
+    private void checkAdminRole() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!isAdmin) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
     }
 }

@@ -13,7 +13,8 @@ public enum ErrorCode {
     UNAUTHENTICATED(1003, "Unauthenticated", HttpStatus.UNAUTHORIZED),
     INVALID_TOKEN_CLAIMS(9001, "Invalid token", HttpStatus.UNAUTHORIZED),
     INVALID_RESOURCE_TYPE(1004, "Invalid resource type", HttpStatus.BAD_REQUEST),
-    VALIDATION_FAILED(1005, "Invalid body", HttpStatus.BAD_REQUEST);
+    VALIDATION_FAILED(1005, "Invalid body", HttpStatus.BAD_REQUEST),
+    ACCESS_DENIED(1006, "Access denied", HttpStatus.FORBIDDEN);
 
     private final int code;
     private final String message;

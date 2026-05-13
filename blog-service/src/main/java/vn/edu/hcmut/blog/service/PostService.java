@@ -26,6 +26,9 @@ import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.blog.dto.request.BlogMetadataRequest;
 import vn.edu.hcmut.blog.dto.response.BlogMetadataResponse;
 import vn.edu.hcmut.blog.dto.response.ProfileResponse;
+import vn.edu.hcmut.blog.dto.response.ReportInfo;
+import vn.edu.hcmut.blog.dto.response.ReportedBlogResponse;
+import vn.edu.hcmut.blog.dto.response.SocialReportResponse;
 import vn.edu.hcmut.blog.entity.Post;
 import vn.edu.hcmut.blog.entity.PostAsset;
 import vn.edu.hcmut.blog.exception.AppException;
@@ -49,7 +52,9 @@ public class PostService {
      */
     static final int MAX_LENGTH = 500;
 
-    /** Time window (days) for the trending feed query. Older posts decay out anyway. */
+    /**
+     * Time window (days) for the trending feed query. Older posts decay out anyway.
+     */
     static final int TRENDING_WINDOW_DAYS = 30;
 
     PostRepository postRepository;
@@ -64,10 +69,12 @@ public class PostService {
 
     /**
      * Routing logic:
-     *  - blank keyword --> return everything paginated by createdAt.
-     *  - UUID input    --> direct ID lookup; the result is shown with full content because UUID lookup is
-     *                      equivalent to a "view single post by ID".
-     *  - other input   --> results are ordered by ts_rank_cd relevance score, not insertion order.
+     * - blank keyword --> return everything paginated by createdAt.
+     * - UUID input --> direct ID lookup; the result is shown with full content
+     * because UUID lookup is
+     * equivalent to a "view single post by ID".
+     * - other input --> results are ordered by ts_rank_cd relevance score, not
+     * insertion order.
      */
     public Page<BlogMetadataResponse> search(String keyword, Pageable pageable) {
         Page<Post> posts;
@@ -210,8 +217,8 @@ public class PostService {
 
     /**
      * Deletes a single blog post:
-     *  - removes media files from MinIO
-     *  - then the post_asset rows, then the post itself.
+     * - removes media files from MinIO
+     * - then the post_asset rows, then the post itself.
      */
     @Transactional
     public void deleteBlog(String blogId) {
@@ -234,10 +241,10 @@ public class PostService {
      * Bulk-deletes all blogs belonging to a single user.
      * * * *
      * Cascade order:
-     *   1. Look up the user's posts and their asset references.
-     *   2. Remove every asset's underlying MinIO object (best-effort).
-     *   3. Remove every PostAsset row for the user's posts.
-     *   4. Bulk-delete the posts themselves via deleteByOwnerId.
+     * 1. Look up the user's posts and their asset references.
+     * 2. Remove every asset's underlying MinIO object (best-effort).
+     * 3. Remove every PostAsset row for the user's posts.
+     * 4. Bulk-delete the posts themselves via deleteByOwnerId.
      */
     @Transactional
     public void deleteByOwnerId(String ownerId) {
@@ -374,5 +381,99 @@ public class PostService {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * Admin endpoint: returns posts that have been reported, enriched with their report list.
+     * Posts are sorted by number of reports (descending).
+     */
+    public Page<ReportedBlogResponse> getReportedBlogs(Pageable pageable) {
+        // 1. Fetch ALL blog reports from social-service (type=BLOG, not deleted)
+        List<SocialReportResponse> allReports;
+        try {
+            // Fetch all blog-type post IDs that have reports
+            // We get reports then find the corresponding posts
+            List<String> allBlogIds =
+                    postRepository.findAll().stream().map(Post::getId).toList();
+
+            if (allBlogIds.isEmpty()) return new PageImpl<>(List.of(), pageable, 0);
+
+            allReports = socialClient.getReportsByTargetIds(allBlogIds);
+        } catch (Exception e) {
+            log.error("Failed to fetch reports from social-service: {}", e.getMessage());
+            return new PageImpl<>(List.of(), pageable, 0);
+        }
+
+        if (allReports.isEmpty()) return new PageImpl<>(List.of(), pageable, 0);
+
+        // 2. Group reports by targetId (blog ID)
+        Map<String, List<SocialReportResponse>> reportsByBlogId =
+                allReports.stream().collect(Collectors.groupingBy(SocialReportResponse::getTargetId));
+
+        // 3. Sort blog IDs by report count (desc)
+        List<String> sortedBlogIds = reportsByBlogId.entrySet().stream()
+                .sorted((a, b) ->
+                        Integer.compare(b.getValue().size(), a.getValue().size()))
+                .map(Map.Entry::getKey)
+                .toList();
+
+        // 4. Apply pagination
+        int total = sortedBlogIds.size();
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), total);
+
+        if (start >= total) return new PageImpl<>(List.of(), pageable, total);
+
+        List<String> pagedBlogIds = sortedBlogIds.subList(start, end);
+
+        // 5. Fetch posts
+        List<Post> posts = postRepository.findAllById(pagedBlogIds);
+        Map<String, Post> postMap = posts.stream().collect(Collectors.toMap(Post::getId, Function.identity()));
+
+        // 6. Fetch profiles in batch
+        List<String> ownerIds = posts.stream().map(Post::getOwnerId).distinct().toList();
+        Map<String, ProfileResponse> profiles = fetchProfileMap(ownerIds);
+
+        // 7. Build response maintaining sort order
+        List<ReportedBlogResponse> result = pagedBlogIds.stream()
+                .filter(postMap::containsKey)
+                .map(blogId -> {
+                    Post post = postMap.get(blogId);
+                    ProfileResponse profile = profiles.get(post.getOwnerId());
+
+                    BlogMetadataResponse.Author authorDto = null;
+                    if (profile != null) {
+                        authorDto = BlogMetadataResponse.Author.builder()
+                                .id(profile.getId())
+                                .name(profile.getFullName())
+                                .avatarUrl(profile.getAvatarUrl())
+                                .build();
+                    }
+
+                    List<ReportInfo> reportInfos = reportsByBlogId.getOrDefault(blogId, List.of()).stream()
+                            .map(r -> ReportInfo.builder()
+                                    .id(r.getId())
+                                    .reporterId(r.getReporterId())
+                                    .status(r.getStatus())
+                                    .reason(r.getReason())
+                                    .detail(r.getDetail())
+                                    .createdAt(r.getCreatedAt())
+                                    .build())
+                            .toList();
+
+                    return ReportedBlogResponse.builder()
+                            .id(post.getId())
+                            .name(post.getTitle())
+                            .author(authorDto)
+                            .content(htmlToTextWithoutImages(post.getContent()))
+                            .coverImage(post.getCoverImage())
+                            .createdAt(post.getCreatedAt())
+                            .views(post.getViews())
+                            .reportList(reportInfos)
+                            .build();
+                })
+                .toList();
+
+        return new PageImpl<>(result, pageable, total);
     }
 }
