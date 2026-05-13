@@ -44,22 +44,9 @@ class VectorService:
     The embedding model is injected at construction time for testability and
     to support model-swapping without changing this class.
     """
-    def __init__(self, embedding_model):
+    def __init__(self, embedding_model, db_manager):
         self.model = embedding_model
-        self.pool = None
-
-    async def _get_pool(self):
-        if self.pool is None:
-            self.pool = await asyncpg.create_pool(
-                host=settings.DB_HOST,
-                port=settings.DB_PORT,
-                database=settings.DB_NAME,
-                user=settings.POSTGRES_USERNAME,
-                password=settings.POSTGRES_PASSWORD,
-                min_size=5, 
-                max_size=20 
-            )
-        return self.pool
+        self._db = db_manager
 
     def get_embedding(self, text: str, is_query: bool = False) -> List[float]:
         """
