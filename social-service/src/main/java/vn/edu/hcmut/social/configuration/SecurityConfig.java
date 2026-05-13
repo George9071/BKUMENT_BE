@@ -16,7 +16,7 @@ public class SecurityConfig {
     };
 
     private static final String[] PUBLIC_ENDPOINTS = {
-        "/ratings/internal/**",
+        "/ratings/internal/**", "/internal/**",
     };
 
     @Bean

@@ -5,8 +5,8 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import io.minio.MinioClient;
-import io.minio.RemoveObjectArgs;
+import jakarta.transaction.Transactional;
+
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.safety.Safelist;
@@ -15,8 +15,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import jakarta.transaction.Transactional;
 
+import io.minio.MinioClient;
+import io.minio.RemoveObjectArgs;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -32,6 +33,7 @@ import vn.edu.hcmut.blog.exception.ErrorCode;
 import vn.edu.hcmut.blog.repository.PostAssetRepository;
 import vn.edu.hcmut.blog.repository.PostRepository;
 import vn.edu.hcmut.blog.repository.httpclient.ProfileClient;
+import vn.edu.hcmut.blog.repository.httpclient.SocialClient;
 
 /**
  * Manages blog post CRUD, search, trending feed, and view tracking.
@@ -53,9 +55,12 @@ public class PostService {
     PostRepository postRepository;
     PostAssetRepository postAssetRepository;
     ProfileClient profileClient;
+    SocialClient socialClient;
     MinioClient minioClient;
 
-    @NonFinal @Value("${minio.bucket-name:resource-bucket}") String bucketName;
+    @NonFinal
+    @Value("${minio.bucket-name:resource-bucket}")
+    String bucketName;
 
     /**
      * Routing logic:
@@ -81,7 +86,8 @@ public class PostService {
         }
 
         if (!posts.isEmpty()) {
-            postRepository.incrementViews(posts.getContent().stream().map(Post::getId).toList());
+            postRepository.incrementViews(
+                    posts.getContent().stream().map(Post::getId).toList());
         }
 
         return mapPageWithBatchProfileFetch(posts, isUuidQuery);
@@ -90,7 +96,8 @@ public class PostService {
     public Page<BlogMetadataResponse> getBlogsByOwnerId(String ownerId, Pageable pageable) {
         Page<Post> posts = postRepository.findByOwnerId(ownerId, pageable);
         if (!posts.isEmpty()) {
-            postRepository.incrementViews(posts.getContent().stream().map(Post::getId).toList());
+            postRepository.incrementViews(
+                    posts.getContent().stream().map(Post::getId).toList());
         }
         return mapPageWithBatchProfileFetch(posts, false);
     }
@@ -105,7 +112,9 @@ public class PostService {
             posts = postRepository.findAllOrderByCreatedAtDesc(pageable);
         }
 
-        if (!posts.isEmpty()) postRepository.incrementViews(posts.getContent().stream().map(Post::getId).toList());
+        if (!posts.isEmpty())
+            postRepository.incrementViews(
+                    posts.getContent().stream().map(Post::getId).toList());
 
         return mapPageWithBatchProfileFetch(posts, false);
     }
@@ -124,7 +133,7 @@ public class PostService {
                 .type("POST")
                 .views(0L)
                 .visibility(request.getVisibility())
-                .topicId(request.getTopicId())
+                .topicId(request.getTopicId() != null ? request.getTopicId() : "")
                 .universityId(request.getUniversityId())
                 .courseId(request.getCourseId())
                 .build();
@@ -147,16 +156,13 @@ public class PostService {
     @Transactional
     public Post updateBlog(BlogMetadataRequest request, String blogId) {
 
-        Post post = postRepository
-                .findById(blogId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
+        Post post = postRepository.findById(blogId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
 
         if (request.getAssetIds() != null) {
             List<PostAsset> currentAssets = postAssetRepository.findByResourceId(blogId);
 
-            Set<String> currentAssetIds = currentAssets.stream()
-                    .map(PostAsset::getId)
-                    .collect(Collectors.toSet());
+            Set<String> currentAssetIds =
+                    currentAssets.stream().map(PostAsset::getId).collect(Collectors.toSet());
 
             Set<String> newAssetIds = new HashSet<>(request.getAssetIds());
 
@@ -167,9 +173,8 @@ public class PostService {
             if (!assetsToRemove.isEmpty()) {
                 removeAssetFiles(assetsToRemove);
 
-                List<String> idsToDelete = assetsToRemove.stream()
-                        .map(PostAsset::getId)
-                        .toList();
+                List<String> idsToDelete =
+                        assetsToRemove.stream().map(PostAsset::getId).toList();
 
                 postAssetRepository.deleteByResourceIdAndIdIn(blogId, idsToDelete);
             }
@@ -185,7 +190,7 @@ public class PostService {
         post.setVisibility(request.getVisibility());
         post.setContent(sanitizeHtml(request.getContent()));
         post.setCoverImage(request.getCoverImage());
-        post.setTopicId(request.getTopicId());
+        post.setTopicId(request.getTopicId() != null ? request.getTopicId() : "");
         post.setUniversityId(request.getUniversityId());
         post.setCourseId(request.getCourseId());
 
@@ -210,9 +215,14 @@ public class PostService {
      */
     @Transactional
     public void deleteBlog(String blogId) {
-        Post post = postRepository
-                .findById(blogId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
+        Post post = postRepository.findById(blogId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_EXISTED));
+
+        // Cascading cleanup of social data
+        try {
+            socialClient.deleteSocialByResourceId(blogId);
+        } catch (Exception e) {
+            log.error("Failed to clean up social data for blog {}: {}", blogId, e.getMessage());
+        }
 
         List<PostAsset> assets = postAssetRepository.findByResourceId(blogId);
         removeAssetFiles(assets);
@@ -231,8 +241,9 @@ public class PostService {
      */
     @Transactional
     public void deleteByOwnerId(String ownerId) {
-        List<Post> posts = postRepository.findByOwnerId(ownerId,
-                org.springframework.data.domain.Pageable.unpaged()).getContent();
+        List<Post> posts = postRepository
+                .findByOwnerId(ownerId, org.springframework.data.domain.Pageable.unpaged())
+                .getContent();
 
         if (posts.isEmpty()) {
             postRepository.deleteByOwnerId(ownerId);
@@ -250,8 +261,7 @@ public class PostService {
 
         postRepository.deleteByOwnerId(ownerId);
 
-        log.info("Deleted {} blogs and {} assets for owner {}",
-                posts.size(), assets.size(), ownerId);
+        log.info("Deleted {} blogs and {} assets for owner {}", posts.size(), assets.size(), ownerId);
     }
 
     /**
@@ -265,15 +275,17 @@ public class PostService {
 
         for (PostAsset asset : assets) {
             try {
-                minioClient.removeObject(
-                        RemoveObjectArgs.builder()
-                                .bucket(bucketName)
-                                .object(asset.getId())
-                                .build());
+                minioClient.removeObject(RemoveObjectArgs.builder()
+                        .bucket(bucketName)
+                        .object(asset.getId())
+                        .build());
             } catch (Exception e) {
                 // Non-fatal: log and continue. The DB cleanup below still proceeds.
-                log.error("Failed to remove MinIO object {} for resource {}: {}",
-                        asset.getId(), asset.getResourceId(), e.getMessage());
+                log.error(
+                        "Failed to remove MinIO object {} for resource {}: {}",
+                        asset.getId(),
+                        asset.getResourceId(),
+                        e.getMessage());
             }
         }
     }
@@ -295,10 +307,8 @@ public class PostService {
     private Page<BlogMetadataResponse> mapPageWithBatchProfileFetch(Page<Post> posts, boolean detailed) {
         if (posts.isEmpty()) return posts.map(p -> null);
 
-        List<String> ownerIds = posts.getContent().stream()
-                .map(Post::getOwnerId)
-                .distinct()
-                .toList();
+        List<String> ownerIds =
+                posts.getContent().stream().map(Post::getOwnerId).distinct().toList();
 
         Map<String, ProfileResponse> profiles = fetchProfileMap(ownerIds);
 

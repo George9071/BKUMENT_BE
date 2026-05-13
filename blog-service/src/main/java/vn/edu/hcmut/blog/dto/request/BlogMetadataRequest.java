@@ -2,11 +2,12 @@ package vn.edu.hcmut.blog.dto.request;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -44,7 +45,6 @@ public class BlogMetadataRequest {
     @NotNull(message = "assetIds must not be null")
     List<String> assetIds;
 
-    @NotBlank(message = "Topic is required")
     String topicId;
 
     String universityId;
@@ -59,14 +59,14 @@ public class BlogMetadataRequest {
      * If validation fails, Spring returns 400 before the service ever sees the request
      */
     @JsonIgnore
-    @AssertTrue(message =
-            "courseId must be present when visibility is INTERNAL, "
+    @AssertTrue(
+            message = "courseId must be present when visibility is INTERNAL, "
                     + "and absent for any other visibility value")
     public boolean isVisibilityConsistentWithCourse() {
         // Skip if visibility is missing — @NotBlank on visibility already reports that.
         if (visibility == null) return true;
 
-        boolean isInternal  = "INTERNAL".equalsIgnoreCase(visibility);
+        boolean isInternal = "INTERNAL".equalsIgnoreCase(visibility);
         boolean hasCourseId = (courseId != null && !courseId.isBlank());
         return isInternal == hasCourseId;
     }

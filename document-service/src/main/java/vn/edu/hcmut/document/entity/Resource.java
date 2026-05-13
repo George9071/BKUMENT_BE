@@ -34,8 +34,9 @@ public class Resource {
     @Column(name = "owner_id", nullable = false)
     String ownerId;
 
-    @Column(name = "topic_id", nullable = false)
-    String topicId;
+    @Column(name = "topic_id")
+    @Builder.Default
+    String topicId = "";
 
     @Column(name = "created_at")
     LocalDateTime createdAt;
