@@ -38,4 +38,28 @@ public final class SecurityUtils {
         if (auth.getPrincipal() instanceof Jwt jwt) return jwt;
         throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
+
+    public String getPrimaryAdminRole() {
+        var authentication = org.springframework.security.core.context.SecurityContextHolder
+                .getContext()
+                .getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        boolean isAdmin = false;
+        boolean isModerator = false;
+
+        for (var authority : authentication.getAuthorities()) {
+            String role = authority.getAuthority();
+            if ("ROLE_ADMIN".equals(role) || "ADMIN".equals(role)) isAdmin = true;
+            else if ("ROLE_MODERATOR".equals(role) || "MODERATOR".equals(role)) isModerator = true;
+        }
+
+        if (isAdmin) return "ADMIN";
+        if (isModerator) return "MODERATOR";
+
+        throw new AppException(ErrorCode.UNAUTHORIZED);
+    }
 }
