@@ -136,7 +136,7 @@ public class GraphSyncService {
 	 */
     public List<Map<String, Object>> getCollaborativeRecommendations(String profileId) {
 		String query = """
-                CALL {
+				CALL ($profileId) {
                     // --- Strategy 1: Curriculum-based ---
                     WITH $profileId AS pid
                     MATCH (me:UserProfile {id: pid})
