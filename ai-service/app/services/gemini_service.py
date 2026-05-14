@@ -80,7 +80,7 @@ class GeminiService:
             response = await loop.run_in_executor(
                 _gemini_executor,
                 functools.partial(
-                    self._call_generate_content_sync,
+                    self.model.generate_content,
                     prompt,
                     generation_config=config,
                 ),
@@ -148,7 +148,7 @@ class GeminiService:
             response = await loop.run_in_executor(
                 _gemini_executor,
                 functools.partial(
-                    self._call_generate_content_sync,
+                    self.model.generate_content,
                     content_parts,
                     generation_config=gen_config,
                 ),
