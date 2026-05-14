@@ -1,8 +1,13 @@
 package vn.edu.hcmut.social.service;
 
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,10 +32,6 @@ import vn.edu.hcmut.social.repository.httpclient.DocumentClient;
 import vn.edu.hcmut.social.repository.httpclient.EmailClient;
 import vn.edu.hcmut.social.repository.httpclient.ProfileClient;
 
-import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -43,7 +44,7 @@ public class ReportService {
     RatingRepository ratingRepository;
     CommentRepository commentRepository;
 
-    ResourceCleanupService  resourceCleanupService;
+    ResourceCleanupService resourceCleanupService;
 
     ProfileClient profileClient;
     DocumentClient documentClient;
@@ -59,8 +60,7 @@ public class ReportService {
         return getReportedContents(ReportType.DOCUMENT, parseStatusOrNull(status), pageable);
     }
 
-    private Page<ContentResponse> getReportedContents(
-            ReportType type, ReportStatus status, Pageable pageable) {
+    private Page<ContentResponse> getReportedContents(ReportType type, ReportStatus status, Pageable pageable) {
 
         // 1. Group-by-target: which contents are on this page?
         Page<Object[]> grouped = reportRepository.findGroupedTargets(type, status, pageable);
@@ -71,7 +71,7 @@ public class ReportService {
         Map<String, Integer> reportCountByTarget = new LinkedHashMap<>();
         for (Object[] row : grouped.getContent()) {
             String targetId = (String) row[0];
-            Long count = (Long) row[1];                   // COUNT(*) -> Long
+            Long count = (Long) row[1]; // COUNT(*) -> Long
             targetIds.add(targetId);
             reportCountByTarget.put(targetId, count.intValue());
         }
@@ -84,8 +84,7 @@ public class ReportService {
 
         // Group reports by target. Already ordered (targetId, createdAt DESC) by the query.
         Map<String, List<Report>> reportsByTarget = reports.stream()
-                .collect(Collectors.groupingBy(Report::getTargetId,
-                        LinkedHashMap::new, Collectors.toList()));
+                .collect(Collectors.groupingBy(Report::getTargetId, LinkedHashMap::new, Collectors.toList()));
 
         // 4. Collect every profile ID we'll need (authors AND reporters) and batch-fetch once.
         List<String> profileIds = new ArrayList<>();
@@ -95,8 +94,8 @@ public class ReportService {
         reports.forEach(r -> {
             if (r.getReporterId() != null) profileIds.add(r.getReporterId());
         });
-        Map<String, ProfileResponse> profileMap = fetchProfileMap(
-                profileIds.stream().distinct().toList());
+        Map<String, ProfileResponse> profileMap =
+                fetchProfileMap(profileIds.stream().distinct().toList());
 
         // 5. Stitch.
         List<ContentResponse> rows = new ArrayList<>(targetIds.size());
@@ -107,22 +106,20 @@ public class ReportService {
             // for that page rather than a broken row. The next page query will
             // backfill from later content.
             if (snap == null) {
-                log.warn("Reported {} {} not found in owning service; skipping in listing",
-                        type, targetId);
+                log.warn("Reported {} {} not found in owning service; skipping in listing", type, targetId);
                 continue;
             }
 
             AuthorResponse author = buildAuthor(profileMap.get(snap.getOwnerId()));
 
-            List<ContentResponse.ReportSummary> summaries = reportsByTarget
-                    .getOrDefault(targetId, Collections.emptyList())
-                    .stream()
-                    .map(r -> ContentResponse.ReportSummary.builder()
-                            .reporter(displayName(profileMap.get(r.getReporterId())))
-                            .reason(r.getReason().toString())
-                            .createdAt(r.getCreatedAt())
-                            .build())
-                    .toList();
+            List<ContentResponse.ReportSummary> summaries =
+                    reportsByTarget.getOrDefault(targetId, Collections.emptyList()).stream()
+                            .map(r -> ContentResponse.ReportSummary.builder()
+                                    .reporter(displayName(profileMap.get(r.getReporterId())))
+                                    .reason(r.getReason().toString())
+                                    .createdAt(r.getCreatedAt())
+                                    .build())
+                            .toList();
 
             rows.add(ContentResponse.builder()
                     .id(targetId)
@@ -138,6 +135,17 @@ public class ReportService {
         }
 
         return new PageImpl<>(rows, pageable, grouped.getTotalElements());
+    }
+
+    public List<ReportResponse> getReportsByTargetIds(List<String> targetIds) {
+        if (targetIds == null || targetIds.isEmpty()) return Collections.emptyList();
+
+        List<String> deduped = targetIds.stream().distinct().toList();
+
+        Sort sort = Sort.by(Sort.Order.asc("targetId"), Sort.Order.desc("createdAt"));
+        List<Report> reports = reportRepository.findByTargetIdInAndDeletedFalse(deduped, sort);
+
+        return reports.stream().map(this::toReportResponse).toList();
     }
 
     /**
@@ -192,15 +200,16 @@ public class ReportService {
      */
     @Transactional
     public ReportResponse updateReportStatus(String reportId, ReportStatus status, String resolverId) {
-        Report report = reportRepository
-                .findById(reportId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+        Report report =
+                reportRepository.findById(reportId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
 
         if (report.isDeleted()) throw new AppException(ErrorCode.RESOURCE_NOT_FOUND);
 
-        if (!ReportStatus.PENDING.equals(report.getStatus())) throw new AppException(ErrorCode.REPORT_ALREADY_PROCESSED);
+        if (!ReportStatus.PENDING.equals(report.getStatus()))
+            throw new AppException(ErrorCode.REPORT_ALREADY_PROCESSED);
 
-        if (!checkResourceExists(report.getTargetId(), report.getType())) throw new AppException(ErrorCode.RESOURCE_NOT_FOUND);
+        if (!checkResourceExists(report.getTargetId(), report.getType()))
+            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND);
 
         report.setStatus(status);
         report.setResolverId(resolverId);
@@ -212,8 +221,11 @@ public class ReportService {
             if (ownerId != null) {
                 try {
                     profileClient.updatePoints(ownerId, POINTS_PENALTY);
-                    log.info("Applied {} points penalty to profile {} for approved report {}",
-                            POINTS_PENALTY, ownerId, reportId);
+                    log.info(
+                            "Applied {} points penalty to profile {} for approved report {}",
+                            POINTS_PENALTY,
+                            ownerId,
+                            reportId);
                 } catch (Exception e) {
                     log.error("Failed to apply points penalty to {}: {}", ownerId, e.getMessage());
                 }
@@ -238,28 +250,25 @@ public class ReportService {
             ProfileResponse profile = profileClient.findUserProfileById(ownerId);
 
             if (profile == null || profile.getEmail() == null) {
-                log.warn("Owner {} has no email; skipping notification for report {}",
-                        ownerId, report.getId());
+                log.warn("Owner {} has no email; skipping notification for report {}", ownerId, report.getId());
                 return;
             }
 
             boolean accountReport = isAccountReport(report.getType());
 
-            String subject = accountReport
-                    ? "Thông báo xử lý vi phạm tài khoản"
-                    : "Thông báo xử lý báo cáo nội dung";
+            String subject = accountReport ? "Thông báo xử lý vi phạm tài khoản" : "Thông báo xử lý báo cáo nội dung";
 
             String content = accountReport
                     ? String.format(
-                    "Chào %s,<br><br>Một báo cáo về tài khoản của bạn đã được xác nhận"
-                            + " vi phạm chính sách (Lý do: %s).<br>Bạn bị trừ 50 điểm hệ thống."
-                            + "<br>Vui lòng xem xét lại hành vi để tránh bị xử lý nặng hơn"
-                            + " trong các lần vi phạm tiếp theo.",
-                    profile.getFullName(), report.getReason())
+                            "Chào %s,<br><br>Một báo cáo về tài khoản của bạn đã được xác nhận"
+                                    + " vi phạm chính sách (Lý do: %s).<br>Bạn bị trừ 50 điểm hệ thống."
+                                    + "<br>Vui lòng xem xét lại hành vi để tránh bị xử lý nặng hơn"
+                                    + " trong các lần vi phạm tiếp theo.",
+                            profile.getFullName(), report.getReason())
                     : String.format(
-                    "Chào %s,<br><br>Nội dung của bạn (ID: %s) đã bị xóa do vi phạm chính sách"
-                            + " của chúng tôi (Lý do: %s).<br>Bạn bị trừ 50 điểm hệ thống.",
-                    profile.getFullName(), report.getTargetId(), report.getReason());
+                            "Chào %s,<br><br>Nội dung của bạn (ID: %s) đã bị xóa do vi phạm chính sách"
+                                    + " của chúng tôi (Lý do: %s).<br>Bạn bị trừ 50 điểm hệ thống.",
+                            profile.getFullName(), report.getTargetId(), report.getReason());
 
             emailClient.sendEmail(SendEmailRequest.builder()
                     .to(Recipient.builder()
@@ -278,26 +287,22 @@ public class ReportService {
 
     @Transactional
     public void deleteReport(String reportId) {
-        Report report = reportRepository
-                .findById(reportId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+        Report report =
+                reportRepository.findById(reportId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
 
         report.setDeleted(true);
         reportRepository.save(report);
     }
 
-
-
     private boolean isAccountReport(ReportType type) {
         return type == ReportType.USER || type == ReportType.TUTOR;
-
     }
 
     private boolean checkResourceExists(String targetId, ReportType type) {
         try {
             if (type == ReportType.DOCUMENT) return documentClient.exists(targetId);
-            if (type == ReportType.BLOG)     return blogClient.exists(targetId);
-            if (isAccountReport(type))       return profileClient.findUserProfileById(targetId) != null;
+            if (type == ReportType.BLOG) return blogClient.exists(targetId);
+            if (isAccountReport(type)) return profileClient.findUserProfileById(targetId) != null;
             return false;
         } catch (Exception e) {
             log.error("Failed to check existence for {} of type {}: {}", targetId, type, e.getMessage());
@@ -314,8 +319,8 @@ public class ReportService {
     private String getOwnerId(String targetId, ReportType type) {
         try {
             if (type == ReportType.DOCUMENT) return documentClient.getOwnerId(targetId);
-            if (type == ReportType.BLOG)     return blogClient.getOwnerId(targetId);
-            if (isAccountReport(type))       return targetId;
+            if (type == ReportType.BLOG) return blogClient.getOwnerId(targetId);
+            if (isAccountReport(type)) return targetId;
             return null;
         } catch (Exception e) {
             log.error("Failed to fetch owner for {} of type {}: {}", targetId, type, e.getMessage());
@@ -339,13 +344,11 @@ public class ReportService {
             }
             log.info("Removed content resource {} of type {}", targetId, type);
         } catch (Exception e) {
-            log.error("Failed to remove content resource {} of type {}: {}",
-                    targetId, type, e.getMessage());
+            log.error("Failed to remove content resource {} of type {}: {}", targetId, type, e.getMessage());
         }
     }
 
-    private Map<String, ResourceContentSnapshot> fetchSnapshotBatch(
-            ReportType type, List<String> ids) {
+    private Map<String, ResourceContentSnapshot> fetchSnapshotBatch(ReportType type, List<String> ids) {
         try {
             APIResponse<Map<String, ResourceContentSnapshot>> resp = (type == ReportType.BLOG)
                     ? blogClient.getBlogMetadataBatch(ids)

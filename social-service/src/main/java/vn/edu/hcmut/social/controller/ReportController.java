@@ -1,11 +1,10 @@
 package vn.edu.hcmut.social.controller;
 
 import jakarta.validation.Valid;
-
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.social.dto.request.ReportRequest;
 import vn.edu.hcmut.social.dto.response.APIResponse;
 import vn.edu.hcmut.social.dto.response.ContentResponse;
@@ -45,8 +45,8 @@ public class ReportController {
     // @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
     public APIResponse<Page<ContentResponse>> getReportedBlogs(
             @RequestParam(required = false) String status,
-            @RequestParam(defaultValue = "0")  @Min(0)                          int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE)      int size) {
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size) {
 
         Pageable pageable = PageRequest.of(page, size);
         Page<ContentResponse> result = reportService.getReportedBlogs(status, pageable);
@@ -61,8 +61,8 @@ public class ReportController {
     // @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
     public APIResponse<Page<ContentResponse>> getReportedDocuments(
             @RequestParam(required = false) String status,
-            @RequestParam(defaultValue = "0")  @Min(0)                          int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE)      int size) {
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size) {
 
         Pageable pageable = PageRequest.of(page, size);
         Page<ContentResponse> result = reportService.getReportedDocuments(status, pageable);
@@ -86,8 +86,7 @@ public class ReportController {
     @PutMapping("/{reportId}/status")
     // @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
     public APIResponse<ReportResponse> updateReportStatus(
-            @PathVariable @NotBlank     String reportId,
-            @RequestParam               String status) {
+            @PathVariable @NotBlank String reportId, @RequestParam String status) {
 
         ReportStatus newStatus;
         try {
