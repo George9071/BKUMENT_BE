@@ -40,7 +40,7 @@ public class OpenApiConfiguration {
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
                 .info(new Info().title("BKUMENT").version("1.0").description("APIs for email-service"))
-                .servers(List.of(new Server().url(gateway).description("API Gateway (Default)")))
+                .servers(List.of(new Server().url(gateway).description("API Gateway (Default)"), new Server().url("http://localhost:8888/api/v1/email").description("Local Server")))
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
                 .components(new Components()
                         .addSecuritySchemes(

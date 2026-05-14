@@ -42,7 +42,7 @@ public class OpenApiConfiguration {
         return new OpenAPI()
                 .info(new Info().title("BKUMENT").version("1.0").description("APIs for resource-service"))
                 // --- SERVER CONFIGURATION---
-                .servers(List.of(new Server().url(gateway).description("API Gateway (Default)")))
+                .servers(List.of(new Server().url(gateway).description("API Gateway (Default)"), new Server().url("http://localhost:8888/api/v1/resource").description("Local Server")))
 
                 // --- SECURITY CONFIGURATION---
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
