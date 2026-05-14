@@ -7,13 +7,13 @@ pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
 google-generativeai>=0.3.0
 
-torch==2.9.0
+torch==2.2.2+cpu
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 sentence-transformers==2.6.1
 
+asyncpg==0.30.0
 psycopg2-binary
 numpy>=1.23.5,<2.0.0
 openai
-asyncpg>=0.29.0
 PyMuPDF>=1.23.0
