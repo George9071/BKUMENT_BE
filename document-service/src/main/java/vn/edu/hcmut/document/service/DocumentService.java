@@ -65,6 +65,27 @@ public class DocumentService {
     GatewayProperties gatewayProperties;
     KafkaTemplate<String, Object> kafkaTemplate;
 
+    public Map<String, ResourceContentSnapshot> getMetadataBatch(List<String> documentIds) {
+        if (documentIds == null || documentIds.isEmpty()) return Collections.emptyMap();
+
+        List<Document> docs = documentRepository.findAllById(documentIds);
+        if (docs.isEmpty()) return Collections.emptyMap();
+
+        Map<String, ResourceContentSnapshot> result = new LinkedHashMap<>(docs.size());
+        for (Document d : docs) {
+            result.put(d.getId(), ResourceContentSnapshot.builder()
+                    .id(d.getId())
+                    .title(d.getTitle())
+                    .content(d.getSummary())
+                    .coverImage(d.getPreviewImageUrl())
+                    .ownerId(d.getOwnerId())
+                    .createdAt(d.getCreatedAt())
+                    .views(d.getViews())
+                    .build());
+        }
+        return result;
+    }
+
     /**
      * Processes a newly uploaded PDF document:
      * 1. Renders the first page as a preview PNG and stores it in MinIO.

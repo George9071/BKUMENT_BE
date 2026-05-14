@@ -11,6 +11,7 @@ public enum ErrorCode {
     RESOURCE_NOT_EXISTED(1001, "Resource not existed", HttpStatus.NOT_FOUND),
     MINIO_ERROR(1002, "MinIO operation failed", HttpStatus.INTERNAL_SERVER_ERROR),
     UNAUTHENTICATED(1003, "Unauthenticated", HttpStatus.UNAUTHORIZED),
+    UNAUTHORIZED(1004, "Unauthorized", HttpStatus.UNAUTHORIZED),
     INVALID_TOKEN_CLAIMS(9001, "Invalid token", HttpStatus.UNAUTHORIZED),
     INVALID_RESOURCE_TYPE(1004, "Invalid resource type", HttpStatus.BAD_REQUEST),
     VALIDATION_FAILED(1005, "Invalid body", HttpStatus.BAD_REQUEST),

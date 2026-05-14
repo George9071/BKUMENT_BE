@@ -1,9 +1,12 @@
 package vn.edu.hcmut.social.repository.httpclient;
 
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.*;
+import vn.edu.hcmut.social.dto.response.APIResponse;
+import vn.edu.hcmut.social.dto.response.ResourceContentSnapshot;
+
+import java.util.List;
+import java.util.Map;
 
 @FeignClient(name = "document-service", url = "${app.services.document}")
 public interface DocumentClient {
@@ -15,4 +18,8 @@ public interface DocumentClient {
 
     @DeleteMapping("/internal/documents/{id}")
     void delete(@PathVariable String id);
+
+    @PostMapping("internal/documents/metadata-batch")
+    APIResponse<Map<String, ResourceContentSnapshot>> getDocumentMetadataBatch(
+            @RequestBody List<String> documentIds);
 }

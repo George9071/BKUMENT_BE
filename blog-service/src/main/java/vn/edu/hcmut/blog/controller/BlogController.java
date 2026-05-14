@@ -2,22 +2,19 @@ package vn.edu.hcmut.blog.controller;
 
 import jakarta.validation.Valid;
 
+import jakarta.validation.constraints.NotBlank;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +32,7 @@ import vn.edu.hcmut.blog.service.PostService;
 @RequestMapping("")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@Slf4j
 public class BlogController {
     PostService postService;
 
@@ -141,27 +139,44 @@ public class BlogController {
     }
 
     @PutMapping("{blogId}")
+    @PreAuthorize("isAuthenticated()")
     public APIResponse<BlogMetadataResponse> updateBlog(
-            @PathVariable String blogId, @RequestBody @Valid BlogMetadataRequest request) {
-        Post post = postService.updateBlog(request, blogId);
+            @PathVariable @NotBlank String blogId,
+            @RequestBody @Valid BlogMetadataRequest request) {
+
+        /*
+        Jwt jwt = getCurrentJwt();
+        String callerProfileId = jwt.getSubject();
+        boolean isAdmin = hasRole(jwt, ADMIN_ROLE);
+
+        String ownerId = postService.getOwnerId(blogId);
+
+        if (!isAdmin && !callerProfileId.equals(ownerId)) throw new AppException(ErrorCode.UNAUTHORIZED);
+         */
+        Post updated = postService.updateBlog(request, blogId);
+
+        BlogMetadataResponse response = postService.getBlogById(updated.getId());
 
         return APIResponse.<BlogMetadataResponse>builder()
-                .result(BlogMetadataResponse.builder()
-                        .id(post.getId())
-                        .name(post.getTitle())
-                        .build())
+                .result(response)
                 .message("Blog updated successfully")
                 .build();
     }
 
     @DeleteMapping("{blogId}")
+    @PreAuthorize("isAuthenticated()")
     public APIResponse<Void> deleteBlog(@PathVariable String blogId) {
+
         String userId = getProfileIdFromToken();
         String ownerId = postService.getOwnerId(blogId);
 
         if (!userId.equals(ownerId)) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
+
+        // TODO: admin role can delete single blog too.
+        // boolean isAdmin = hasRole(jwt, ADMIN_ROLE);
+        // if (!isAdmin && !userId.equals(ownerId)) throw new AppException(ErrorCode.UNAUTHORIZED);
 
         postService.deleteBlog(blogId);
 
@@ -170,7 +185,8 @@ public class BlogController {
 
     @GetMapping("/admin/reported")
     public APIResponse<Page<ReportedBlogResponse>> getReportedBlogs(
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
 
         checkAdminRole();
 
@@ -180,6 +196,17 @@ public class BlogController {
         return APIResponse.<Page<ReportedBlogResponse>>builder()
                 .result(result)
                 .message("Get reported blogs successfully")
+                .build();
+    }
+
+    @DeleteMapping("/by-owner/{ownerId}")
+    @PreAuthorize("hasAuthority('SCOPE_ADMIN') or hasRole('ADMIN')")
+    public APIResponse<Void> deleteBlogsByOwner(@PathVariable @NotBlank String ownerId) {
+        postService.deleteByOwnerId(ownerId);
+        log.info("Bulk-deleted all blogs for owner {}", ownerId);
+        return APIResponse.<Void>builder()
+                .code(1000)
+                .message("All blogs for owner deleted")
                 .build();
     }
 
@@ -196,5 +223,18 @@ public class BlogController {
         if (!isAdmin) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
+    }
+
+    private Jwt getCurrentJwt() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof Jwt jwt)) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+        return jwt;
+    }
+
+    private boolean hasRole(Jwt jwt, String role) {
+        var roles = jwt.getClaimAsStringList("roles");
+        return roles != null && roles.contains(role);
     }
 }

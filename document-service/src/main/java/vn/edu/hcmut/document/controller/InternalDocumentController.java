@@ -1,15 +1,17 @@
 package vn.edu.hcmut.document.controller;
 
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.constraints.NotNull;
+import org.springframework.web.bind.annotation.*;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import vn.edu.hcmut.document.dto.response.APIResponse;
+import vn.edu.hcmut.document.dto.response.ResourceContentSnapshot;
 import vn.edu.hcmut.document.service.DocumentService;
+
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/internal/documents")
@@ -36,5 +38,14 @@ public class InternalDocumentController {
     @DeleteMapping("/owner/{ownerId}")
     public void deleteByOwnerId(@PathVariable String ownerId) {
         documentService.deleteByOwnerId(ownerId);
+    }
+
+    @PostMapping("/metadata-batch")
+    public APIResponse<Map<String, ResourceContentSnapshot>> getMetadataBatch(
+            @RequestBody @NotNull List<String> documentIds) {
+        return APIResponse.<Map<String, ResourceContentSnapshot>>builder()
+                .code(1000)
+                .result(documentService.getMetadataBatch(documentIds))
+                .build();
     }
 }

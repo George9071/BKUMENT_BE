@@ -1,15 +1,17 @@
 package vn.edu.hcmut.blog.controller;
 
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.constraints.NotNull;
+import org.springframework.web.bind.annotation.*;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import vn.edu.hcmut.blog.dto.response.APIResponse;
+import vn.edu.hcmut.blog.dto.response.ResourceContentSnapshot;
 import vn.edu.hcmut.blog.service.PostService;
+
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/internal/blogs")
@@ -36,5 +38,16 @@ public class InternalBlogController {
     @DeleteMapping("/owner/{ownerId}")
     public void deleteByOwnerId(@PathVariable String ownerId) {
         postService.deleteByOwnerId(ownerId);
+    }
+
+    @PostMapping("/metadata-batch")
+    public APIResponse<Map<String, ResourceContentSnapshot>> getMetadataBatch(
+            @RequestBody @NotNull List<String> blogIds) {
+
+        Map<String, ResourceContentSnapshot> result = postService.getMetadataBatch(blogIds);
+        return APIResponse.<Map<String, ResourceContentSnapshot>>builder()
+                .code(1000)
+                .result(result)
+                .build();
     }
 }

@@ -1,6 +1,7 @@
 package vn.edu.hcmut.social.service;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,8 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.social.dto.request.Recipient;
 import vn.edu.hcmut.social.dto.request.ReportRequest;
 import vn.edu.hcmut.social.dto.request.SendEmailRequest;
-import vn.edu.hcmut.social.dto.response.ProfileResponse;
-import vn.edu.hcmut.social.dto.response.ReportResponse;
+import vn.edu.hcmut.social.dto.response.*;
 import vn.edu.hcmut.social.entity.Report;
 import vn.edu.hcmut.social.enums.ReportStatus;
 import vn.edu.hcmut.social.enums.ReportType;
@@ -27,85 +27,117 @@ import vn.edu.hcmut.social.repository.httpclient.DocumentClient;
 import vn.edu.hcmut.social.repository.httpclient.EmailClient;
 import vn.edu.hcmut.social.repository.httpclient.ProfileClient;
 
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 public class ReportService {
 
+    static final int MAX_PAGE_SIZE = 50;
+
     ReportRepository reportRepository;
     RatingRepository ratingRepository;
     CommentRepository commentRepository;
+
+    ResourceCleanupService  resourceCleanupService;
 
     ProfileClient profileClient;
     DocumentClient documentClient;
     BlogClient blogClient;
     EmailClient emailClient;
-
     private static final long POINTS_PENALTY = -50L;
 
-    private boolean isAccountReport(ReportType type) {
-        return type == ReportType.USER || type == ReportType.TUTOR;
-
+    public Page<ContentResponse> getReportedBlogs(String status, Pageable pageable) {
+        return getReportedContents(ReportType.BLOG, parseStatusOrNull(status), pageable);
     }
 
-    private boolean checkResourceExists(String targetId, ReportType type) {
-        try {
-            if (type == ReportType.DOCUMENT) return documentClient.exists(targetId);
-            if (type == ReportType.BLOG)     return blogClient.exists(targetId);
-            if (isAccountReport(type))       return profileClient.findUserProfileById(targetId) != null;
-            return false;
-        } catch (Exception e) {
-            log.error("Failed to check existence for {} of type {}: {}", targetId, type, e.getMessage());
-            return false;
-        }
+    public Page<ContentResponse> getReportedDocuments(String status, Pageable pageable) {
+        return getReportedContents(ReportType.DOCUMENT, parseStatusOrNull(status), pageable);
     }
 
-    /**
-     * Resolves the "owner" of the report target — the profile that  receive the points penalty and notification email.
-     *   DOCUMENT / BLOG -> the user who uploaded the content.
-     *   account types   -> the targetId IS already the profile ID
-     *                     (USER and TUTOR share a single profile).
-     */
-    private String getOwnerId(String targetId, ReportType type) {
-        try {
-            if (type == ReportType.DOCUMENT) return documentClient.getOwnerId(targetId);
-            if (type == ReportType.BLOG)     return blogClient.getOwnerId(targetId);
-            if (isAccountReport(type))       return targetId;
-            return null;
-        } catch (Exception e) {
-            log.error("Failed to fetch owner for {} of type {}: {}", targetId, type, e.getMessage());
-            return null;
-        }
-    }
+    private Page<ContentResponse> getReportedContents(
+            ReportType type, ReportStatus status, Pageable pageable) {
 
-    private void executeContentRemoval(String targetId, ReportType type) {
-        if (isAccountReport(type)) {
-            log.debug("Account-level report {} approved; no resource removal performed", type);
-            return;
+        // 1. Group-by-target: which contents are on this page?
+        Page<Object[]> grouped = reportRepository.findGroupedTargets(type, status, pageable);
+        if (grouped.isEmpty()) return new PageImpl<>(List.of(), pageable, 0L);
+
+        // Preserve the page ordering by using a LinkedHashMap keyed on targetId.
+        List<String> targetIds = new ArrayList<>(grouped.getNumberOfElements());
+        Map<String, Integer> reportCountByTarget = new LinkedHashMap<>();
+        for (Object[] row : grouped.getContent()) {
+            String targetId = (String) row[0];
+            Long count = (Long) row[1];                   // COUNT(*) -> Long
+            targetIds.add(targetId);
+            reportCountByTarget.put(targetId, count.intValue());
         }
 
-        try {
-            int deletedRatings = ratingRepository.deleteByResourceId(targetId);
-            int deletedComments = commentRepository.deleteByResourceId(targetId);
-            log.info("[CLEANUP] Resource {}: removed {} ratings and {} comments",
-                    targetId, deletedRatings, deletedComments);
-        } catch (Exception e) {
-            log.error("[CLEANUP] Failed to clean social data for {}: {}", targetId, e.getMessage());
-            throw e;
-        }
+        // 2. Fetch resource metadata in one HTTP batch.
+        Map<String, ResourceContentSnapshot> snapshotMap = fetchSnapshotBatch(type, targetIds);
 
-        try {
-            if (type == ReportType.DOCUMENT) {
-                documentClient.delete(targetId);
-            } else if (type == ReportType.BLOG) {
-                blogClient.delete(targetId);
+        // 3. Fetch the full report list for these targets (filtered by status).
+        List<Report> reports = reportRepository.findReportsForTargets(type, status, targetIds);
+
+        // Group reports by target. Already ordered (targetId, createdAt DESC) by the query.
+        Map<String, List<Report>> reportsByTarget = reports.stream()
+                .collect(Collectors.groupingBy(Report::getTargetId,
+                        LinkedHashMap::new, Collectors.toList()));
+
+        // 4. Collect every profile ID we'll need (authors AND reporters) and batch-fetch once.
+        List<String> profileIds = new ArrayList<>();
+        snapshotMap.values().forEach(s -> {
+            if (s.getOwnerId() != null) profileIds.add(s.getOwnerId());
+        });
+        reports.forEach(r -> {
+            if (r.getReporterId() != null) profileIds.add(r.getReporterId());
+        });
+        Map<String, ProfileResponse> profileMap = fetchProfileMap(
+                profileIds.stream().distinct().toList());
+
+        // 5. Stitch.
+        List<ContentResponse> rows = new ArrayList<>(targetIds.size());
+        for (String targetId : targetIds) {
+            ResourceContentSnapshot snap = snapshotMap.get(targetId);
+            // The content may have been deleted between the report being filed and
+            // this listing being rendered. Skip it — the moderator will see N-1 rows
+            // for that page rather than a broken row. The next page query will
+            // backfill from later content.
+            if (snap == null) {
+                log.warn("Reported {} {} not found in owning service; skipping in listing",
+                        type, targetId);
+                continue;
             }
-            log.info("Removed content resource {} of type {}", targetId, type);
-        } catch (Exception e) {
-            log.error("Failed to remove content resource {} of type {}: {}",
-                    targetId, type, e.getMessage());
+
+            AuthorResponse author = buildAuthor(profileMap.get(snap.getOwnerId()));
+
+            List<ContentResponse.ReportSummary> summaries = reportsByTarget
+                    .getOrDefault(targetId, Collections.emptyList())
+                    .stream()
+                    .map(r -> ContentResponse.ReportSummary.builder()
+                            .reporter(displayName(profileMap.get(r.getReporterId())))
+                            .reason(r.getReason().toString())
+                            .createdAt(r.getCreatedAt())
+                            .build())
+                    .toList();
+
+            rows.add(ContentResponse.builder()
+                    .id(targetId)
+                    .name(snap.getTitle())
+                    .author(author)
+                    .coverImage(snap.getCoverImage())
+                    .content(snap.getContent())
+                    .createdAt(snap.getCreatedAt())
+                    .views(snap.getViews())
+                    .reportCount(reportCountByTarget.get(targetId))
+                    .reportList(summaries)
+                    .build());
         }
+
+        return new PageImpl<>(rows, pageable, grouped.getTotalElements());
     }
 
     /**
@@ -254,22 +286,110 @@ public class ReportService {
         reportRepository.save(report);
     }
 
-    /** Lists non-deleted reports, optionally filtered by status. */
-    public Page<ReportResponse> getAllReports(String statusStr, Pageable pageable) {
-        if (statusStr == null || statusStr.isBlank()) {
-            return reportRepository.findByDeletedFalse(pageable).map(this::toReportResponse);
+
+
+    private boolean isAccountReport(ReportType type) {
+        return type == ReportType.USER || type == ReportType.TUTOR;
+
+    }
+
+    private boolean checkResourceExists(String targetId, ReportType type) {
+        try {
+            if (type == ReportType.DOCUMENT) return documentClient.exists(targetId);
+            if (type == ReportType.BLOG)     return blogClient.exists(targetId);
+            if (isAccountReport(type))       return profileClient.findUserProfileById(targetId) != null;
+            return false;
+        } catch (Exception e) {
+            log.error("Failed to check existence for {} of type {}: {}", targetId, type, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Resolves the "owner" of the report target — the profile that  receive the points penalty and notification email.
+     *   DOCUMENT / BLOG -> the user who uploaded the content.
+     *   account types   -> the targetId IS already the profile ID
+     *                     (USER and TUTOR share a single profile).
+     */
+    private String getOwnerId(String targetId, ReportType type) {
+        try {
+            if (type == ReportType.DOCUMENT) return documentClient.getOwnerId(targetId);
+            if (type == ReportType.BLOG)     return blogClient.getOwnerId(targetId);
+            if (isAccountReport(type))       return targetId;
+            return null;
+        } catch (Exception e) {
+            log.error("Failed to fetch owner for {} of type {}: {}", targetId, type, e.getMessage());
+            return null;
+        }
+    }
+
+    private void executeContentRemoval(String targetId, ReportType type) {
+        if (isAccountReport(type)) {
+            log.debug("Account-level report {} approved; no resource removal performed", type);
+            return;
         }
 
-        ReportStatus status;
+        resourceCleanupService.cleanupResource(targetId);
+
         try {
-            status = ReportStatus.valueOf(statusStr.toUpperCase());
+            if (type == ReportType.DOCUMENT) {
+                documentClient.delete(targetId);
+            } else if (type == ReportType.BLOG) {
+                blogClient.delete(targetId);
+            }
+            log.info("Removed content resource {} of type {}", targetId, type);
+        } catch (Exception e) {
+            log.error("Failed to remove content resource {} of type {}: {}",
+                    targetId, type, e.getMessage());
+        }
+    }
+
+    private Map<String, ResourceContentSnapshot> fetchSnapshotBatch(
+            ReportType type, List<String> ids) {
+        try {
+            APIResponse<Map<String, ResourceContentSnapshot>> resp = (type == ReportType.BLOG)
+                    ? blogClient.getBlogMetadataBatch(ids)
+                    : documentClient.getDocumentMetadataBatch(ids);
+            return (resp != null && resp.getResult() != null) ? resp.getResult() : Collections.emptyMap();
+        } catch (Exception e) {
+            // Downstream outage: return empty so the page renders with rows skipped
+            // rather than 500-ing the whole moderation dashboard.
+            log.error("Failed to fetch {} metadata batch (size={}): {}", type, ids.size(), e.getMessage());
+            return Collections.emptyMap();
+        }
+    }
+
+    private Map<String, ProfileResponse> fetchProfileMap(List<String> profileIds) {
+        if (profileIds.isEmpty()) return Collections.emptyMap();
+        try {
+            return profileClient.getProfiles(profileIds).stream()
+                    .collect(Collectors.toMap(ProfileResponse::getId, Function.identity()));
+        } catch (Exception e) {
+            log.error("Failed to batch-fetch {} profiles: {}", profileIds.size(), e.getMessage());
+            return Collections.emptyMap();
+        }
+    }
+
+    private AuthorResponse buildAuthor(ProfileResponse profile) {
+        if (profile == null) return null;
+        return AuthorResponse.builder()
+                .id(profile.getId())
+                .name(profile.getFullName())
+                .avatarUrl(profile.getAvatarUrl())
+                .build();
+    }
+
+    private String displayName(ProfileResponse profile) {
+        return (profile != null) ? profile.getFullName() : "Unknown";
+    }
+
+    private ReportStatus parseStatusOrNull(String statusStr) {
+        if (statusStr == null || statusStr.isBlank()) return null;
+        try {
+            return ReportStatus.valueOf(statusStr.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new AppException(ErrorCode.INVALID_REPORT_STATUS);
         }
-
-        return reportRepository
-                .findByStatusAndDeletedFalse(status, pageable)
-                .map(this::toReportResponse);
     }
 
     private ReportResponse toReportResponse(Report report) {
