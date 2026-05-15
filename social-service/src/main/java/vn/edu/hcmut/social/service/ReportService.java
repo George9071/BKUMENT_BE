@@ -162,6 +162,10 @@ public class ReportService {
      */
     @Transactional
     public ReportResponse createReport(ReportRequest request, String reporterId) {
+        if (!checkResourceExists(request.getTargetId(), request.getType())) {
+            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+
         String ownerId = getOwnerId(request.getTargetId(), request.getType());
         if (reporterId.equals(ownerId)) throw new AppException(ErrorCode.CANNOT_REPORT_OWN_RESOURCE);
 
