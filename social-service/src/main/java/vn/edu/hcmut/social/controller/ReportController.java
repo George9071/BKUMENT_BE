@@ -31,7 +31,7 @@ import vn.edu.hcmut.social.service.ReportService;
 
 @Slf4j
 @RestController
-@RequestMapping("/social/reports")
+@RequestMapping("/reports")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Tag(name = "Report", description = "Report APIs for resources and users")
@@ -47,7 +47,7 @@ public class ReportController {
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size) {
-
+        checkAdminRole();
         Pageable pageable = PageRequest.of(page, size);
         Page<ContentResponse> result = reportService.getReportedBlogs(status, pageable);
 
@@ -63,7 +63,7 @@ public class ReportController {
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size) {
-
+        checkAdminRole();
         Pageable pageable = PageRequest.of(page, size);
         Page<ContentResponse> result = reportService.getReportedDocuments(status, pageable);
 
@@ -132,10 +132,14 @@ public class ReportController {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
-        boolean isAdmin = authentication.getAuthorities().stream()
-                .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_ADMIN"));
+        boolean isAuthorized = authentication.getAuthorities().stream()
+                .anyMatch(grantedAuthority -> {
+                    String auth = grantedAuthority.getAuthority();
+                    return auth.equals("ROLE_ADMIN") || auth.equals("ADMIN") || auth.equals("SCOPE_ADMIN")
+                            || auth.equals("ROLE_MODERATOR") || auth.equals("MODERATOR") || auth.equals("SCOPE_MODERATOR");
+                });
 
-        if (!isAdmin) {
+        if (!isAuthorized) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
     }

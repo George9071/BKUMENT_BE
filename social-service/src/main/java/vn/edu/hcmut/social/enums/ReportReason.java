@@ -10,5 +10,6 @@ public enum ReportReason {
     INCOMPLETE_CITATION,
     FALSIFIED_SOURCE,
     MISSING_REFERENCES,
+    OTHER,
     OTHERS
 }
