@@ -1,6 +1,7 @@
 package vn.edu.hcmut.profile.service;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -196,9 +197,13 @@ public class ProfileService {
      * Does NOT include follower/following counts (too expensive for batch).
      */
     public List<ProfileResponse> getProfilesByIds(List<String> profileIds) {
-        return jpaRepository.findAllById(profileIds).stream()
+        List<UserProfile> users = jpaRepository.findAllById(profileIds);
+        List<ProfileResponse> responses = users.stream()
                 .map(profileMapper::toProfileResponse)
                 .toList();
+
+        hydrateUniversities(users, responses);
+        return responses;
     }
 
     @Transactional(readOnly = true)
@@ -208,9 +213,12 @@ public class ProfileService {
         var pageable = PageRequest.of(page - 1, size);
         var pageData = jpaRepository.search(keyword.trim(), pageable);
 
-        List<ProfileResponse> profiles = pageData.getContent().stream()
+        List<UserProfile> users = pageData.getContent();
+        List<ProfileResponse> profiles = users.stream()
                 .map(profileMapper::toProfileResponse)
                 .toList();
+
+        hydrateUniversities(users, profiles);
 
         // Batch fetch follower/following counts from Neo4j
         List<String> profileIds = profiles.stream().map(ProfileResponse::getId).toList();
@@ -239,6 +247,25 @@ public class ProfileService {
     // -------------------------------------------------------------------------
     // HELPERS
     // -------------------------------------------------------------------------
+
+    private void hydrateUniversities(List<UserProfile> users, List<ProfileResponse> responses) {
+        List<Integer> uniIds = users.stream()
+                .map(UserProfile::getUniversityId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        if (!uniIds.isEmpty()) {
+            Map<Integer, String> uniMap = universityRepository.findAllById(uniIds).stream()
+                    .collect(Collectors.toMap(University::getId, University::getName));
+
+            for (int i = 0; i < users.size(); i++) {
+                if (users.get(i).getUniversityId() != null) {
+                    responses.get(i).setUniversity(uniMap.get(users.get(i).getUniversityId()));
+                }
+            }
+        }
+    }
 
     private University resolveUniversityUpdate(ProfileUpdateRequest request, UserProfile user) {
         if (request.getUniversityId() == null || request.getUniversityId().equals(user.getUniversityId())) {

@@ -21,11 +21,13 @@ import vn.edu.hcmut.event.FollowNotificationEvent;
 import vn.edu.hcmut.profile.constant.CypherQueries;
 import vn.edu.hcmut.profile.dto.response.PageResponse;
 import vn.edu.hcmut.profile.dto.response.ProfileResponse;
+import vn.edu.hcmut.profile.entity.jpa.University;
 import vn.edu.hcmut.profile.entity.jpa.UserProfile;
 import vn.edu.hcmut.profile.entity.neo4j.UserProfileNode;
 import vn.edu.hcmut.profile.exception.AppException;
 import vn.edu.hcmut.profile.exception.ErrorCode;
 import vn.edu.hcmut.profile.mapper.ProfileMapper;
+import vn.edu.hcmut.profile.repository.UniversityRepository;
 import vn.edu.hcmut.profile.repository.UserProfileNodeRepository;
 import vn.edu.hcmut.profile.repository.UserProfileRepository;
 
@@ -36,8 +38,10 @@ import vn.edu.hcmut.profile.repository.UserProfileRepository;
 public class FollowService {
     UserProfileNodeRepository neo4jRepository;
     UserProfileRepository jpaRepository;
+    UniversityRepository universityRepository;
     Neo4jClient neo4jClient;
     ProfileMapper profileMapper;
+    ProfileNeo4jService profileNeo4jService;
 
     KafkaTemplate<String, Object> kafkaTemplate;
 
@@ -106,12 +110,38 @@ public class FollowService {
         Map<String, UserProfile> profileMap =
                 jpaRepository.findAllById(ids).stream().collect(Collectors.toMap(UserProfile::getId, p -> p));
 
-        // Preserve Neo4j ordering
-        List<ProfileResponse> responses = ids.stream()
+        List<UserProfile> users = ids.stream()
                 .map(profileMap::get)
                 .filter(Objects::nonNull)
+                .toList();
+
+        List<ProfileResponse> responses = users.stream()
                 .map(profileMapper::toProfileResponse)
                 .toList();
+
+        List<Integer> uniIds = users.stream().map(UserProfile::getUniversityId).filter(Objects::nonNull).distinct().toList();
+        if (!uniIds.isEmpty()) {
+            Map<Integer, String> uniMap = universityRepository.findAllById(uniIds).stream()
+                    .collect(Collectors.toMap(University::getId, University::getName));
+            for (int i = 0; i < users.size(); i++) {
+                if (users.get(i).getUniversityId() != null) {
+                    responses.get(i).setUniversity(uniMap.get(users.get(i).getUniversityId()));
+                }
+            }
+        }
+
+        // Batch fetch follower/following counts from Neo4j
+        Map<String, Map<String, Integer>> countsMap = profileNeo4jService.getBatchCounts(ids);
+        responses.forEach(p -> {
+            Map<String, Integer> counts = countsMap.get(p.getId());
+            if (counts != null) {
+                p.setFollowerCount(counts.getOrDefault("followerCount", 0));
+                p.setFollowingCount(counts.getOrDefault("followingCount", 0));
+            } else {
+                p.setFollowerCount(0);
+                p.setFollowingCount(0);
+            }
+        });
 
         return PageResponse.<ProfileResponse>builder()
                 .currentPage(page)
