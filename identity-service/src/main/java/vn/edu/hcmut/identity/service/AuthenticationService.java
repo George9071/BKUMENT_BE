@@ -2,7 +2,6 @@ package vn.edu.hcmut.identity.service;
 
 import java.text.ParseException;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.Objects;
 import java.util.StringJoiner;
@@ -108,12 +107,14 @@ public class AuthenticationService {
             }
         }
 
-        var token = generateToken(account, profile);
+        var accessTokenInfo = generateToken(account, profile, "ACCESS");
+        var refreshTokenInfo = generateToken(account, profile, "REFRESH");
 
         return AuthenticationResponse.builder()
-                .token(token.token)
+                .token(accessTokenInfo.token)
+                .refreshToken(refreshTokenInfo.token)
                 .authenticated(true)
-                .expiryTime(token.expiryDate)
+                .expiryTime(accessTokenInfo.expiryDate)
                 .build();
     }
 
@@ -122,7 +123,7 @@ public class AuthenticationService {
      */
     public void logout(LogoutRequest request) {
         try {
-            var signToken = verifyToken(request.getToken(), true);
+            var signToken = verifyToken(request.getToken(), null);
 
             String jti = signToken.getJWTClaimsSet().getJWTID();
             Date expiryTime = signToken.getJWTClaimsSet().getExpirationTime();
@@ -139,7 +140,7 @@ public class AuthenticationService {
     }
 
     /**
-     * Issues a new token if the old token is within the refreshable duration.
+     * Issues a new pair of tokens.
      */
     public AuthenticationResponse refreshToken(RefreshRequest request) throws ParseException, JOSEException {
         var signedJWT = verifyToken(request.getToken(), true);
@@ -159,27 +160,28 @@ public class AuthenticationService {
         try {
             profile = profileClient.getProfileByAccountId(account.getId());
         } catch (Exception e) {
-            log.warn("ProfileService is down during token refresh. Falling back to claims from the old token.");
+            log.warn("Profile-service is down during token refresh. Falling back to claims from the old token.");
             profile = extractProfileFromOldToken(signedJWT);
         }
 
         // Issue new token
-        var token = generateToken(account, profile);
+        var newAccessToken = generateToken(account, profile, "ACCESS");
+        var newRefreshToken = generateToken(account, profile, "REFRESH");
 
         return AuthenticationResponse.builder()
-                .token(token.token)
-                .expiryTime(token.expiryDate)
+                .token(newAccessToken.token)
+                .refreshToken(newRefreshToken.token)
+                .expiryTime(newAccessToken.expiryDate)
                 .build();
     }
 
-    /* ========================================================================= */
     /* HELPER METHODS                                                            */
-    /* ========================================================================= */
-    private TokenInfo generateToken(Account account, ProfileResponse profile) {
+    private TokenInfo generateToken(Account account, ProfileResponse profile, String tokenType) {
         JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
 
         Instant now = Instant.now();
-        Instant expiresAt = now.plusSeconds(VALID_DURATION);
+        long duration = "REFRESH".equals(tokenType) ? REFRESHABLE_DURATION : VALID_DURATION;
+        Instant expiresAt = now.plusSeconds(duration);
 
         JWTClaimsSet.Builder jwtClaimsSet = new JWTClaimsSet.Builder()
                 .issuer("bkument.vn.edu.hcmut")
@@ -189,6 +191,7 @@ public class AuthenticationService {
                 .jwtID(UUID.randomUUID().toString());
 
         // ---- custom claims ----
+        jwtClaimsSet.claim("token_type", tokenType);
         jwtClaimsSet.claim("username", account.getUsername());
         jwtClaimsSet.claim("scope", buildScope(account));
 
@@ -216,32 +219,28 @@ public class AuthenticationService {
     /**
      * Verifies a JWT’s signature, expiration, and invalidation state.
      */
-    private SignedJWT verifyToken(String token, boolean isRefresh) throws JOSEException, ParseException {
-
+    private SignedJWT verifyToken(String token, Boolean isRefreshContext) throws JOSEException, ParseException {
         JWSVerifier verifier = new MACVerifier(SIGNER_KEY.getBytes());
         SignedJWT signedJWT = SignedJWT.parse(token);
 
-        // Determine correct expiration time based on context (Authentication or Refreshing)
-        Date expiryTime = (isRefresh)
-                ? new Date(signedJWT
-                        .getJWTClaimsSet()
-                        .getIssueTime()
-                        .toInstant()
-                        .plus(REFRESHABLE_DURATION, ChronoUnit.SECONDS)
-                        .toEpochMilli())
-                : signedJWT.getJWTClaimsSet().getExpirationTime();
-
         boolean verified = signedJWT.verify(verifier);
+        if (!verified) throw new AppException(ErrorCode.UNAUTHENTICATED);
 
-        // Reject if signature invalid or token has passed its allowed time window
-        if (!(verified && expiryTime.after(new Date()))) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        String tokenType = signedJWT.getJWTClaimsSet().getStringClaim("token_type");
+        if (isRefreshContext != null) {
+            if (isRefreshContext && !"REFRESH".equals(tokenType)) {
+                log.warn("Security Alert: Access token presented to the refresh endpoint!");
+                throw new AppException(ErrorCode.UNAUTHENTICATED);
+            }
+            if (!isRefreshContext && !"ACCESS".equals(tokenType)) {
+                log.warn("Security Alert: Refresh token presented to the API access endpoint!");
+                throw new AppException(ErrorCode.UNAUTHENTICATED);
+            }
         }
 
-        // Reject if the token was previously invalidated
-        if (invalidatedTokenRepository.existsById(signedJWT.getJWTClaimsSet().getJWTID())) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
+        Date expirationTime = signedJWT.getJWTClaimsSet().getExpirationTime();
+        if (expirationTime == null || expirationTime.before(new Date())) throw new AppException(ErrorCode.UNAUTHENTICATED);
+        if (invalidatedTokenRepository.existsById(signedJWT.getJWTClaimsSet().getJWTID())) throw new AppException(ErrorCode.UNAUTHENTICATED);
 
         return signedJWT;
     }

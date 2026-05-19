@@ -1,5 +1,6 @@
 package vn.edu.hcmut.identity.service;
 
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Random;
@@ -23,11 +24,14 @@ public class VerificationTokenService {
     @Value("${app.base-url}")
     private String baseUrl;
 
-    @Value("${app.fe-url:http://localhost:3000}")
+    @Value("${app.fe-url}")
     private String frontendUrl;
 
     private static final long EMAIL_VERIFY_EXPIRY_HOURS = 24;
     private static final long PASSWORD_RESET_EXPIRY_HOURS = 1;
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final int MAX_ACTIVE_OTPS_PER_ACCOUNT = 3;
 
     private final VerificationTokenRepository tokenRepository;
 
@@ -45,7 +49,15 @@ public class VerificationTokenService {
     }
 
     public String createPasswordResetOtp(String accountId) {
-        String otp = String.format("%06d", new Random().nextInt(999999));
+        long actives = tokenRepository.countActiveByAccountIdAndType(
+                accountId,
+                VerificationToken.TokenType.PASSWORD_RESET,
+                Instant.now()
+        );
+
+        if (actives > MAX_ACTIVE_OTPS_PER_ACCOUNT) throw new AppException(ErrorCode.TOO_MANY_OTP_REQUESTS);
+
+        String otp = String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
 
         tokenRepository.save(VerificationToken.builder()
                 .token(otp)

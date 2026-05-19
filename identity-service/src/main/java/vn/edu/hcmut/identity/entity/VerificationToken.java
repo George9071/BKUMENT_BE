@@ -7,16 +7,25 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-@Getter
-@Setter
+
+@Entity
+@Table(name = "verification_token",
+        indexes = {
+                @Index(name = "idx_vt_token_type_used", columnList = "token,type,used"),
+                @Index(name = "idx_vt_account_type", columnList = "accountId,type")
+        })
 @Builder
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @NoArgsConstructor
 @AllArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE)
-@Entity
-@Table(name = "verification_token")
+@Data
 public class VerificationToken {
+
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    String id;
+
+    @Column(nullable = false)
     String token;
 
     @Column(nullable = false)
@@ -24,7 +33,7 @@ public class VerificationToken {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    TokenType type; // EMAIL_VERIFICATION | PASSWORD_RESET
+    TokenType type;
 
     @Column(nullable = false)
     Instant expiresAt;
@@ -32,8 +41,5 @@ public class VerificationToken {
     @Column(nullable = false)
     boolean used;
 
-    public enum TokenType {
-        EMAIL_VERIFICATION,
-        PASSWORD_RESET
-    }
+    public enum TokenType { EMAIL_VERIFICATION, PASSWORD_RESET }
 }
