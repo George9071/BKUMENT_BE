@@ -17,9 +17,6 @@ public interface ProfileClient {
     @GetMapping("/internal/users/account/{accountId}")
     ProfileResponse getProfileByAccountId(@PathVariable("accountId") String accountId);
 
-    @DeleteMapping("/internal/users/{profileId}")
-    void deleteProfile(@PathVariable String profileId);
-
     @PostMapping("/internal/users/verify-email/{accountId}")
     void verifyEmail(@PathVariable String accountId);
 

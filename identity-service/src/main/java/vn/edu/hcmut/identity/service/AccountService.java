@@ -4,10 +4,13 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 
+import feign.FeignException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.access.prepost.PostAuthorize;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -18,12 +21,17 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
+import vn.edu.hcmut.event.AccountDeletedEvent;
+import vn.edu.hcmut.event.EmailSendAfterCommitEvent;
 import vn.edu.hcmut.event.EmailSendEvent;
 import vn.edu.hcmut.identity.constant.UserRole;
+import vn.edu.hcmut.identity.dto.request.AccountCreationRequest;
 import vn.edu.hcmut.identity.dto.request.AccountUpdateRequest;
 import vn.edu.hcmut.identity.dto.request.UserCreationRequest;
 import vn.edu.hcmut.identity.dto.response.AccountResponse;
 import vn.edu.hcmut.identity.dto.response.PageResponse;
+import vn.edu.hcmut.identity.dto.response.ProfileResponse;
 import vn.edu.hcmut.identity.entity.Account;
 import vn.edu.hcmut.identity.entity.VerificationToken;
 import vn.edu.hcmut.identity.exception.AppException;
@@ -32,9 +40,6 @@ import vn.edu.hcmut.identity.mapper.AccountMapper;
 import vn.edu.hcmut.identity.mapper.ProfileMapper;
 import vn.edu.hcmut.identity.repository.AccountRepository;
 import vn.edu.hcmut.identity.repository.VerificationTokenRepository;
-import vn.edu.hcmut.identity.repository.httpclient.BlogClient;
-import vn.edu.hcmut.identity.repository.httpclient.DocumentClient;
-import vn.edu.hcmut.identity.repository.httpclient.LmsClient;
 import vn.edu.hcmut.identity.repository.httpclient.ProfileClient;
 
 @Service
@@ -42,6 +47,7 @@ import vn.edu.hcmut.identity.repository.httpclient.ProfileClient;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 public class AccountService {
+
     AccountRepository accountRepository;
     VerificationTokenRepository tokenRepository;
 
@@ -50,13 +56,12 @@ public class AccountService {
     PasswordEncoder passwordEncoder;
 
     ProfileClient profileClient;
-    LmsClient lmsClient;
-    DocumentClient documentClient;
-    BlogClient blogClient;
 
     VerificationTokenService verificationTokenService;
 
     KafkaTemplate<String, Object> kafkaTemplate;
+
+    ApplicationEventPublisher eventPublisher;
 
     /**
      * Creates a full user ecosystem (Identity Account + External Profile) and triggers a notification through Kafka.
@@ -70,7 +75,6 @@ public class AccountService {
         Account account = accountMapper.toAccount(request.getAccount());
         account.setPassword(passwordEncoder.encode(request.getAccount().getPassword()));
 
-        // initialize roles
         HashSet<UserRole> roles = new HashSet<>();
         roles.add(request.getAccount().getRole());
         account.setRoles(roles);
@@ -80,26 +84,61 @@ public class AccountService {
         // Synchronous cross-service call to create a profile
         var profile = profileMapper.toProfileCreationRequest(request);
         profile.setAccountId(account.getId());
-        profileClient.createProfile(profile);
+
+        try {
+            profileClient.createProfile(profile);
+        } catch (Exception ex) {
+            log.error("Profile creation failed; rolling back account {}", account.getId(), ex);
+            throw new AppException(ErrorCode.SYNC_FAILED);
+        }
 
         String verifyLink = verificationTokenService.createEmailVerificationLink(account.getId());
 
-        kafkaTemplate.send(
+        eventPublisher.publishEvent(new EmailSendAfterCommitEvent(
                 "email-delivery",
                 EmailSendEvent.builder()
                         .recipient(request.getEmail())
                         .subject("Xác minh tài khoản BKUMENT")
                         .body(buildVerifyEmailBody(request.getAccount().getUsername(), verifyLink))
-                        .build());
+                        .build()));
 
         return accountMapper.toAccountResponse(account);
     }
 
     @Transactional
-    @PostAuthorize("#accountId == authentication.name or hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
+    public AccountResponse createModeratorAccount(AccountCreationRequest request) {
+        if (accountRepository.existsByUsername(request.getUsername())) {
+            throw new AppException(ErrorCode.ACCOUNT_ALREADY_EXISTS);
+        }
+
+        Account account = accountMapper.toAccount(request);
+        account.setPassword(passwordEncoder.encode(request.getPassword()));
+
+        HashSet<UserRole> roles = new HashSet<>();
+        roles.add(UserRole.MODERATOR);
+        account.setRoles(roles);
+
+        account = accountRepository.save(account);
+
+        log.info("Moderator account created successfully: {}", account.getUsername());
+
+        return accountMapper.toAccountResponse(account);
+    }
+
+    @Transactional
+    @PreAuthorize("#accountId == authentication.name or hasRole('ADMIN')")
     public AccountResponse updateAccount(String accountId, AccountUpdateRequest request) {
-        Account account =
-                accountRepository.findById(accountId).orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_FOUND));
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_FOUND));
+
+        if (StringUtils.hasText(request.getUsername())
+                && !account.getUsername().equals(request.getUsername())) {
+
+            if (accountRepository.existsByUsername(request.getUsername())) {
+                throw new AppException(ErrorCode.USERNAME_ALREADY_EXISTS);
+            }
+        }
 
         accountMapper.updateAccount(account, request);
 
@@ -128,6 +167,25 @@ public class AccountService {
                 .build();
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
+    public PageResponse<AccountResponse> getModerators(int page, int size) {
+        Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
+        Page<Account> accounts = accountRepository.findAllByRolesContaining(UserRole.MODERATOR, pageable);
+
+        List<AccountResponse> responses = accounts.getContent().stream()
+                .map(accountMapper::toAccountResponse)
+                .toList();
+
+        return PageResponse.<AccountResponse>builder()
+                .currentPage(page)
+                .totalPages(accounts.getTotalPages())
+                .pageSize(accounts.getSize())
+                .totalElements(accounts.getTotalElements())
+                .data(responses)
+                .build();
+    }
+
+
     @PostAuthorize("returnObject.id == authentication.name or hasRole('ADMIN')")
     public AccountResponse getAccount(String accountId) {
         Account account =
@@ -142,78 +200,54 @@ public class AccountService {
     @Transactional
     @PreAuthorize("hasRole('ADMIN')")
     public void deleteAccount(String accountId) {
-        if (!accountRepository.existsById(accountId)) {
-            throw new AppException(ErrorCode.ACCOUNT_NOT_FOUND);
-        }
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_FOUND));
 
         String profileId = null;
         try {
             var profile = profileClient.getProfileByAccountId(accountId);
             if (profile != null) profileId = profile.getId();
         } catch (Exception e) {
-            log.warn("Cannot fetch profile for account {}", accountId, e);
+            log.warn("Cannot fetch profile for account {} — downstream cleanup may be incomplete",
+                    accountId, e);
         }
 
-        if (profileId != null) {
-            try {
-                documentClient.deleteByOwnerId(profileId);
-            } catch (Exception e) {
-                log.error("Error deleting documents for profile: {}", profileId, e);
-            }
+        accountRepository.delete(account);
 
-            try {
-                blogClient.deleteByOwnerId(profileId);
-            } catch (Exception e) {
-                log.error("Error deleting blogs for profile: {}", profileId, e);
-            }
+        eventPublisher.publishEvent(AccountDeletedEvent.builder()
+                .accountId(accountId)
+                .profileId(profileId)
+                .build());
 
-            try {
-                lmsClient.deleteTutor(profileId);
-            } catch (Exception e) {
-                log.error("Error deleting tutor data for profile with id: {}", profileId, e);
-                throw new AppException(ErrorCode.DELETE_LMS_FAILED);
-            }
-
-            try {
-                profileClient.deleteProfile(profileId);
-            } catch (Exception e) {
-                log.error("Error deleting Neo4j data for profile: {}", profileId, e);
-                throw new AppException(ErrorCode.DELETE_PROFILE_FAILED);
-            }
-        }
-
-        accountRepository.deleteById(accountId);
-        log.info("Account {} and related data have been deleted", accountId);
+        log.info("Account {} deleted; Account deleted event published (profileId={})", accountId, profileId);
     }
 
     @Transactional
-    public void addRoleToUser(String accountId, String roleName) {
+    public void addRoleToUser(String accountId, UserRole role) {
         Account account =
                 accountRepository.findById(accountId).orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_FOUND));
-        try {
-            UserRole role = UserRole.valueOf(roleName.toUpperCase());
 
-            if (account.getRoles() == null) account.setRoles(new HashSet<>());
-            account.getRoles().add(role);
-            accountRepository.save(account);
-            log.info("Successfully added role {} to account {}", roleName, accountId);
-        } catch (IllegalArgumentException e) {
-            throw new AppException(ErrorCode.INVALID_ROLE);
-        }
+        if (account.getRoles() == null) account.setRoles(new HashSet<>());
+        account.getRoles().add(role);
+        accountRepository.save(account);
+        log.info("Successfully added role {} to account {}", role.name(), accountId);
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void removeRole(String accountId, String roleName) {
-        Account account =
-                accountRepository.findById(accountId).orElseThrow(() -> new RuntimeException("Account not found"));
+    public void removeRole(String accountId, UserRole role) {
+        if (role == UserRole.USER) {
+            // Prevent removing the base role
+            throw new AppException(ErrorCode.INVALID_ROLE);
+        }
 
-        boolean isRemoved = account.getRoles().removeIf(role -> role.name().equals(roleName));
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new AppException(ErrorCode.ACCOUNT_NOT_FOUND));
 
-        if (isRemoved) {
+        if (account.getRoles() != null && account.getRoles().remove(role)) {
             accountRepository.save(account);
-            log.info("Successfully removed role '{}' from account '{}'", roleName, accountId);
+            log.info("Removed role {} from account {}", role.name(), accountId);
         } else {
-            log.info("Account '{}' does not have role '{}', skipping removal", accountId, roleName);
+            log.info("Account {} did not have role {}, skipping", accountId, role.name());
         }
     }
 
@@ -232,19 +266,37 @@ public class AccountService {
         }
     }
 
+    @Async("forgotPasswordExecutor")
     public void forgotPassword(String email) {
-        var profile = profileClient.getProfileByEmail(email);
+        ProfileResponse profile;
+        try {
+            profile = profileClient.getProfileByEmail(email);
+        } catch (FeignException.NotFound e) {
+            log.info("Forgot password requested for non-existent email: {}", email);
+            return;
+        } catch (Exception e) {
+            log.error("CRITICAL: Profile-service connection failed during forgot-password for email: {}", email, e);
+            return;
+        }
+
         if (profile == null) return;
 
-        String otp = verificationTokenService.createPasswordResetOtp(profile.getAccountId());
+        try {
+            String otp = verificationTokenService.createPasswordResetOtp(profile.getAccountId());
 
-        kafkaTemplate.send(
-                "email-delivery",
-                EmailSendEvent.builder()
-                        .recipient(email)
-                        .subject("Mã đặt lại mật khẩu BKUMENT")
-                        .body(buildResetPasswordBody(otp))
-                        .build());
+            kafkaTemplate.send(
+                    "email-delivery",
+                    EmailSendEvent.builder()
+                            .recipient(email)
+                            .subject("Mã đặt lại mật khẩu BKUMENT")
+                            .body(buildResetPasswordBody(otp))
+                            .build());
+
+            log.info("Successfully generated OTP and published email event to Kafka for email: {}", email);
+        } catch (Exception e) {
+            log.error("CRITICAL: Failed to process OTP or send Kafka event for password reset. Email: {}", email, e);
+            throw e;
+        }
     }
 
     @Transactional
@@ -290,7 +342,7 @@ public class AccountService {
 <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
 	<h2>Đặt lại mật khẩu</h2>
 	<p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.</p>
-	<p>Dưới đây là mã xác nhận (OTP) của bạn. Vui lòng nhập mã này vào trang đổi mật khẩu:</p>
+	<p>Đây là mã xác nhận (OTP) của bạn. Vui lòng nhập mã này vào trang đổi mật khẩu:</p>
 
 	<div style="background-color: #f8f9fa; border: 1px dashed #ccc; border-radius: 8px; padding: 15px; text-align: center; margin: 20px 0; max-width: 300px;">
 		<span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #dc3545;">%s</span>
