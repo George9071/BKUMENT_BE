@@ -2,6 +2,7 @@ package vn.edu.hcmut.identity.controller;
 
 import jakarta.validation.Valid;
 
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,6 +12,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import vn.edu.hcmut.identity.dto.request.AccountCreationRequest;
 import vn.edu.hcmut.identity.dto.request.AccountUpdateRequest;
 import vn.edu.hcmut.identity.dto.request.UserCreationRequest;
 import vn.edu.hcmut.identity.dto.response.APIResponse;
@@ -21,6 +23,7 @@ import vn.edu.hcmut.identity.service.AccountService;
 @Slf4j
 @RestController
 @RequestMapping("/accounts")
+@Validated
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Tag(name = "account management", description = "APIs for managing user accounts, registration, and role assignments")
@@ -39,6 +42,17 @@ public class AccountController {
     }
 
     @Operation(
+            summary = "Create a Moderator account",
+            description = "Creates an internal MODERATOR account without triggering profile creation or email verification. " +
+                    "Requires ADMIN role.")
+    @PostMapping("/moderators")
+    public APIResponse<AccountResponse> createModeratorAccount(@RequestBody @Valid AccountCreationRequest request) {
+        return APIResponse.<AccountResponse>builder()
+                .result(accountService.createModeratorAccount(request))
+                .build();
+    }
+
+    @Operation(
             summary = "Get all accounts (paginated)",
             description = "Retrieves a paginated list of all accounts in the system. Requires ADMIN role.")
     @GetMapping
@@ -50,6 +64,22 @@ public class AccountController {
 
         return APIResponse.<PageResponse<AccountResponse>>builder()
                 .result(accountService.getAccounts(page, size))
+                .build();
+    }
+
+    @Operation(
+            summary = "Get all moderator accounts (paginated)",
+            description = "Retrieves a paginated list of all moderator accounts in the system. " +
+                    "Requires ADMIN role.")
+    @GetMapping("/moderators")
+    public APIResponse<PageResponse<AccountResponse>> getModerators(
+            @Parameter(description = "Page number (1-based index)", example = "1") @RequestParam(defaultValue = "1")
+            int page,
+            @Parameter(description = "Number of records per page", example = "10") @RequestParam(defaultValue = "10")
+            int size) {
+
+        return APIResponse.<PageResponse<AccountResponse>>builder()
+                .result(accountService.getModerators(page, size))
                 .build();
     }
 
