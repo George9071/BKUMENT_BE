@@ -96,6 +96,7 @@ public interface DocumentNeo4jRepository extends Neo4jRepository<DocumentNode, S
             MATCH (u:UserProfile {id: $userId})
             OPTIONAL MATCH (u)-[:INTERESTED_IN]->(t1:Topic)<-[:HAS_TOPIC]-(d1:Document)
             OPTIONAL MATCH (u)-[:ENROLLED_IN]->(c:ClassRoom)-[:COVERS]->(t2:Topic)<-[:HAS_TOPIC]-(d2:Document)
+            WHERE c.status IS NULL OR NOT c.status IN ['COMPLETED', 'CANCELLED']
             WITH u,
                  collect(DISTINCT {id: d1.id, triggerId: t1.id,  type: 'INTERESTED_TOPIC'}) +
                  collect(DISTINCT {id: d2.id, triggerId: c.id,   type: 'ENROLLED_CLASS'  }) AS allItems

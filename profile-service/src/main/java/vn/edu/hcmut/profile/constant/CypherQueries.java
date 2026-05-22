@@ -90,8 +90,9 @@ public final class CypherQueries {
 				UNION ALL
 
 				WITH $profileId AS pid
-				MATCH (a:UserProfile {id: pid})-[:ENROLLED_IN]->(:ClassRoom)<-[:ENROLLED_IN]-(c:UserProfile)
+				MATCH (a:UserProfile {id: pid})-[:ENROLLED_IN]->(cr:ClassRoom)<-[:ENROLLED_IN]-(c:UserProfile)
 				WHERE a <> c AND NOT (a)-[:FOLLOW]->(c)
+				  AND (cr.status IS NULL OR NOT cr.status IN ['COMPLETED', 'CANCELLED'])
 				RETURN c
 
 				UNION ALL
@@ -126,8 +127,9 @@ public final class CypherQueries {
 				UNION ALL
 
 				WITH $profileId AS pid
-				MATCH (a:UserProfile {id: pid})-[:ENROLLED_IN]->(:ClassRoom)<-[:ENROLLED_IN]-(c:UserProfile)
+				MATCH (a:UserProfile {id: pid})-[:ENROLLED_IN]->(cr:ClassRoom)<-[:ENROLLED_IN]-(c:UserProfile)
 				WHERE a <> c AND NOT (a)-[:FOLLOW]->(c)
+				  AND (cr.status IS NULL OR NOT cr.status IN ['COMPLETED', 'CANCELLED'])
 				RETURN c, $classScore AS score
 
 				UNION ALL
