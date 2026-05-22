@@ -27,11 +27,12 @@ public class UserProfile {
 
     String lastName;
 
-    @Column(name = "email", unique = true, columnDefinition = "VARCHAR(255) COLLATE utf8mb4_unicode_ci")
+    @Column(name = "email", unique = true)
     String email;
 
-    @Column(name = "email_verified", nullable = false, columnDefinition = "boolean default false")
-    boolean emailVerified;
+    @Builder.Default
+    @Column(name = "email_verified", nullable = false)
+    boolean emailVerified = false;
 
     LocalDate dob;
 

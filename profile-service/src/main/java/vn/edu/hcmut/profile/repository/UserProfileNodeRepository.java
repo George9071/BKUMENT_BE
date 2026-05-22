@@ -31,9 +31,4 @@ public interface UserProfileNodeRepository extends Neo4jRepository<UserProfileNo
             countQuery = "MATCH (p:UserProfile {id: $profileId})-[:FOLLOW]->(f:UserProfile) " + "RETURN count(f)")
     Page<UserProfileNode> findFollowing(@Param("profileId") String profileId, Pageable pageable);
 
-    @Query("MATCH (f:UserProfile)-[:FOLLOW]->(p:UserProfile {id: $profileId}) RETURN count(f)")
-    Integer countFollowers(@Param("profileId") String profileId);
-
-    @Query("MATCH (p:UserProfile {id: $profileId})-[:FOLLOW]->(f:UserProfile) RETURN count(f)")
-    Integer countFollowing(@Param("profileId") String profileId);
 }
