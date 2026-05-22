@@ -49,7 +49,6 @@ public class EnrollmentService {
     EnrollmentMapper enrollmentMapper;
     SecurityUtils securityUtils;
 
-
     /**
      * Enrolls the authenticated student in a class.
      * Handles re-enrollment for previously rejected requests after the cooldown period.
@@ -66,9 +65,6 @@ public class EnrollmentService {
 
         Enrollment enrollment = getOrCreateEnrollment(classId, userId, classRoom);
         enrollment = enrollmentRepository.save(enrollment);
-
-        String topicId = classRoom.getTopic() != null ? classRoom.getTopic().getId() : null;
-        graphSyncService.handleEnrollmentEvent(userId, classId, topicId);
 
         var profile = profileClient.getProfile(userId);
 
@@ -98,14 +94,25 @@ public class EnrollmentService {
                 .findByClassRoomIdAndStudentProfileId(classId, userId)
                 .orElseThrow(() -> new AppException(ErrorCode.ENROLLMENT_NOT_FOUND));
 
-        enrollmentRepository.delete(enrollment);
-        log.info("Student {} left class {}", userId, classId);
+        EnrollmentStatus previousStatus = enrollment.getStatus();
+        if (previousStatus == EnrollmentStatus.REJECTED
+                || previousStatus == EnrollmentStatus.COMPLETED
+                || previousStatus == EnrollmentStatus.CANCELLED) {
+            throw new AppException(ErrorCode.INVALID_STATUS);
+        }
 
-        try {
-            graphSyncService.removeEnrollment(userId, classId);
-        } catch (Exception e) {
-            log.error("Failed to remove ENROLLED_IN relation from Neo4j " +
-                    "(best-effort). Student: {}, Class: {}", userId, classId, e);
+        enrollment.setStatus(EnrollmentStatus.CANCELLED);
+        enrollment.setEnrolledAt(LocalDateTime.now());
+        enrollmentRepository.save(enrollment);
+        log.info("Student {} cancelled/left class {}", userId, classId);
+
+        if (previousStatus == EnrollmentStatus.APPROVED) {
+            try {
+                graphSyncService.removeEnrollment(userId, classId);
+            } catch (Exception e) {
+                log.error("Failed to remove ENROLLED_IN relation from Neo4j " +
+                        "(best-effort). Student: {}, Class: {}", userId, classId, e);
+            }
         }
     }
 
@@ -123,8 +130,13 @@ public class EnrollmentService {
                 .orElseThrow(() -> new AppException(ErrorCode.ENROLLMENT_NOT_FOUND));
 
         assertClassOwner(enrollment.getClassRoom(), tutorId);
+        if (enrollment.getStatus() != EnrollmentStatus.APPROVED) {
+            throw new AppException(ErrorCode.INVALID_STATUS);
+        }
 
-        enrollmentRepository.delete(enrollment);
+        enrollment.setStatus(EnrollmentStatus.CANCELLED);
+        enrollment.setEnrolledAt(LocalDateTime.now());
+        enrollmentRepository.save(enrollment);
         log.info("Tutor {} removed student {} from class {}", tutorId, studentId, classId);
 
         try {
@@ -150,6 +162,9 @@ public class EnrollmentService {
 
         ClassRoom classroom = enrollment.getClassRoom();
         assertClassOwner(classroom, tutorId);
+        if (enrollment.getStatus() != EnrollmentStatus.PENDING) {
+            throw new AppException(ErrorCode.INVALID_STATUS);
+        }
 
         enrollment.setStatus(isApproved ? EnrollmentStatus.APPROVED : EnrollmentStatus.REJECTED);
         enrollmentRepository.save(enrollment);
@@ -200,13 +215,15 @@ public class EnrollmentService {
         return buildPageResponse(enrollments, page);
     }
 
-
     private void validateEnrollmentEligibility(ClassRoom classRoom, String userId) {
         if (classRoom.getStatus() != ClassStatus.ENROLLING) {
             throw new AppException(ErrorCode.CLASS_NOT_AVAILABLE);
         }
-        if (classRoom.getTutor() != null && classRoom.getTutor().getId().equals(userId)) {
-            throw new AppException(ErrorCode.CANNOT_ENROLL_OWN_CLASS);
+        if (classRoom.getTutor() != null) {
+            assert classRoom.getTutor().getId() != null;
+            if (classRoom.getTutor().getId().equals(userId)) {
+                throw new AppException(ErrorCode.CANNOT_ENROLL_OWN_CLASS);
+            }
         }
         validationService.validateBusySchedule(userId, classRoom);
     }
@@ -237,17 +254,13 @@ public class EnrollmentService {
                     case PENDING  -> throw new AppException(ErrorCode.ENROLLMENT_PENDING);
                     case COMPLETED -> throw new AppException(ErrorCode.ALREADY_COMPLETED);
                     case REJECTED  -> {
-                        if (existing.getEnrolledAt()
-                                .plusDays(ENROLLMENT_COOLDOWN_DAYS)
-                                .isAfter(LocalDateTime.now())) {
+                        if (isCooldownActive(existing, ENROLLMENT_COOLDOWN_DAYS)) {
                             throw new AppException(ErrorCode.ENROLLMENT_COOLDOWN);
                         }
                         yield resetToPending(existing);
                     }
                     case CANCELLED -> {
-                        if (existing.getEnrolledAt()
-                                .plusDays(CANCELLED_COOLDOWN_DAYS)
-                                .isAfter(LocalDateTime.now())) {
+                        if (isCooldownActive(existing, CANCELLED_COOLDOWN_DAYS)) {
                             throw new AppException(ErrorCode.ENROLLMENT_COOLDOWN);
                         }
                         yield resetToPending(existing);
@@ -261,7 +274,15 @@ public class EnrollmentService {
                         .build());
     }
 
+    private boolean isCooldownActive(Enrollment enrollment, int cooldownDays) {
+        return enrollment.getEnrolledAt() != null
+                && enrollment.getEnrolledAt()
+                .plusDays(cooldownDays)
+                .isAfter(LocalDateTime.now());
+    }
+
     private void assertClassOwner(ClassRoom classRoom, String tutorId) {
+        assert classRoom.getTutor().getId() != null;
         if (!classRoom.getTutor().getId().equals(tutorId)) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
