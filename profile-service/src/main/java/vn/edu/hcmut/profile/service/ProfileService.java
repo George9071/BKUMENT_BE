@@ -1,10 +1,10 @@
 package vn.edu.hcmut.profile.service;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.data.domain.PageRequest;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -14,7 +14,6 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
-import vn.edu.hcmut.event.ProfileUpdatedEvent;
 import vn.edu.hcmut.profile.dto.request.ProfileCreationRequest;
 import vn.edu.hcmut.profile.dto.request.ProfileUpdateRequest;
 import vn.edu.hcmut.profile.dto.response.PageResponse;
@@ -26,6 +25,8 @@ import vn.edu.hcmut.profile.exception.ErrorCode;
 import vn.edu.hcmut.profile.mapper.ProfileMapper;
 import vn.edu.hcmut.profile.repository.UniversityRepository;
 import vn.edu.hcmut.profile.repository.UserProfileRepository;
+import vn.edu.hcmut.profile.service.assembler.ProfileResponseAssembler;
+import vn.edu.hcmut.profile.service.outbox.OutboxEventService;
 
 @Service
 @RequiredArgsConstructor
@@ -36,10 +37,11 @@ public class ProfileService {
     UserProfileRepository jpaRepository;
     UniversityRepository universityRepository;
 
-    ProfileMapper profileMapper;
     ProfileNeo4jService profileNeo4jService;
 
-    KafkaTemplate<String, ProfileUpdatedEvent> kafkaTemplate;
+    ProfileMapper profileMapper;
+    ProfileResponseAssembler profileResponseAssembler;
+    OutboxEventService outboxEventService;
 
     /**
      * Creates a profile in both JPA and Neo4j
@@ -55,22 +57,20 @@ public class ProfileService {
             throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
 
-        String profileId = UUID.randomUUID().toString();
-
         University university = universityRepository
                 .findById(request.getUniversityId())
                 .orElseThrow(() -> new AppException(ErrorCode.UNIVERSITY_NOT_FOUND));
 
-        // Save to JPA
+        String profileId = UUID.randomUUID().toString();
+
         UserProfile user = profileMapper.toProfile(request);
         user.setId(profileId);
         user.setUniversityId(university.getId());
         jpaRepository.save(user);
 
-        // Save to Neo4j
-        profileNeo4jService.createUserNode(profileId, request, university);
+        outboxEventService.save("PROFILE", profileId, "PROFILE_CREATED", request);
 
-        return buildProfileResponse(user, university, 0, 0);
+        return profileResponseAssembler.toResponse(user, false);
     }
 
     /**
@@ -80,37 +80,23 @@ public class ProfileService {
     @Transactional(transactionManager = "transactionManager", rollbackFor = Exception.class)
     public ProfileResponse updateProfile(ProfileUpdateRequest request) {
         String accountId = getCurrentAccountId();
-
-        UserProfile user = jpaRepository
-                .findByAccountId(accountId)
+        UserProfile user = jpaRepository.findByAccountId(accountId)
                 .orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
 
         profileMapper.updateProfile(user, request);
 
-        University university = resolveUniversityUpdate(request, user);
-
+        boolean universityChanged = applyUniversityUpdate(request, user);
         jpaRepository.save(user);
 
-        kafkaTemplate.send(
-                "profile-update-events",
+        ProfileUpdateRequest syncPayload = buildProfileSyncPayload(request, user, universityChanged);
+        outboxEventService.save("PROFILE", user.getId(), "PROFILE_UPDATED", syncPayload);
+        outboxEventService.save(
+                "PROFILE",
                 user.getId(),
-                ProfileUpdatedEvent.builder()
-                        .profileId(user.getId())
-                        .firstName(user.getFirstName())
-                        .lastName(user.getLastName())
-                        .avatar(user.getAvatarUrl())
-                        .dob(user.getDob())
-                        .bio(user.getBio())
-                        .address(user.getAddress())
-                        .gender(user.getGender())
-                        .phone(user.getPhone())
-                        .build());
+                "PROFILE_UPDATED_FOR_COMMUNICATION",
+                profileMapper.toProfileUpdatedEvent(user));
 
-        return buildProfileResponse(
-                user,
-                university,
-                profileNeo4jService.countFollowers(user.getId()),
-                profileNeo4jService.countFollowing(user.getId()));
+        return profileResponseAssembler.toResponse(user, true);
     }
 
     /**
@@ -118,13 +104,13 @@ public class ProfileService {
      */
     @Transactional(transactionManager = "transactionManager", rollbackFor = Exception.class)
     public void deleteProfile(String profileId) {
-        UserProfile user =
-                jpaRepository.findById(profileId).orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
+        UserProfile user = jpaRepository.findById(profileId)
+                .orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
 
         jpaRepository.delete(user);
-        profileNeo4jService.deleteUserNode(profileId);
 
-        log.info("Deleted UserProfile {} from JPA and Neo4j", profileId);
+        outboxEventService.save("PROFILE", profileId, "PROFILE_DELETED", Map.of("profileId", profileId));
+        log.info("Registered hard-delete event in Outbox for profileId {}", profileId);
     }
 
     /**
@@ -144,7 +130,7 @@ public class ProfileService {
     @Transactional(readOnly = true)
     public ProfileResponse getProfile(String id) {
         UserProfile user = jpaRepository.findById(id).orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
-        return toProfileResponse(user);
+        return profileResponseAssembler.toResponse(user, true);
     }
 
     @Transactional
@@ -176,7 +162,7 @@ public class ProfileService {
                 .findByAccountId(accountId)
                 .orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
 
-        return toProfileResponse(user);
+        return profileResponseAssembler.toResponse(user, true);
     }
 
     @Transactional(readOnly = true)
@@ -184,7 +170,7 @@ public class ProfileService {
         UserProfile profile =
                 jpaRepository.findByEmail(email).orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
 
-        return profileMapper.toProfileResponse(profile);
+        return profileResponseAssembler.toResponse(profile, true);
     }
 
     @Transactional(readOnly = true)
@@ -196,117 +182,70 @@ public class ProfileService {
      * Batch fetch — used by other microservices via FeignClient.
      * Does NOT include follower/following counts (too expensive for batch).
      */
+    @Transactional(readOnly = true)
     public List<ProfileResponse> getProfilesByIds(List<String> profileIds) {
-        List<UserProfile> users = jpaRepository.findAllById(profileIds);
-        List<ProfileResponse> responses = users.stream()
-                .map(profileMapper::toProfileResponse)
-                .toList();
-
-        hydrateUniversities(users, responses);
-        return responses;
+        return profileResponseAssembler.toResponsesByIdsPreservingOrder(profileIds, false);
     }
 
     @Transactional(readOnly = true)
     public PageResponse<ProfileResponse> searchProfile(String keyword, int page, int size) {
-        if (keyword == null || keyword.isBlank()) return new PageResponse<>();
+        int safePage = normalizePage(page);
+        int safeSize = normalizeSize(size);
 
-        var pageable = PageRequest.of(page - 1, size);
+        if (keyword == null || keyword.isBlank()) {
+            return profileResponseAssembler.emptyProfilePage(safePage, safeSize);
+        }
+
+        var pageable = PageRequest.of(safePage - 1, safeSize);
         var pageData = jpaRepository.search(keyword.trim(), pageable);
 
         List<UserProfile> users = pageData.getContent();
-        List<ProfileResponse> profiles = users.stream()
-                .map(profileMapper::toProfileResponse)
-                .toList();
-
-        hydrateUniversities(users, profiles);
-
-        // Batch fetch follower/following counts from Neo4j
-        List<String> profileIds = profiles.stream().map(ProfileResponse::getId).toList();
-        Map<String, Map<String, Integer>> countsMap = profileNeo4jService.getBatchCounts(profileIds);
-
-        profiles.forEach(p -> {
-            Map<String, Integer> counts = countsMap.get(p.getId());
-            if (counts != null) {
-                p.setFollowerCount(counts.getOrDefault("followerCount", 0));
-                p.setFollowingCount(counts.getOrDefault("followingCount", 0));
-            } else {
-                p.setFollowerCount(0);
-                p.setFollowingCount(0);
-            }
-        });
+        List<ProfileResponse> profiles = profileResponseAssembler.toResponses(users, true);
 
         return PageResponse.<ProfileResponse>builder()
-                .currentPage(page)
-                .pageSize(size)
+                .currentPage(safePage)
+                .pageSize(safeSize)
                 .totalPages(pageData.getTotalPages())
                 .totalElements(pageData.getTotalElements())
                 .data(profiles)
                 .build();
     }
 
-    // -------------------------------------------------------------------------
-    // HELPERS
-    // -------------------------------------------------------------------------
-
-    private void hydrateUniversities(List<UserProfile> users, List<ProfileResponse> responses) {
-        List<Integer> uniIds = users.stream()
-                .map(UserProfile::getUniversityId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-
-        if (!uniIds.isEmpty()) {
-            Map<Integer, String> uniMap = universityRepository.findAllById(uniIds).stream()
-                    .collect(Collectors.toMap(University::getId, University::getName));
-
-            for (int i = 0; i < users.size(); i++) {
-                if (users.get(i).getUniversityId() != null) {
-                    responses.get(i).setUniversity(uniMap.get(users.get(i).getUniversityId()));
-                }
-            }
-        }
-    }
-
-    private University resolveUniversityUpdate(ProfileUpdateRequest request, UserProfile user) {
-        if (request.getUniversityId() == null || request.getUniversityId().equals(user.getUniversityId())) {
-
-            // No change — fetch existing for response
-            return user.getUniversityId() != null
-                    ? universityRepository.findById(user.getUniversityId()).orElse(null)
-                    : null;
+    private boolean applyUniversityUpdate(ProfileUpdateRequest request, UserProfile user) {
+        Integer universityId = request.getUniversityId();
+        if (universityId == null || universityId.equals(user.getUniversityId())) {
+            return false;
         }
 
-        University newUniversity = universityRepository
-                .findById(request.getUniversityId())
+        University newUniversity = universityRepository.findById(universityId)
                 .orElseThrow(() -> new AppException(ErrorCode.UNIVERSITY_NOT_FOUND));
-
         user.setUniversityId(newUniversity.getId());
-
-        // Sync new university to Neo4j
-        profileNeo4jService.updateUserUniversity(user.getId(), newUniversity);
-
-        return newUniversity;
+        return true;
     }
 
-    private ProfileResponse toProfileResponse(UserProfile user) {
-        University university = user.getUniversityId() != null
-                ? universityRepository.findById(user.getUniversityId()).orElse(null)
-                : null;
+    private ProfileUpdateRequest buildProfileSyncPayload(
+            ProfileUpdateRequest request, UserProfile user, boolean universityChanged) {
+        boolean nameChanged = request.getFirstName() != null || request.getLastName() != null;
 
-        return buildProfileResponse(
-                user,
-                university,
-                profileNeo4jService.countFollowers(user.getId()),
-                profileNeo4jService.countFollowing(user.getId()));
+        return ProfileUpdateRequest.builder()
+                .firstName(nameChanged ? user.getFirstName() : null)
+                .lastName(nameChanged ? user.getLastName() : null)
+                .dob(request.getDob())
+                .bio(request.getBio())
+                .avatarUrl(request.getAvatarUrl())
+                .address(request.getAddress())
+                .gender(request.getGender())
+                .phone(request.getPhone())
+                .universityId(universityChanged ? user.getUniversityId() : null)
+                .build();
     }
 
-    private ProfileResponse buildProfileResponse(
-            UserProfile user, University university, int followerCount, int followingCount) {
-        ProfileResponse response = profileMapper.toProfileResponse(user);
-        if (university != null) response.setUniversity(university.getName());
-        response.setFollowerCount(followerCount);
-        response.setFollowingCount(followingCount);
-        return response;
+    private int normalizePage(int page) {
+        return Math.max(page, 1);
+    }
+
+    private int normalizeSize(int size) {
+        return size > 0 ? size : 10;
     }
 
     private String getCurrentAccountId() {
