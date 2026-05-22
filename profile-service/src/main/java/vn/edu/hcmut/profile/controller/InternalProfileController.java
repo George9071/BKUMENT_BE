@@ -3,6 +3,7 @@ package vn.edu.hcmut.profile.controller;
 import java.util.List;
 import java.util.Set;
 
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import lombok.AccessLevel;
@@ -22,7 +23,7 @@ public class InternalProfileController {
     ProfileNeo4jService profileNeo4jService;
 
     @PostMapping
-    ProfileResponse createProfile(@RequestBody ProfileCreationRequest request) {
+    ProfileResponse createProfile(@Valid @RequestBody ProfileCreationRequest request) {
         return profileService.createProfile(request);
     }
 

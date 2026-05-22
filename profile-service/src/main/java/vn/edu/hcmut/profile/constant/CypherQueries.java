@@ -43,8 +43,8 @@ public final class CypherQueries {
             """
 			MATCH (u:UserProfile {id: $profileId})
 			SET u.roles = CASE
-				WHEN $role IN u.roles THEN u.roles
-				ELSE u.roles + $role
+				WHEN $role IN coalesce(u.roles, []) THEN u.roles
+				ELSE coalesce(u.roles, []) + $role
 			END
 			""";
 

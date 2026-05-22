@@ -44,8 +44,7 @@ public class InternalSyncController {
     }
 
     @PostMapping("/subjects-topics")
-    public void syncSubjectsTopics(
-            @RequestBody List<SubjectSyncRequest> subjects, @RequestBody List<TopicSyncRequest> topics) {
-        syncService.syncMetadata(subjects, topics);
+    public void syncSubjectsTopics(@RequestBody SubTopSyncRequest request) {
+        syncService.syncMetadata(request.getSubjects(), request.getTopics());
     }
 }

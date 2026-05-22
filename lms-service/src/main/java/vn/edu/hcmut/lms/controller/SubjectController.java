@@ -14,8 +14,6 @@ import vn.edu.hcmut.lms.dto.response.TopicResponse;
 import vn.edu.hcmut.lms.service.SubjectService;
 
 import java.util.List;
-
-import java.util.List;
 import java.util.Map;
 
 @RestController

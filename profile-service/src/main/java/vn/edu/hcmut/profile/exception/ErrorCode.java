@@ -34,11 +34,12 @@ public enum ErrorCode {
     ACCOUNT_NOT_FOUND(3002, "Account not found", HttpStatus.NOT_FOUND),
     UNIVERSITY_NOT_FOUND(3003, "University not found", HttpStatus.NOT_FOUND),
     PROFILE_NOT_FOUND(3004, "Profile not found", HttpStatus.NOT_FOUND),
-    CANNOT_FOLLOW_YOURSELF(3005, "Profile not found", HttpStatus.BAD_REQUEST),
+    CANNOT_FOLLOW_YOURSELF(3005, "Cannot follow yourself", HttpStatus.BAD_REQUEST),
 
     // ----------------------------------------------------------------------
     // 9xxx: SYSTEM ERRORS
     // ----------------------------------------------------------------------
+    JSON_PROCESSING_EXCEPTION(9998, "Failed to serialize data to JSON", HttpStatus.INTERNAL_SERVER_ERROR),
     UNCATEGORIZED_EXCEPTION(9999, "Uncategorized system error", HttpStatus.INTERNAL_SERVER_ERROR);
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {
