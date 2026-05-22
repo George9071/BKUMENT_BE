@@ -42,3 +42,5 @@ app:
   services:
     profile: http://localhost:8081/profile
     identity: http://localhost:8080/identity
+  internal-api:
+    secret: ${INTERNAL_API_SECRET}

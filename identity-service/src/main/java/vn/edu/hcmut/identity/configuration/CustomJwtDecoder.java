@@ -43,7 +43,9 @@ public class CustomJwtDecoder implements JwtDecoder {
             if (exp == null || exp.before(new Date())) throw new JwtException("Token has expired");
 
             String jti = signedJWT.getJWTClaimsSet().getJWTID();
-            if (jti != null && invalidatedTokenRepository.existsById(jti)) throw new JwtException("Token has been invalidated");
+            if (jti != null && invalidatedTokenRepository.existsById(jti)) {
+                throw new JwtException("Token has been invalidated");
+            }
 
             return new Jwt(
                     token,

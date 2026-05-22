@@ -10,6 +10,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
  * Main security configuration class for the application.
@@ -20,24 +21,33 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private static final String[] PUBLIC_ENDPOINTS = {};
+    private static final String[] PUBLIC_ENDPOINTS = { };
 
-    private static final String[] PUBLIC_RESOURCES = {
+    private static final String[] PUBLIC_INFRASTRUCTURE = {
         "/swagger-ui/**",
         "/v3/api-docs/**",
         "/api-docs/**",
         "/swagger-ui.html",
         "/actuator/health",
-        "/internal/**", // internal microservice-to-microservice communication
         "/error",
-        "/search/**",
-        "/universities/**",
+    };
+
+    private static final String[] PUBLIC_GET_ENDPOINTS = {
+            "/search/**",
+            "/universities/**"
     };
 
     private final CustomJwtDecoder customJwtDecoder;
+    private final InternalApiAuthFilter internalApiAuthFilter;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
-    public SecurityConfig(CustomJwtDecoder customJwtDecoder) {
+    public SecurityConfig(
+            CustomJwtDecoder customJwtDecoder,
+            InternalApiAuthFilter internalApiAuthFilter,
+            JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint) {
         this.customJwtDecoder = customJwtDecoder;
+        this.internalApiAuthFilter = internalApiAuthFilter;
+        this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
     }
 
     @Bean
@@ -45,27 +55,18 @@ public class SecurityConfig {
         httpSecurity
                 .cors(AbstractHttpConfigurer::disable)
                 .csrf(AbstractHttpConfigurer::disable)
+                .addFilterBefore(internalApiAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(request -> request
-                        // Allow OPTIONS requests for preflight CORS checks and specific POST requests
-                        .requestMatchers(HttpMethod.OPTIONS, PUBLIC_ENDPOINTS)
-                        .permitAll()
-                        .requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS)
-                        .permitAll()
-
-                        // Allow swagger documentation, actuator health checks, and internal API calls
-                        .requestMatchers(PUBLIC_RESOURCES)
-                        .permitAll()
-
-                        // All other endpoints require authentication
-                        .anyRequest()
-                        .authenticated())
-
+                        .requestMatchers("/internal/**").permitAll()
+                        .requestMatchers(PUBLIC_INFRASTRUCTURE).permitAll()
+                        .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
+                        .anyRequest().authenticated())
                 // Configure OAuth2 Resource Server to use custom JWT decoder and converter
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
                                 jwt.decoder(customJwtDecoder).jwtAuthenticationConverter(jwtAuthenticationConverter()))
 
                         // // Handle unauthenticated access exceptions with custom JSON response
-                        .authenticationEntryPoint(new JwtAuthenticationEntryPoint()));
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint));
 
         return httpSecurity.build();
     }

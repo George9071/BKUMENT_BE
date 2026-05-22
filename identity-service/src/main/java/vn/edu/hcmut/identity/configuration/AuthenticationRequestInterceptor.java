@@ -2,6 +2,7 @@ package vn.edu.hcmut.identity.configuration;
 
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -14,19 +15,21 @@ import java.util.Objects;
 @Slf4j
 @Component
 public class AuthenticationRequestInterceptor implements RequestInterceptor {
+    private static final String AUTHORIZATION_HEADER = "Authorization";
+
     @Override
     public void apply(RequestTemplate template) {
-        ServletRequestAttributes attributes =
-                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
 
-        if (!Objects.isNull(attributes)) {
-            var request = attributes.getRequest();
-            var authHeader = request.getHeader("Authorization");
+        if (!(requestAttributes instanceof ServletRequestAttributes servletAttributes)) {
+            log.debug("No servlet request context found. Authorization header will not be forwarded.");
+            return;
+        }
 
-            log.info("authHeader:{}", authHeader);
-            if (StringUtils.hasText(authHeader)) template.header("Authorization", authHeader);
-        } else {
-            log.warn("RequestContextHolder returned null. No active HTTP request context found.");
+        String authHeader = servletAttributes.getRequest().getHeader(AUTHORIZATION_HEADER);
+
+        if (StringUtils.hasText(authHeader)) {
+            template.header(AUTHORIZATION_HEADER, authHeader);
         }
     }
 }

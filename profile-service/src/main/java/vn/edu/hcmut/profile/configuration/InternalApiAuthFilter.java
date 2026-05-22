@@ -1,4 +1,4 @@
-package vn.edu.hcmut.identity.configuration;
+package vn.edu.hcmut.profile.configuration;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -11,11 +11,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-// TODO: add this filter to each service
 @Component
 public class InternalApiAuthFilter extends OncePerRequestFilter {
 
-    static final String HEADER = "X-Internal-Api-Key";
+    private static final String HEADER = "X-Internal-Api-Key";
 
     @Value("${app.internal-api.secret}")
     private String secret;

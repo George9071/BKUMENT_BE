@@ -16,6 +16,8 @@ app:
   services:
     profile: http://profile-service:8081/profile
     identity: http://identity-service:8080/identity
+  internal-api:
+    secret: ${INTERNAL_API_SECRET}
 
 swagger:
   gateway-url: ${BACKEND_HOST}/api/v1/lms

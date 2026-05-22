@@ -1,7 +1,12 @@
 package vn.edu.hcmut.profile.configuration;
 
 import java.text.ParseException;
+import java.util.Date;
 
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSVerifier;
+import com.nimbusds.jose.crypto.MACVerifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
@@ -15,10 +20,20 @@ import com.nimbusds.jwt.SignedJWT;
  */
 @Component
 public class CustomJwtDecoder implements JwtDecoder {
+
+    @Value("${jwt.signerKey}")
+    private String signerKey;
+
     @Override
     public Jwt decode(String token) throws JwtException {
         try {
             SignedJWT signedJWT = SignedJWT.parse(token);
+
+            JWSVerifier verifier = new MACVerifier(signerKey.getBytes());
+            if (!signedJWT.verify(verifier)) throw new JwtException("Invalid token signature");
+
+            Date exp = signedJWT.getJWTClaimsSet().getExpirationTime();
+            if (exp == null || exp.before(new Date())) throw new JwtException("Token has expired");
 
             return new Jwt(
                     token,
@@ -27,7 +42,7 @@ public class CustomJwtDecoder implements JwtDecoder {
                     signedJWT.getHeader().toJSONObject(),
                     signedJWT.getJWTClaimsSet().getClaims());
 
-        } catch (ParseException e) {
+        } catch (ParseException | JOSEException e) {
             throw new JwtException("Invalid token");
         }
     }

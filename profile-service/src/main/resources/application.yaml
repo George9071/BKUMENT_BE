@@ -22,7 +22,7 @@ spring:
       ddl-auto: update
     show-sql: true
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -40,6 +40,10 @@ spring:
 swagger:
   host-url: http://localhost:8081/profile
   gateway-url: ${BACKEND_HOST}/api/v1/profile
+
+app:
+  internal-api:
+    secret: ${INTERNAL_API_SECRET}
 
 jwt:
   signerKey: ${JWT_SIGNER_KEY}
