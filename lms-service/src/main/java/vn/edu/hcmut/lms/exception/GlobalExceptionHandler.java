@@ -28,7 +28,7 @@ public class GlobalExceptionHandler {
      * @return Standardized APIResponse with an INTERNAL_SERVER_ERROR (500) status.
      */
     @ExceptionHandler(value = Exception.class)
-    ResponseEntity<APIResponse<?>> handlingRuntimeException(RuntimeException exception) {
+    ResponseEntity<APIResponse<?>> handlingRuntimeException(Exception exception) {
         log.error("Exception: ", exception);
         APIResponse<?> apiResponse = new APIResponse<>();
 
@@ -49,7 +49,9 @@ public class GlobalExceptionHandler {
         APIResponse<?> apiResponse = new APIResponse<>();
 
         apiResponse.setCode(errorCode.getCode());
-        apiResponse.setMessage(errorCode.getMessage());
+        apiResponse.setMessage(exception.getMessage() != null
+                ? exception.getMessage()
+                : errorCode.getMessage());
 
         return ResponseEntity.status(errorCode.getStatusCode()).body(apiResponse);
     }
@@ -64,7 +66,7 @@ public class GlobalExceptionHandler {
         ErrorCode errorCode = ErrorCode.ACCESS_DENIED;
 
         return ResponseEntity.status(errorCode.getStatusCode())
-                .body(APIResponse.builder()
+                .body(APIResponse.<Void>builder()
                         .code(errorCode.getCode())
                         .message(errorCode.getMessage())
                         .build());
@@ -76,6 +78,7 @@ public class GlobalExceptionHandler {
      * @param exception The validation exception containing field errors.
      * @return Standardized APIResponse with a BAD_REQUEST (400) status.
      */
+    @SuppressWarnings("unchecked")
     @ExceptionHandler(value = MethodArgumentNotValidException.class)
     ResponseEntity<APIResponse<?>> handlingValidation(MethodArgumentNotValidException exception) {
         // Retrieve the validation message key (which should map to an ErrorCode enum name)

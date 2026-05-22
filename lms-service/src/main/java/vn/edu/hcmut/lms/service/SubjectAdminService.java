@@ -145,6 +145,10 @@ public class SubjectAdminService {
     }
 
     private boolean topicExistsInSubject(String subjectId, String topicName) {
+        if (subjectId == null || subjectId.isBlank()) {
+            return false;
+        }
+
         return topicRepository
                 .findBySubjectIdIn(List.of(subjectId))
                 .stream()

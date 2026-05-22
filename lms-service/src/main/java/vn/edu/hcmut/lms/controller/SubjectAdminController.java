@@ -18,7 +18,7 @@ import vn.edu.hcmut.lms.utils.SecurityUtils;
 @RequestMapping("/administration")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-// @PreAuthorize("hasAnyRole('ADMIN', 'MODERATOR')")
+@PreAuthorize("hasAnyRole('ADMIN', 'MODERATOR')")
 public class SubjectAdminController {
 
     SubjectAdminService subjectAdminService;

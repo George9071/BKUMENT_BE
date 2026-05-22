@@ -56,6 +56,10 @@ public enum ErrorCode {
     SUBJECT_ID_REQUIRED         (4112, "Subject ID is required", HttpStatus.BAD_REQUEST),
     TOPIC_NAME_REQUIRED         (4113, "Topic name is required", HttpStatus.BAD_REQUEST),
     TOPIC_NAME_LENGTH_INVALID   (4114, "Topic name must be between 2 and 255 characters", HttpStatus.BAD_REQUEST),
+    SUBJECT_ID_LENGTH_INVALID   (4115, "Subject ID must be between 2 and 64 characters", HttpStatus.BAD_REQUEST),
+    TOPIC_ID_REQUIRED           (4116, "Topic ID is required", HttpStatus.BAD_REQUEST),
+    TOPIC_ID_LENGTH_INVALID     (4117, "Topic ID must be between 2 and 64 characters", HttpStatus.BAD_REQUEST),
+    INVALID_RESOURCE_ID_FORMAT  (4118, "Resource ID may contain only letters, numbers, underscores, and hyphens", HttpStatus.BAD_REQUEST),
     FINAL_ID_REQUIRED          (4124, "An identifier must be entered when reviewing proposals.", HttpStatus.BAD_REQUEST),
     FINAL_ID_LENGTH_INVALID    (4125, "The code must be between 2 and 64 characters long.", HttpStatus.BAD_REQUEST),
 
