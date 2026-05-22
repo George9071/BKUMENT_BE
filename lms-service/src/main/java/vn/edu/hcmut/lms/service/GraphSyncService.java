@@ -275,6 +275,7 @@ public class GraphSyncService {
         String query = """
             MATCH (u:UserProfile {id: $profileId})-[:DOWNLOADED]->(d:Document)-[:HAS_TOPIC]->(t:Topic)<-[:COVERS]-(c:ClassRoom)
             WHERE NOT (u)-[:ENROLLED_IN]->(c)
+              AND (c.status IS NULL OR NOT c.status IN ['COMPLETED', 'CANCELLED'])
             RETURN c.id AS classroomId, count(d) AS weight
             ORDER BY weight DESC
             LIMIT $limit
