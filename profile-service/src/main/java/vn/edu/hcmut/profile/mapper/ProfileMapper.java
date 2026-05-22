@@ -2,6 +2,7 @@ package vn.edu.hcmut.profile.mapper;
 
 import org.mapstruct.*;
 
+import vn.edu.hcmut.event.ProfileUpdatedEvent;
 import vn.edu.hcmut.profile.dto.request.ProfileCreationRequest;
 import vn.edu.hcmut.profile.dto.request.ProfileUpdateRequest;
 import vn.edu.hcmut.profile.dto.response.ProfileResponse;
@@ -21,11 +22,16 @@ public interface ProfileMapper {
     @Mapping(target = "followingCount", ignore = true)
     ProfileResponse toProfileResponse(UserProfile entity);
 
+    @Mapping(target = "profileId", source = "id")
+    @Mapping(target = "avatar", source = "avatarUrl")
+    ProfileUpdatedEvent toProfileUpdatedEvent(UserProfile entity);
+
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "accountId", ignore = true)
     @Mapping(target = "email", ignore = true)
     @Mapping(target = "emailVerified", ignore = true)
     @Mapping(target = "points", ignore = true)
+    @Mapping(target = "universityId", ignore = true)
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     void updateProfile(@MappingTarget UserProfile entity, ProfileUpdateRequest request);
 }
