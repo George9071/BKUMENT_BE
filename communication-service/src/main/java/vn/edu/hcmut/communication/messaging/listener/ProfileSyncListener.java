@@ -17,7 +17,10 @@ import vn.edu.hcmut.communication.messaging.event.ProfileUpdatedEvent;
 public class ProfileSyncListener {
     private final MongoTemplate mongoTemplate;
 
-    @KafkaListener(topics = "profile-update-events", groupId = "communication-group")
+    @KafkaListener(
+            topics = "profile-update-events",
+            groupId = "communication-group",
+            properties = "spring.json.value.default.type=vn.edu.hcmut.communication.messaging.event.ProfileUpdatedEvent")
     public void onProfileUpdated(ProfileUpdatedEvent event) {
         log.info("Received profile update event for user: {}", event.getProfileId());
         log.info("Received payload: last_name: {}, first_name: {}, avatar: {}",
