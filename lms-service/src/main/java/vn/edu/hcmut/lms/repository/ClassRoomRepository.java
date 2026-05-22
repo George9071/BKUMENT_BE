@@ -55,12 +55,14 @@ public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
             "(:topicName IS NULL OR LOWER(FUNCTION('unaccent', t.name)) LIKE :topicName) AND " +
             "(:format IS NULL OR c.format = :format) AND " +
             "(:keyword IS NULL OR LOWER(FUNCTION('unaccent', c.name)) LIKE :keyword OR LOWER(FUNCTION('unaccent', tu.name)) LIKE :keyword OR LOWER(FUNCTION('unaccent', c.description)) LIKE :keyword) AND " +
-            "c.status = 'ENROLLING'")
+            "c.status = vn.edu.hcmut.lms.constant.ClassStatus.ENROLLING " +
+            "ORDER BY COALESCE(tu.averageRating, 0) DESC, c.name ASC")
     List<ClassRoom> searchAvailableClasses(
             @Param("subjectName") String subjectName,
             @Param("topicName") String topicName,
             @Param("format") LearningFormat format,
-            @Param("keyword") String keyword
+            @Param("keyword") String keyword,
+            Pageable pageable
     );
 
     @Query("SELECT c FROM ClassRoom c " +
@@ -77,6 +79,7 @@ public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
         LEFT JOIN (
             SELECT class_id, COUNT(*) as enroll_count\s
             FROM enrollments\s
+            WHERE status = 'APPROVED'
             GROUP BY class_id
         ) e ON c.id = e.class_id
         WHERE c.status IN ('ENROLLING', 'ONGOING')

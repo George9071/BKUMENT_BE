@@ -67,7 +67,7 @@ public class ClassRoomController {
     @PatchMapping("/{classId}")
     APIResponse<ClassRoomResponse> updateClass(
             @PathVariable String classId,
-            @RequestBody ClassRoomUpdateRequest request) {
+            @RequestBody @Valid ClassRoomUpdateRequest request) {
         return APIResponse.<ClassRoomResponse>builder()
                 .result(classRoomService.updateClass(classId, request))
                 .build();

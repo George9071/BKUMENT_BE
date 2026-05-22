@@ -1,8 +1,6 @@
 package vn.edu.hcmut.lms.service;
 
-import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.safety.Safelist;
@@ -40,6 +38,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class ClassRoomService {
+    private static final int MAX_SEARCH_RESULTS = 500;
+
     // --- Repositories ---
     private final ClassRoomRepository classRoomRepository;
     private final TopicRepository topicRepository;
@@ -76,10 +76,11 @@ public class ClassRoomService {
 
         assignTopicIfPresent(request.getTopicId(), null, classRoom);
 
-        validationService.validateBusySchedule(profileId, classRoom);
+        validationService.validateClassTiming(classRoom);
+        validateBusyScheduleIfActive(profileId, classRoom);
 
         classRoom = classRoomRepository.save(classRoom);
-        classRoomSyncService.synchronization(classRoom);
+        classRoomSyncService.syncClassRoom(classRoom);
 
         return classMapper.toResponse(classRoom);
     }
@@ -123,8 +124,11 @@ public class ClassRoomService {
 
         replaceSchedulesIfPresent(request.getSchedules(), classRoom);
 
+        validationService.validateClassTiming(classRoom);
+        validateBusyScheduleIfActive(profileId, classRoom);
+
         classRoom = classRoomRepository.save(classRoom);
-        classRoomSyncService.synchronization(classRoom);
+        classRoomSyncService.syncClassRoom(classRoom);
 
         return classMapper.toResponse(classRoom);
     }
@@ -141,8 +145,11 @@ public class ClassRoomService {
 
         assertOwner(classroom, profileId);
 
-        classRoomRepository.delete(classroom);
-        classRoomSyncService.remove(classId);
+        validateStatusTransition(classroom.getStatus(), ClassStatus.CANCELLED);
+        classroom.setStatus(ClassStatus.CANCELLED);
+
+        classRoomRepository.save(classroom);
+        classRoomSyncService.syncClassRoom(classroom);
     }
 
     /**
@@ -200,6 +207,7 @@ public class ClassRoomService {
      * Returns classrooms belonging to a specific tutor.
      * Resolves the calling user's relationship status for each classroom in batch.
      */
+    @Transactional(readOnly = true)
     public PageResponse<ClassRoomResponse> getClassesOfTutor(String tutorId, int page, int size) {
         Pageable pageable = toPageable(page, size);
         Page<ClassRoom> classes = classRoomRepository.findByTutorId(tutorId, pageable);
@@ -252,6 +260,7 @@ public class ClassRoomService {
      * A hard cap of MAX_SEARCH_RESULTS is applied to prevent OOM on large datasets.
      * Consider pushing the GROUP BY to the query layer when traffic grows.
      */
+    @Transactional(readOnly = true)
     public PageResponse<TutorSearchResponse> searchClassesGroupedByTutor(
             String subjectName,
             String topicName,
@@ -265,7 +274,8 @@ public class ClassRoomService {
         String keyword = VietnameseTextUtils.toLikePattern(userSearchKeyword);
 
         List<ClassRoom> matches =
-                classRoomRepository.searchAvailableClasses(subject, topic, format, keyword);
+                classRoomRepository.searchAvailableClasses(
+                        subject, topic, format, keyword, PageRequest.of(0, MAX_SEARCH_RESULTS));
 
         if (matches.isEmpty()) {
             return PageResponse.<TutorSearchResponse>builder()
@@ -317,6 +327,12 @@ public class ClassRoomService {
         if (!valid) {
             throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION,
                     String.format("Cannot transition from %s to %s", current, next));
+        }
+    }
+
+    private void validateBusyScheduleIfActive(String profileId, ClassRoom classRoom) {
+        if (classRoom.getStatus() == ClassStatus.ENROLLING || classRoom.getStatus() == ClassStatus.ONGOING) {
+            validationService.validateBusySchedule(profileId, classRoom);
         }
     }
 

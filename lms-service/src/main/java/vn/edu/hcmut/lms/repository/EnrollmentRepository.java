@@ -54,6 +54,7 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, String> 
     @Query("SELECT e.classRoom.id as classId, count(e) as count " +
             "FROM Enrollment e " +
             "WHERE e.classRoom.id IN :classIds " +
+            "AND e.status = vn.edu.hcmut.lms.constant.EnrollmentStatus.APPROVED " +
             "GROUP BY e.classRoom.id")
     List<Object[]> countByClassRoomIdIn(@Param("classIds") List<String> classIds);
 }
