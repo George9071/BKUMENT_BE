@@ -146,6 +146,7 @@ public class GraphSyncService {
                         <-[:BELONGS_TO]-(t_all:Topic)
                         <-[:HAS_TOPIC]-(d:Document)
                     WHERE NOT (me)-[:DOWNLOADED]->(d)
+                      AND (c.status IS NULL OR NOT c.status IN ['COMPLETED', 'CANCELLED'])
                     RETURN d, 'ENROLLED_CLASS' AS rType, c.id AS rTriggerId, 3 AS score
  
                     UNION ALL
