@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import vn.edu.hcmut.lms.constant.EnrollmentStatus;
 import vn.edu.hcmut.lms.dto.sync.*;
+import vn.edu.hcmut.lms.entity.Tutor;
 import vn.edu.hcmut.lms.repository.*;
 
 import java.util.List;
@@ -34,27 +35,25 @@ public class SyncService {
      * Skips tutors with no subjects assigned.
      */
     public void syncAllTutorSubjects() {
-        List<String[]> tutorSubjectPairs = tutorRepository.findAll().stream()
+        List<Tutor> tutorsWithSubjects = tutorRepository.findAll().stream()
                 .filter(t -> t.getSubjectIds() != null && !t.getSubjectIds().isEmpty())
-                .flatMap(t -> t.getSubjectIds().stream()
-                        .map(subjectId -> new String[]{t.getId(), subjectId}))
                 .toList();
 
-        if (tutorSubjectPairs.isEmpty()) {
+        if (tutorsWithSubjects.isEmpty()) {
             log.info("No tutor-subject relationships found to sync.");
             return;
         }
 
-        // Group back by tutorId for GraphSyncService
-        tutorRepository.findAll().stream()
-                .filter(t -> t.getSubjectIds() != null && !t.getSubjectIds().isEmpty())
-                .forEach(t -> graphSyncService.syncTutorSubjects(
-                        t.getId(),
-                        t.getSubjectIds().stream().toList()
-                ));
+        tutorsWithSubjects.forEach(t -> graphSyncService.syncTutorSubjects(
+                t.getId(),
+                t.getSubjectIds().stream().toList()
+        ));
 
-        log.info("Synced tutor-subject relationships for {} tutors.",
-                tutorSubjectPairs.size());
+        int relationshipCount = tutorsWithSubjects.stream()
+                .mapToInt(t -> t.getSubjectIds().size())
+                .sum();
+        log.info("Synced {} tutor-subject relationships for {} tutors.",
+                relationshipCount, tutorsWithSubjects.size());
     }
 
     /**

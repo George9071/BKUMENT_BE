@@ -1,4 +1,4 @@
-package vn.edu.hcmut.lms.listerner;
+package vn.edu.hcmut.lms.listener;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -7,8 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import vn.edu.hcmut.event.AccountDeletedEvent;
-import vn.edu.hcmut.lms.repository.EnrollmentRepository;
-import vn.edu.hcmut.lms.service.EnrollmentService;
 import vn.edu.hcmut.lms.service.TutorService;
 
 /**

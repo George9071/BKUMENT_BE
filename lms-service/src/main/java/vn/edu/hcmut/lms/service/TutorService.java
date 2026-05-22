@@ -43,6 +43,7 @@ public class TutorService {
     SecurityUtils utils;
     ClassRoomRepository classRoomRepository;
     EnrollmentRepository enrollmentRepository;
+    ClassRoomSyncService classRoomSyncService;
 
     @Transactional(rollbackFor = Exception.class)
     public void updateTutorRating(String profileId, InternalTutorRatingRequest request) {
@@ -90,6 +91,7 @@ public class TutorService {
 
             // 3. Delete classes
             classRoomRepository.deleteByTutorId(profileId);
+            classIds.forEach(classRoomSyncService::remove);
             log.info("Deleted classes for tutor: {}", profileId);
 
             // 4. Delete tutor profile

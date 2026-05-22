@@ -17,7 +17,7 @@ import vn.edu.hcmut.lms.exception.ErrorCode;
 public class ClassRoomSyncService {
     GraphSyncService syncService;
 
-    public void synchronization(ClassRoom classroom){
+    public void syncClassRoom(ClassRoom classroom) {
         try {
             var request = ClassRoomSyncRequest.builder()
                     .id(classroom.getId())
@@ -38,8 +38,8 @@ public class ClassRoomSyncService {
             syncService.deleteClassRoom(classId);
         } catch (Exception e) {
             log.error("Failed to delete classroom {} from Neo4j.", classId, e);
-            throw new AppException(ErrorCode.SYNC_FAILED);
             // TODO: Kafka/Message Queue here if require integrity.
+            throw new AppException(ErrorCode.SYNC_FAILED);
         }
     }
 }
