@@ -173,6 +173,7 @@ public class DocumentController {
                     .views(doc.getViews())
                     .createdAt(doc.getCreatedAt())
                     .summary(doc.getSummary())
+                    .deepAiStatus(doc.getDeepAiStatus())
                     .build();
         });
 
@@ -204,6 +205,7 @@ public class DocumentController {
                         .id(document.getId())
                         .title(document.getTitle())
                         .documentType(document.getDocumentType())
+                        .deepAiStatus(document.getDeepAiStatus())
                         .build())
                 .message("Document created successfully")
                 .build();
@@ -219,6 +221,7 @@ public class DocumentController {
                         .id(document.getId())
                         .title(document.getTitle())
                         .documentType(document.getDocumentType())
+                        .deepAiStatus(document.getDeepAiStatus())
                         .build())
                 .message("Document updated successfully")
                 .build();
@@ -241,7 +244,15 @@ public class DocumentController {
 
         return APIResponse.<DocAnalyzeResponse>builder()
                 .result(documentService.processAndCreateDocument(assetId, finalName, authorId))
-                .message("Phân tích và tạo tài liệu thành công")
+                .message("Tạo tài liệu và đang phân tích ngầm thành công")
+                .build();
+    }
+
+    @GetMapping("analyze/fast/{docId}")
+    public APIResponse<DocAnalyzeResponse> fastAnalyseDocument(@PathVariable String docId) {
+        return APIResponse.<DocAnalyzeResponse>builder()
+                .result(documentService.fastAnalyzeDocument(docId))
+                .message("Phân tích nhanh thành công")
                 .build();
     }
 
