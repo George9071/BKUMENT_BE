@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import google.generativeai as genai
 from app.config import get_settings
 from app.schemas import AnalysisResult
+from app.db import db_manager
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -124,17 +125,29 @@ class GeminiService:
             Returns empty keywords + error message on failure (never raises).
         """        
 
-        prompt = """
+        topics_str = "Không giới hạn (chọn từ khóa kỹ thuật phù hợp nhất)"
+        try:
+            async with db_manager.acquire() as conn:
+                rows = await conn.fetch("SELECT name FROM topic")
+                topics = [row["name"] for row in rows if row["name"]]
+                if topics:
+                    topics_str = ", ".join(topics)
+        except Exception as e:
+            logger.error("Failed to fetch topics for fast analysis: %s", str(e))
+
+        prompt = f"""
         Phân tích tài liệu đính kèm và trả về JSON thuần túy (không dùng markdown).
         Yêu cầu:
-        1. KEYWORDS: 3-5 từ khóa quan trọng nhất.
+        1. KEYWORDS: 3-5 từ khóa quan trọng nhất. CÁC TỪ KHÓA NÀY BẮT BUỘC PHẢI ĐƯỢC CHỌN TỪ DANH SÁCH SAU (nếu có):
+           [{topics_str}]
+           Tuyệt đối không tự bịa ra từ khóa nằm ngoài danh sách trên nếu danh sách có sẵn.
         2. SUMMARY: Tóm tắt ngắn gọn trong khoảng 3-5 câu, dùng tiếng Việt.
 
         Cấu trúc JSON:
-        {
+        {{
             "keywords": ["..."],
             "summary": "..."
-        }
+        }}
         """
 
         try:
