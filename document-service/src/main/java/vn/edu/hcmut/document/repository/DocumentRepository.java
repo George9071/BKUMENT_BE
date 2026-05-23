@@ -174,4 +174,14 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
     @Transactional
     @Query("UPDATE Resource r SET r.rankingScore = :score WHERE r.id = :id")
     void updateRankingScore(@Param("id") String id, @Param("score") double score);
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE Document d SET d.keywords = :keywords, d.summary = :summary WHERE d.id = :docId AND (d.summary IS NULL OR d.summary = '')")
+    int updateFastAiResult(@Param("docId") String docId, @Param("keywords") List<String> keywords, @Param("summary") String summary);
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE Document d SET d.deepAiStatus = :status WHERE d.id = :docId")
+    void updateDeepAiStatus(@Param("docId") String docId, @Param("status") vn.edu.hcmut.document.constant.AiAnalyzeStatus status);
 }

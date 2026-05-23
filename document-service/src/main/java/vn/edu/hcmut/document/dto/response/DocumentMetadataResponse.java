@@ -34,6 +34,8 @@ public class DocumentMetadataResponse {
     String courseId;
     String topicId;
 
+    vn.edu.hcmut.document.constant.AiAnalyzeStatus deepAiStatus;
+
     @Data
     @Builder
     @NoArgsConstructor
