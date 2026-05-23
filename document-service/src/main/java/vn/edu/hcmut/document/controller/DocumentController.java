@@ -23,7 +23,6 @@ import org.springframework.web.bind.annotation.*;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.document.configuration.GatewayProperties;
 import vn.edu.hcmut.document.dto.request.DocumentMetadataRequest;
 import vn.edu.hcmut.document.dto.response.*;
@@ -33,7 +32,6 @@ import vn.edu.hcmut.document.exception.ErrorCode;
 import vn.edu.hcmut.document.repository.httpclient.ProfileClient;
 import vn.edu.hcmut.document.service.DocumentService;
 
-@Slf4j
 @RestController
 @RequestMapping("")
 @RequiredArgsConstructor
@@ -46,7 +44,6 @@ public class DocumentController {
     private String getProfileIdFromToken() {
         String profileId = getOptionalProfileIdFromToken();
         if (profileId == null) {
-            log.error("Token is missing or invalid. Throwing UNAUTHENTICATED.");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
         return profileId;
@@ -55,48 +52,27 @@ public class DocumentController {
     private String getOptionalProfileIdFromToken() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        if (authentication == null) {
-            log.warn("getOptionalProfileIdFromToken: authentication is NULL");
-            return null;
-        }
-
-        if (authentication instanceof AnonymousAuthenticationToken) {
-            log.warn("getOptionalProfileIdFromToken: authentication is AnonymousAuthenticationToken");
+        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
             return null;
         }
 
         if (authentication instanceof JwtAuthenticationToken jwtAuth) {
             Jwt jwt = jwtAuth.getToken();
-            String profileId = jwt.getClaimAsString("profile_id");
-            log.info("getOptionalProfileIdFromToken: Extracted profile_id = {}, claims = {}", profileId, jwt.getClaims());
-            return profileId;
+            return jwt.getClaimAsString("profile_id");
         }
 
-        log.warn("getOptionalProfileIdFromToken: Unknown authentication type = {}", authentication.getClass().getName());
         return null;
     }
 
     private String getProfileIdFromTokenOrNull() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
-        
-        if (authentication == null) {
-            log.warn("getProfileIdFromTokenOrNull: authentication is NULL");
+        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
             return null;
         }
-        
-        if (authentication instanceof AnonymousAuthenticationToken) {
-            log.warn("getProfileIdFromTokenOrNull: authentication is AnonymousAuthenticationToken");
-            return null;
-        }
-        
         if (authentication instanceof JwtAuthenticationToken jwtAuth) {
             Jwt jwt = jwtAuth.getToken();
-            String profileId = jwt.getClaimAsString("profile_id");
-            log.info("getProfileIdFromTokenOrNull: Extracted profile_id = {}, claims = {}", profileId, jwt.getClaims());
-            return profileId;
+            return jwt.getClaimAsString("profile_id");
         }
-        
-        log.warn("getProfileIdFromTokenOrNull: Unknown authentication type = {}", authentication.getClass().getName());
         return null;
     }
 
@@ -290,8 +266,7 @@ public class DocumentController {
             fileName = "document";
         }
 
-        String encodedFileName =
-                URLEncoder.encode(fileName, StandardCharsets.UTF_8).replace("+", "%20");
+        String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8).replace("+", "%20");
 
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + encodedFileName + "\"");
