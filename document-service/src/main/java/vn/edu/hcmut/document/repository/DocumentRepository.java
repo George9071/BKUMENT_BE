@@ -138,6 +138,30 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
     Page<Document> findRecentDocumentsByRankingScore(
             @Param("since") LocalDateTime since, Pageable pageable);
 
+    @Query(value = """
+                    SELECT d FROM Document d
+                    WHERE d.topicId IN :topicIds
+                    ORDER BY d.rankingScore DESC
+                    """,
+            countQuery = """
+                    SELECT COUNT(d) FROM Document d
+                    WHERE d.topicId IN :topicIds
+                    """)
+    Page<Document> findRecentDocumentsByTopicIds(
+            @Param("topicIds") List<String> topicIds, Pageable pageable);
+
+    @Query(value = """
+                    SELECT d FROM Document d
+                    WHERE d.universityId = :universityId
+                    ORDER BY d.rankingScore DESC
+                    """,
+            countQuery = """
+                    SELECT COUNT(d) FROM Document d
+                    WHERE d.universityId = :universityId
+                    """)
+    Page<Document> findRecentDocumentsByUniversityId(
+            @Param("universityId") String universityId, Pageable pageable);
+
 
     /**
      * Counts documents created on or after {@code since}.

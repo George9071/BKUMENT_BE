@@ -20,6 +20,8 @@ import vn.edu.hcmut.document.dto.response.RecommendationReason;
 import vn.edu.hcmut.document.entity.Document;
 import vn.edu.hcmut.document.repository.DocumentRepository;
 import vn.edu.hcmut.document.repository.neo4j.DocumentNeo4jRepository;
+import vn.edu.hcmut.document.repository.httpclient.ProfileClient;
+import vn.edu.hcmut.document.dto.response.ProfileResponse;
 
 /**
  * Orchestrates the hybrid recommendation pipeline that powers two endpoints:
@@ -43,6 +45,7 @@ public class DocumentRecommendationService {
 
     final DocumentRepository documentRepository;
     final DocumentNeo4jRepository neo4jRepository;
+    final ProfileClient profileClient;
 
     /**
      * Word count threshold that determines whether the context string is treated as
@@ -59,20 +62,23 @@ public class DocumentRecommendationService {
     @Value("${app.hybrid.weight-cf-short:0.8}")
     double weightCfShort;
 
-    @Value("${recommendation.weights.alpha1:0.3}")
+    @Value("${app.recommendation.weights.alpha1:0.3}")
     double alpha1;
 
-    @Value("${recommendation.weights.alpha2:0.3}")
+    @Value("${app.recommendation.weights.alpha2:0.3}")
     double alpha2;
 
-    @Value("${recommendation.weights.alpha3:0.2}")
+    @Value("${app.recommendation.weights.alpha3:0.2}")
     double alpha3;
 
-    @Value("${recommendation.weights.beta:0.5}")
-    double beta;
+    @Value("${app.recommendation.weights.alpha4:0.1}")
+    double alpha4;
 
-    @Value("${recommendation.weights.alpha5:0.1}")
+    @Value("${app.recommendation.weights.alpha5:0.1}")
     double alpha5;
+
+    @Value("${app.recommendation.weights.alpha6:0.1}")
+    double alpha6;
 
     /** Semantic weight when the context has > {@link #thresholdWords} words. Default: 0.7 */
     @Value("${app.hybrid.weight-semantic-long:0.7}")
@@ -258,7 +264,42 @@ public class DocumentRecommendationService {
             try {
                 return neo4jRepository.findClassBasedRecommendations(userId, limit);
             } catch (Exception e) {
-                log.warn("Layer 2 (Class Based) failed: {}", e.getMessage());
+                log.warn("Layer 2.1 (Active Class) failed: {}", e.getMessage());
+                return Collections.emptyList();
+            }
+        });
+
+        CompletableFuture<ProfileResponse> profileFuture = CompletableFuture.supplyAsync(() -> {
+            if (userId == null) return null;
+            try {
+                return profileClient.findUserProfileById(userId);
+            } catch (Exception e) {
+                log.warn("Layer 2.2 & 2.3 (Profile Fetch) failed for user {}: {}", userId, e.getMessage());
+                return null;
+            }
+        });
+
+        CompletableFuture<List<Document>> favoriteTopicDocsFuture = profileFuture.thenApplyAsync(profile -> {
+            if (profile == null || profile.getInterestedTopics() == null || profile.getInterestedTopics().isEmpty()) {
+                return Collections.emptyList();
+            }
+            try {
+                return documentRepository.findRecentDocumentsByTopicIds(profile.getInterestedTopics(), PageRequest.of(0, limit)).getContent();
+            } catch (Exception e) {
+                log.warn("Layer 2.2 (Favorite Topics) query failed: {}", e.getMessage());
+                return Collections.emptyList();
+            }
+        });
+
+        CompletableFuture<List<Document>> universityDocsFuture = profileFuture.thenApplyAsync(profile -> {
+            if (profile == null || profile.getUniversityId() == null) {
+                return Collections.emptyList();
+            }
+            try {
+                String uniIdStr = String.valueOf(profile.getUniversityId());
+                return documentRepository.findRecentDocumentsByUniversityId(uniIdStr, PageRequest.of(0, limit)).getContent();
+            } catch (Exception e) {
+                log.warn("Layer 2.3 (University) query failed: {}", e.getMessage());
                 return Collections.emptyList();
             }
         });
@@ -273,26 +314,15 @@ public class DocumentRecommendationService {
         });
 
         // 2. Chờ tất cả các nhánh hoàn thành (Parallel Wait)
-        CompletableFuture.allOf(graphCfFuture, semanticFuture, classBasedFuture, trendingFuture).join();
+        CompletableFuture.allOf(graphCfFuture, semanticFuture, classBasedFuture, favoriteTopicDocsFuture, universityDocsFuture, trendingFuture).join();
 
         // 3. Trộn điểm và tính toán RRF Weighted Score
         List<Map<String, Object>> graphCf = graphCfFuture.join();
         List<String> semanticDocs = semanticFuture.join();
         List<Map<String, Object>> classDocs = classBasedFuture.join();
+        List<Document> favoriteTopicDocs = favoriteTopicDocsFuture.join();
+        List<Document> universityDocs = universityDocsFuture.join();
         List<Document> trendingDocs = trendingFuture.join();
-
-        List<Map<String, Object>> activeClasses = new ArrayList<>();
-        List<Map<String, Object>> pastClasses = new ArrayList<>();
-        for (Map<String, Object> map : classDocs) {
-            String status = (String) map.get("classStatus");
-            if ("COMPLETED".equals(status)) {
-                pastClasses.add(map);
-            } else {
-                activeClasses.add(map);
-            }
-        }
-
-        double alpha4 = alpha3 * beta;
 
         Map<String, Double> scores = new HashMap<>();
         Map<String, RecommendationItem> itemMap = new HashMap<>();
@@ -335,8 +365,8 @@ public class DocumentRecommendationService {
         }
 
         // Branch 2.1: Active Class
-        for (int i = 0; i < activeClasses.size(); i++) {
-            Map<String, Object> map = activeClasses.get(i);
+        for (int i = 0; i < classDocs.size(); i++) {
+            Map<String, Object> map = classDocs.get(i);
             String docId = (String) map.get("recommendedDocId");
             double s = alpha3 * (61.0 / (60.0 + i + 1));
             processBranch.accept(new Object[]{docId, s, RecommendationItem.builder()
@@ -346,15 +376,26 @@ public class DocumentRecommendationService {
                 .build()});
         }
 
-        // Branch 2.2: Past Class
-        for (int i = 0; i < pastClasses.size(); i++) {
-            Map<String, Object> map = pastClasses.get(i);
-            String docId = (String) map.get("recommendedDocId");
+        // Branch 2.2: Favorite Topic
+        for (int i = 0; i < favoriteTopicDocs.size(); i++) {
+            Document doc = favoriteTopicDocs.get(i);
+            String docId = doc.getId();
             double s = alpha4 * (61.0 / (60.0 + i + 1));
             processBranch.accept(new Object[]{docId, s, RecommendationItem.builder()
                 .docId(docId)
-                .triggerId((String) map.get("reasonTriggerId"))
-                .reason(RecommendationReason.builder().type("PAST_CLASS").build())
+                .triggerId(doc.getTopicId())
+                .reason(RecommendationReason.builder().type("FAVORITE_TOPIC").build())
+                .build()});
+        }
+
+        // Branch 2.3: University
+        for (int i = 0; i < universityDocs.size(); i++) {
+            Document doc = universityDocs.get(i);
+            String docId = doc.getId();
+            double s = alpha6 * (61.0 / (60.0 + i + 1));
+            processBranch.accept(new Object[]{docId, s, RecommendationItem.builder()
+                .docId(docId)
+                .reason(RecommendationReason.builder().type("SAME_UNIVERSITY").build())
                 .build()});
         }
 
@@ -384,18 +425,21 @@ public class DocumentRecommendationService {
                 for (int j=0; j<graphCf.size(); j++) if(docId.equals(graphCf.get(j).get("recommendedDocId"))) { rank11 = j+1; break; }
                 int rank12 = semanticDocs.indexOf(docId) >= 0 ? semanticDocs.indexOf(docId) + 1 : -1;
                 int rank21 = -1;
-                for (int j=0; j<activeClasses.size(); j++) if(docId.equals(activeClasses.get(j).get("recommendedDocId"))) { rank21 = j+1; break; }
+                for (int j=0; j<classDocs.size(); j++) if(docId.equals(classDocs.get(j).get("recommendedDocId"))) { rank21 = j+1; break; }
                 int rank22 = -1;
-                for (int j=0; j<pastClasses.size(); j++) if(docId.equals(pastClasses.get(j).get("recommendedDocId"))) { rank22 = j+1; break; }
+                for (int j=0; j<favoriteTopicDocs.size(); j++) if(docId.equals(favoriteTopicDocs.get(j).getId())) { rank22 = j+1; break; }
+                int rank23 = -1;
+                for (int j=0; j<universityDocs.size(); j++) if(docId.equals(universityDocs.get(j).getId())) { rank23 = j+1; break; }
                 int rank31 = -1;
                 for (int j=0; j<trendingDocs.size(); j++) if(docId.equals(trendingDocs.get(j).getId())) { rank31 = j+1; break; }
 
-                String debugStr = String.format("[DEBUG] DocID: %s | Rank_1.1: %s (S: %.2f) | Rank_1.2: %s (S: %.2f) | Rank_2.1: %s (S: %.2f) | Rank_2.2: %s (S: %.2f) | Rank_3.1: %s (S: %.2f) | Final Score: %.2f",
+                String debugStr = String.format("[DEBUG] DocID: %s | Rank_1.1: %s (S: %.2f) | Rank_1.2: %s (S: %.2f) | Rank_2.1: %s (S: %.2f) | Rank_2.2: %s (S: %.2f) | Rank_2.3: %s (S: %.2f) | Rank_3.1: %s (S: %.2f) | Final Score: %.2f",
                     docId,
                     rank11 > 0 ? String.valueOf(rank11) : "NULL", rank11 > 0 ? alpha1 * (61.0 / (60.0 + rank11)) : 0.0,
                     rank12 > 0 ? String.valueOf(rank12) : "NULL", rank12 > 0 ? alpha2 * (61.0 / (60.0 + rank12)) : 0.0,
                     rank21 > 0 ? String.valueOf(rank21) : "NULL", rank21 > 0 ? alpha3 * (61.0 / (60.0 + rank21)) : 0.0,
                     rank22 > 0 ? String.valueOf(rank22) : "NULL", rank22 > 0 ? alpha4 * (61.0 / (60.0 + rank22)) : 0.0,
+                    rank23 > 0 ? String.valueOf(rank23) : "NULL", rank23 > 0 ? alpha6 * (61.0 / (60.0 + rank23)) : 0.0,
                     rank31 > 0 ? String.valueOf(rank31) : "NULL", rank31 > 0 ? alpha5 * (61.0 / (60.0 + rank31)) : 0.0,
                     scores.get(docId)
                 );

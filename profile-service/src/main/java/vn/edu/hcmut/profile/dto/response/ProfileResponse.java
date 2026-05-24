@@ -34,5 +34,5 @@ public class ProfileResponse {
     String address;
     String phone;
 
-    private List<String> interestedTopics;
+    List<String> interestedTopics;
 }
