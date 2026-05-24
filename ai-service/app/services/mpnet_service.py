@@ -193,11 +193,13 @@ class VectorService:
                     r.owner_id,
                     (1 - (d.embedding <=> $1::vector))              AS vector_score,
                     ts_rank_cd(
-                        to_tsvector('simple',
+                        to_tsvector(
+                            'simple',
                             COALESCE(r.title, '') || ' ' ||
-                            COALESCE(array_to_string(d.keywords, ' '), '')),
+                            COALESCE(d.keywords, '')
+                        ),
                         plainto_tsquery('simple', $2)
-                    )                                               AS keyword_score
+                    ) AS keyword_score
                 FROM document d
                 JOIN resource r ON d.id = r.id
                 WHERE d.embedding IS NOT NULL
