@@ -28,7 +28,7 @@ public class OutboxPublisher {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
 
-    @Scheduled(fixedDelay = 300_000) // 5 minutes
+    @Scheduled(fixedDelay = 120000) // 2 minutes
     @Transactional
     public void publishEvents() {
         List<OutboxEvent> events = outboxRepository.findByProcessedFalseOrderByCreatedAtAsc();
