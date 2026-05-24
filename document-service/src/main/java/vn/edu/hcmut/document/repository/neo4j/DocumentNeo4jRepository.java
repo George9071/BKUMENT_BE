@@ -129,14 +129,13 @@ public interface DocumentNeo4jRepository extends Neo4jRepository<DocumentNode, S
 	List<String> findMostRecentDownloadedDocumentIds(@Param("userId") String userId, @Param("limit") int limit);
 
 	/**
-	 * Class-based recommendations (Active + Past).
-	 * Returns classStatus so the service layer can split into Branch 2.1 and Branch 2.2.
+	 * Active class-based recommendations.
 	 */
 	@Query(
 			"""
 			MATCH (u:UserProfile {id: $userId})-[:ENROLLED_IN]->(c:ClassRoom)-[:COVERS]->(t:Topic)<-[:HAS_TOPIC]-(d:Document)
-			WHERE c.status IN ['ENROLLING', 'ONGOING', 'COMPLETED'] AND NOT (u)-[:DOWNLOADED]->(d)
-			RETURN d.id AS recommendedDocId, count(*) AS weight, min(c.id) AS reasonTriggerId, c.status AS classStatus
+			WHERE c.status IN ['ENROLLING', 'ONGOING'] AND NOT (u)-[:DOWNLOADED]->(d)
+			RETURN d.id AS recommendedDocId, count(*) AS weight, min(c.id) AS reasonTriggerId
 			ORDER BY weight DESC
 			LIMIT $limit
 			"""

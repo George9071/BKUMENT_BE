@@ -32,4 +32,6 @@ public class ProfileResponse {
 
     String address;
     String phone;
+
+    java.util.List<String> interestedTopics;
 }
