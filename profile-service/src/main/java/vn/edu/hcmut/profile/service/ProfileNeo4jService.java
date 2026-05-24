@@ -118,6 +118,19 @@ public class ProfileNeo4jService {
                 profileId);
     }
 
+    public List<String> getUserInterests(String profileId) {
+        String query = "MATCH (u {id: $profileId})-[:INTERESTED_IN]->(t) RETURN t.id AS topicId";
+
+        return neo4jClient
+                .query(query)
+                .bindAll(Map.of("profileId", profileId))
+                .fetchAs(String.class)
+                .mappedBy((typeSystem, record) -> record.get("topicId").asString())
+                .all()
+                .stream()
+                .toList();
+    }
+
     public int countFollowers(String profileId) {
         Integer count = neo4jRepository.countFollowers(profileId);
         return count != null ? count : 0;

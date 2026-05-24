@@ -109,6 +109,9 @@ public class DocumentAsyncService {
             document.setEmbedding(floatVector);
         }
 
+        document.setKeywords(result.getKeywords());
+        document.setDeepAiStatus(vn.edu.hcmut.document.constant.AiAnalyzeStatus.COMPLETED);
+
         documentRepository.save(document);
     }
 }

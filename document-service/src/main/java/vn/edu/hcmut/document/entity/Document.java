@@ -5,6 +5,7 @@ import java.util.List;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 
 import lombok.experimental.SuperBuilder;
@@ -62,4 +63,8 @@ public class Document extends Resource {
 
     @Column(name = "document_type")
     String documentType;
+
+    @Column(name = "deep_ai_status")
+    @Enumerated(jakarta.persistence.EnumType.STRING)
+    vn.edu.hcmut.document.constant.AiAnalyzeStatus deepAiStatus;
 }

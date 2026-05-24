@@ -19,4 +19,5 @@ public class DocAnalyzeResponse {
 
     List<String> keywords;
     String summary;
+    vn.edu.hcmut.document.constant.AiAnalyzeStatus deepAiStatus;
 }
