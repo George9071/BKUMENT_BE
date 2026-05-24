@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class InternalTutorRatingRequest {
+public class InternalClassRatingRequest {
     Double averageRating;
-    Long ratingCount;
+    Integer ratingCount;
 }

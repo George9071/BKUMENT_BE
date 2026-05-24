@@ -163,7 +163,7 @@ public class ClassRoomController {
     }
 
     @Operation(summary = "Get top trending classes",
-            description = "Retrieve classrooms ranked by tutor rating and popularity.")
+            description = "Retrieve classrooms ranked by class rating and popularity.")
     @GetMapping("/trending")
     public APIResponse<PageResponse<ClassRoomResponse>> getTopTrendingClasses(
             @RequestParam(defaultValue = "1") int page,

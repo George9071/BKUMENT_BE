@@ -56,7 +56,7 @@ public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
             "(:format IS NULL OR c.format = :format) AND " +
             "(:keyword IS NULL OR LOWER(FUNCTION('unaccent', c.name)) LIKE :keyword OR LOWER(FUNCTION('unaccent', tu.name)) LIKE :keyword OR LOWER(FUNCTION('unaccent', c.description)) LIKE :keyword) AND " +
             "c.status = vn.edu.hcmut.lms.constant.ClassStatus.ENROLLING " +
-            "ORDER BY COALESCE(tu.averageRating, 0) DESC, c.name ASC")
+            "ORDER BY COALESCE(c.averageRating, 0) DESC, c.name ASC")
     List<ClassRoom> searchAvailableClasses(
             @Param("subjectName") String subjectName,
             @Param("topicName") String topicName,
@@ -83,7 +83,7 @@ public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
             GROUP BY class_id
         ) e ON c.id = e.class_id
         WHERE c.status IN ('ENROLLING', 'ONGOING')
-        ORDER BY (COALESCE(t.average_rating, 0) * 10 + COALESCE(e.enroll_count, 0)) DESC
+        ORDER BY (COALESCE(c.average_rating, 0) * 10 + COALESCE(e.enroll_count, 0)) DESC
     """, 
     countQuery = """
         SELECT count(*) FROM class_room c\s

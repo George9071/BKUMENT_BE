@@ -24,6 +24,8 @@ public class ClassRoomResponse {
     List<ScheduleResponse> schedules;
 
     ClassStatus status;
+    Double averageRating;
+    Integer ratingCount;
 
     String tutorId;
     String tutorName;

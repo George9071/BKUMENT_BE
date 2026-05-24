@@ -14,6 +14,7 @@ import vn.edu.hcmut.lms.constant.EnrollmentStatus;
 import vn.edu.hcmut.lms.constant.LearningFormat;
 import vn.edu.hcmut.lms.dto.request.ClassRoomCreationRequest;
 import vn.edu.hcmut.lms.dto.request.ClassRoomUpdateRequest;
+import vn.edu.hcmut.lms.dto.request.internal.InternalClassRatingRequest;
 import vn.edu.hcmut.lms.dto.response.ClassRoomResponse;
 import vn.edu.hcmut.lms.dto.response.PageResponse;
 import vn.edu.hcmut.lms.dto.response.TutorResponse;
@@ -56,6 +57,19 @@ public class ClassRoomService {
     private final GraphSyncService graphSyncService;
     private final ClassroomUserStatusResolver statusResolver;
     private final SecurityUtils securityUtils;
+
+    @Transactional
+    public void updateClassRating(String classId, InternalClassRatingRequest request) {
+        ClassRoom classRoom = classRoomRepository.findById(classId)
+                .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
+
+        classRoom.setAverageRating(request.getAverageRating() != null ? request.getAverageRating() : 0.0);
+        classRoom.setRatingCount(request.getRatingCount() != null ? Math.max(request.getRatingCount(), 0) : 0);
+
+        classRoomRepository.save(classRoom);
+        log.info("Updated class rating stats for id: {}, avg: {}, count: {}",
+                classId, classRoom.getAverageRating(), classRoom.getRatingCount());
+    }
 
     /**
      * Creates a new classroom with the authenticated user as the tutor.
@@ -337,6 +351,7 @@ public class ClassRoomService {
     }
 
     private void assertOwner(ClassRoom classRoom, String profileId) {
+        assert classRoom.getTutor().getId() != null;
         if (!classRoom.getTutor().getId().equals(profileId)) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
