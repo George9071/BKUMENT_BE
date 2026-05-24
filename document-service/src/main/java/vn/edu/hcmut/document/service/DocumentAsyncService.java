@@ -96,6 +96,11 @@ public class DocumentAsyncService {
         // Overwrite the fast-pass summary with the deep-pass summary.
         document.setSummary(result.getSummary());
 
+        // Overwrite the fast-pass keywords with the deep-pass keywords.
+        if (result.getKeywords() != null && !result.getKeywords().isEmpty()) {
+            document.setKeywords(result.getKeywords());
+        }
+
         // Store the full extracted text content of the document.
         document.setContent(result.getContent());
 

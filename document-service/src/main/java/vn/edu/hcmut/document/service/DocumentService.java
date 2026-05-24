@@ -805,7 +805,7 @@ public class DocumentService {
 
         List<String> triggerClassIds = items.stream()
                 .filter(item -> item.getReason() != null
-                                && "ENROLLED_CLASS".equals(item.getReason().getType())
+                                && "ACTIVE_CLASS".equals(item.getReason().getType())
                                 && item.getTriggerId() != null)
                 .map(RecommendationItem::getTriggerId)
                 .distinct()
@@ -813,7 +813,7 @@ public class DocumentService {
 
         List<String> triggerTopicIds = items.stream()
                 .filter(item -> item.getReason() != null
-                                && "INTERESTED_TOPIC".equals(item.getReason().getType())
+                                && "FAVORITE_TOPIC".equals(item.getReason().getType())
                                 && item.getTriggerId() != null)
                 .map(RecommendationItem::getTriggerId)
                 .distinct()
@@ -896,6 +896,10 @@ public class DocumentService {
                 .views(doc.getViews())
                 .createdAt(doc.getCreatedAt())
                 .summary(doc.getSummary())
+                .keywords(doc.getKeywords())
+                .universityId(doc.getUniversityId())
+                .courseId(doc.getCourseId())
+                .topicId(doc.getTopicId())
                 .recommendationReason(reason)
                 .deepAiStatus(doc.getDeepAiStatus())
                 .build();
