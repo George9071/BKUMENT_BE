@@ -293,11 +293,17 @@ public class ProfileService {
                 ? universityRepository.findById(user.getUniversityId()).orElse(null)
                 : null;
 
-        return buildProfileResponse(
+        List<String> topics = profileNeo4jService.getUserInterests(user.getId());
+
+        ProfileResponse response = buildProfileResponse(
                 user,
                 university,
                 profileNeo4jService.countFollowers(user.getId()),
                 profileNeo4jService.countFollowing(user.getId()));
+                
+        response.setInterestedTopics(topics);
+        
+        return response;
     }
 
     private ProfileResponse buildProfileResponse(
