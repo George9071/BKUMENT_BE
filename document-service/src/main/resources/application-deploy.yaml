@@ -57,3 +57,11 @@ app:
     weight-cf-short: 0.8
     weight-semantic-long: 0.7
     weight-cf-long: 0.3
+  recommendation:
+    weights:
+      alpha1: 0.3 # Graph CF
+      alpha2: 0.3 # Semantic
+      alpha3: 0.2 # Active Class
+      alpha4: 0.1 # Favorite Topic
+      alpha5: 0.1 # Trending
+      alpha6: 0.1 # University

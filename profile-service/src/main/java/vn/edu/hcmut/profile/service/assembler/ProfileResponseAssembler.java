@@ -45,6 +45,7 @@ public class ProfileResponseAssembler {
                 .toList();
 
         hydrateUniversities(users, responses);
+        hydrateInterestedTopics(responses);
 
         if (includeFollowCounts) hydrateFollowCounts(responses);
         else responses.forEach(this::setEmptyFollowCounts);
@@ -111,6 +112,29 @@ public class ProfileResponseAssembler {
             if (universityId != null) {
                 responses.get(i).setUniversity(universityNames.get(universityId));
             }
+        }
+    }
+
+    private void hydrateInterestedTopics(List<ProfileResponse> responses) {
+        if (responses == null || responses.isEmpty()) return;
+
+        List<String> profileIds = responses.stream()
+                .map(ProfileResponse::getId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (profileIds.isEmpty()) {
+            responses.forEach(response -> response.setInterestedTopics(Collections.emptyList()));
+            return;
+        }
+
+        try {
+            Map<String, List<String>> topicsByProfile = profileNeo4jService.getBatchUserInterests(profileIds);
+            responses.forEach(response -> response.setInterestedTopics(
+                    topicsByProfile.getOrDefault(response.getId(), Collections.emptyList())));
+        } catch (Exception e) {
+            log.error("Failed to fetch interested topics from Neo4j. Falling back to empty topics.", e);
+            responses.forEach(response -> response.setInterestedTopics(Collections.emptyList()));
         }
     }
 

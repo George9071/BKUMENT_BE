@@ -26,6 +26,14 @@ public final class CypherQueries {
 				COUNT { (u)-[:FOLLOW]->() } AS followingCount
 			""";
 
+    /* Params: $profileIds (List<String>) */
+    public static final String USER_BATCH_INTERESTS =
+            """
+			MATCH (u:UserProfile) WHERE u.id IN $profileIds
+			OPTIONAL MATCH (u)-[:INTERESTED_IN]->(t:Topic)
+			RETURN u.id AS id, collect(t.id) AS topicIds
+			""";
+
     /* Params: $profileId (String), $topicIds (List<String>) */
     public static final String USER_REPLACE_INTERESTS =
             """
@@ -90,8 +98,9 @@ public final class CypherQueries {
 				UNION ALL
 
 				WITH $profileId AS pid
-				MATCH (a:UserProfile {id: pid})-[:ENROLLED_IN]->(:ClassRoom)<-[:ENROLLED_IN]-(c:UserProfile)
+				MATCH (a:UserProfile {id: pid})-[:ENROLLED_IN]->(cr:ClassRoom)<-[:ENROLLED_IN]-(c:UserProfile)
 				WHERE a <> c AND NOT (a)-[:FOLLOW]->(c)
+				  AND (cr.status IS NULL OR NOT cr.status IN ['COMPLETED', 'CANCELLED'])
 				RETURN c
 
 				UNION ALL
@@ -126,8 +135,9 @@ public final class CypherQueries {
 				UNION ALL
 
 				WITH $profileId AS pid
-				MATCH (a:UserProfile {id: pid})-[:ENROLLED_IN]->(:ClassRoom)<-[:ENROLLED_IN]-(c:UserProfile)
+				MATCH (a:UserProfile {id: pid})-[:ENROLLED_IN]->(cr:ClassRoom)<-[:ENROLLED_IN]-(c:UserProfile)
 				WHERE a <> c AND NOT (a)-[:FOLLOW]->(c)
+				  AND (cr.status IS NULL OR NOT cr.status IN ['COMPLETED', 'CANCELLED'])
 				RETURN c, $classScore AS score
 
 				UNION ALL

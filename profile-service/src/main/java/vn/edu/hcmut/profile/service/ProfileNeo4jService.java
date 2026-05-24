@@ -133,6 +133,42 @@ public class ProfileNeo4jService {
                 profileId);
     }
 
+    public List<String> getUserInterests(String profileId) {
+        String query = "MATCH (u {id: $profileId})-[:INTERESTED_IN]->(t) RETURN t.id AS topicId";
+
+        return neo4jClient
+                .query(query)
+                .bindAll(Map.of("profileId", profileId))
+                .fetchAs(String.class)
+                .mappedBy((typeSystem, record) -> record.get("topicId").asString())
+                .all()
+                .stream()
+                .toList();
+    }
+
+    @Transactional(readOnly = true, transactionManager = "neo4jTransactionManager")
+    public Map<String, List<String>> getBatchUserInterests(List<String> profileIds) {
+        if (profileIds == null || profileIds.isEmpty()) return Collections.emptyMap();
+
+        return neo4jClient
+                .query(CypherQueries.USER_BATCH_INTERESTS)
+                .bind(profileIds)
+                .to("profileIds")
+                .fetchAs(UserInterestRow.class)
+                .mappedBy((typeSystem, record) -> new UserInterestRow(
+                        record.get("id").asString(),
+                        record.get("topicIds").asList(value -> value.isNull() ? null : value.asString())
+                                .stream()
+                                .filter(Objects::nonNull)
+                                .toList()))
+                .all()
+                .stream()
+                .collect(Collectors.toMap(
+                        UserInterestRow::profileId,
+                        UserInterestRow::topicIds,
+                        (first, second) -> first));
+    }
+
     @Transactional(readOnly = true, transactionManager = "neo4jTransactionManager")
     public Map<String, FollowCounts> getBatchCounts(List<String> profileIds) {
         if (profileIds == null || profileIds.isEmpty()) return Collections.emptyMap();
@@ -187,4 +223,6 @@ public class ProfileNeo4jService {
     private String fullName(String firstName, String lastName) {
         return ((firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "")).trim();
     }
+
+    private record UserInterestRow(String profileId, List<String> topicIds) {}
 }

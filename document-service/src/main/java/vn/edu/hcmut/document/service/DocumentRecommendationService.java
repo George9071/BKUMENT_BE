@@ -2,6 +2,7 @@ package vn.edu.hcmut.document.service;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +20,8 @@ import vn.edu.hcmut.document.dto.response.RecommendationReason;
 import vn.edu.hcmut.document.entity.Document;
 import vn.edu.hcmut.document.repository.DocumentRepository;
 import vn.edu.hcmut.document.repository.neo4j.DocumentNeo4jRepository;
+import vn.edu.hcmut.document.repository.httpclient.ProfileClient;
+import vn.edu.hcmut.document.dto.response.ProfileResponse;
 
 /**
  * Orchestrates the hybrid recommendation pipeline that powers two endpoints:
@@ -42,6 +45,7 @@ public class DocumentRecommendationService {
 
     final DocumentRepository documentRepository;
     final DocumentNeo4jRepository neo4jRepository;
+    final ProfileClient profileClient;
 
     /**
      * Word count threshold that determines whether the context string is treated as
@@ -55,9 +59,26 @@ public class DocumentRecommendationService {
     @Value("${app.hybrid.weight-semantic-short:0.2}")
     double weightSemanticShort;
 
-    /** CF weight when the context has ≤ {@link #thresholdWords} words. Default: 0.8 */
     @Value("${app.hybrid.weight-cf-short:0.8}")
     double weightCfShort;
+
+    @Value("${app.recommendation.weights.alpha1:0.3}")
+    double alpha1;
+
+    @Value("${app.recommendation.weights.alpha2:0.3}")
+    double alpha2;
+
+    @Value("${app.recommendation.weights.alpha3:0.2}")
+    double alpha3;
+
+    @Value("${app.recommendation.weights.alpha4:0.1}")
+    double alpha4;
+
+    @Value("${app.recommendation.weights.alpha5:0.1}")
+    double alpha5;
+
+    @Value("${app.recommendation.weights.alpha6:0.1}")
+    double alpha6;
 
     /** Semantic weight when the context has > {@link #thresholdWords} words. Default: 0.7 */
     @Value("${app.hybrid.weight-semantic-long:0.7}")
@@ -194,94 +215,247 @@ public class DocumentRecommendationService {
      * @return a Page of RecommendationItem ordered by layer priority descending
      */
     public Page<RecommendationItem> getForYouFeed(String userId, Pageable pageable) {
-        int poolSize = 200;
+        int limit = 100;
+        long startTime = System.currentTimeMillis();
 
-        Map<String, RecommendationItem> pool = new LinkedHashMap<>();
-
-        // ── Layer 1: user-based collaborative filtering
-        if (userId != null) {
+        // 1. Chạy song song các nhánh độc lập qua Thread Pool
+        CompletableFuture<List<Map<String, Object>>> graphCfFuture = CompletableFuture.supplyAsync(() -> {
+            if (userId == null) return Collections.emptyList();
             try {
-                List<Map<String, Object>> recommendations =
-                        neo4jRepository.findUserBasedCFRecommendations(userId, poolSize);
-
-                for (Map<String, Object> recommendation : recommendations) {
-                    if (pool.size() >= poolSize) break;
-
-                    String docId = (String) recommendation.get("recommendedDocId");
-                    if (docId == null || pool.containsKey(docId)) continue;
-
-                    // Store the raw trigger entity ID in triggerId
-                    pool.put(docId, RecommendationItem.builder()
-                            .docId(docId)
-                            .triggerId((String) recommendation.get("reasonTriggerId"))
-                            .reason(RecommendationReason.builder()
-                                    .type((String) recommendation.get("reasonType"))
-                                    .build())
-                            .build());
-                }
+                return neo4jRepository.findUserBasedCFRecommendations(userId, limit);
             } catch (Exception e) {
-                // Non-fatal: Layer 2 and 3 will compensate for the missing CF items.
-                log.warn("[3-layer cascade] Layer 1 (user-collaborative filtering) failed for user {}: {}",
-                        userId, e.getMessage());
+                log.warn("Layer 1.1 (Graph CF) failed: {}", e.getMessage());
+                return Collections.emptyList();
             }
+        });
+
+        CompletableFuture<List<String>> semanticFuture = CompletableFuture.supplyAsync(() -> {
+            if (userId == null) return Collections.emptyList();
+            try {
+                List<String> recentIds = neo4jRepository.findMostRecentDownloadedDocumentIds(userId, 3);
+                if (recentIds.isEmpty()) return Collections.emptyList();
+                
+                List<Document> recentDocs = documentRepository.findAllById(recentIds);
+                if (recentDocs.isEmpty()) return Collections.emptyList();
+                
+                int dim = 768; // pgvector size
+                float[] avgVec = new float[dim];
+                int count = 0;
+                for (Document d : recentDocs) {
+                    if (d.getEmbedding() != null && d.getEmbedding().length == dim) {
+                        for (int i = 0; i < dim; i++) avgVec[i] += d.getEmbedding()[i];
+                        count++;
+                    }
+                }
+                if (count == 0) return Collections.emptyList();
+                for (int i = 0; i < dim; i++) avgVec[i] /= count;
+                
+                String vectorStr = Arrays.toString(avgVec);
+                Page<String> semanticPage = documentRepository.findRelatedDocumentIds(vectorStr, "", "", PageRequest.of(0, limit));
+                return semanticPage.getContent();
+            } catch (Exception e) {
+                log.warn("Layer 1.2 (Semantic) failed: {}", e.getMessage());
+                return Collections.emptyList();
+            }
+        });
+
+        CompletableFuture<List<Map<String, Object>>> classBasedFuture = CompletableFuture.supplyAsync(() -> {
+            if (userId == null) return Collections.emptyList();
+            try {
+                return neo4jRepository.findClassBasedRecommendations(userId, limit);
+            } catch (Exception e) {
+                log.warn("Layer 2.1 (Active Class) failed: {}", e.getMessage());
+                return Collections.emptyList();
+            }
+        });
+
+        CompletableFuture<ProfileResponse> profileFuture = CompletableFuture.supplyAsync(() -> {
+            if (userId == null) return null;
+            try {
+                return profileClient.findUserProfileById(userId);
+            } catch (Exception e) {
+                log.warn("Layer 2.2 & 2.3 (Profile Fetch) failed for user {}: {}", userId, e.getMessage());
+                return null;
+            }
+        });
+
+        CompletableFuture<List<Document>> favoriteTopicDocsFuture = profileFuture.thenApplyAsync(profile -> {
+            if (profile == null || profile.getInterestedTopics() == null || profile.getInterestedTopics().isEmpty()) {
+                return Collections.emptyList();
+            }
+            try {
+                return documentRepository.findRecentDocumentsByTopicIds(profile.getInterestedTopics(), PageRequest.of(0, limit)).getContent();
+            } catch (Exception e) {
+                log.warn("Layer 2.2 (Favorite Topics) query failed: {}", e.getMessage());
+                return Collections.emptyList();
+            }
+        });
+
+        CompletableFuture<List<Document>> universityDocsFuture = profileFuture.thenApplyAsync(profile -> {
+            if (profile == null || profile.getUniversityId() == null) {
+                return Collections.emptyList();
+            }
+            try {
+                String uniIdStr = String.valueOf(profile.getUniversityId());
+                return documentRepository.findRecentDocumentsByUniversityId(uniIdStr, PageRequest.of(0, limit)).getContent();
+            } catch (Exception e) {
+                log.warn("Layer 2.3 (University) query failed: {}", e.getMessage());
+                return Collections.emptyList();
+            }
+        });
+
+        CompletableFuture<List<Document>> trendingFuture = CompletableFuture.supplyAsync(() -> {
+            try {
+                return documentRepository.findRecentDocumentsByRankingScore(LocalDateTime.now().minusDays(90), PageRequest.of(0, limit)).getContent();
+            } catch (Exception e) {
+                log.warn("Layer 3.1 (Trending) failed: {}", e.getMessage());
+                return Collections.emptyList();
+            }
+        });
+
+        // 2. Chờ tất cả các nhánh hoàn thành (Parallel Wait)
+        CompletableFuture.allOf(graphCfFuture, semanticFuture, classBasedFuture, favoriteTopicDocsFuture, universityDocsFuture, trendingFuture).join();
+
+        // 3. Trộn điểm và tính toán RRF Weighted Score
+        List<Map<String, Object>> graphCf = graphCfFuture.join();
+        List<String> semanticDocs = semanticFuture.join();
+        List<Map<String, Object>> classDocs = classBasedFuture.join();
+        List<Document> favoriteTopicDocs = favoriteTopicDocsFuture.join();
+        List<Document> universityDocs = universityDocsFuture.join();
+        List<Document> trendingDocs = trendingFuture.join();
+
+        Map<String, Double> scores = new HashMap<>();
+        Map<String, RecommendationItem> itemMap = new HashMap<>();
+        Map<String, Double> branchMaxScores = new HashMap<>();
+
+        // Helper function to calculate score and update reason if it's the dominant branch
+        java.util.function.Consumer<Object[]> processBranch = (args) -> {
+            String docId = (String) args[0];
+            Double branchScore = (Double) args[1];
+            RecommendationItem item = (RecommendationItem) args[2];
+            
+            scores.merge(docId, branchScore, Double::sum);
+            Double currentMax = branchMaxScores.getOrDefault(docId, -1.0);
+            if (branchScore > currentMax) {
+                branchMaxScores.put(docId, branchScore);
+                itemMap.put(docId, item);
+            }
+        };
+
+        // Branch 1.1: Graph CF
+        for (int i = 0; i < graphCf.size(); i++) {
+            Map<String, Object> map = graphCf.get(i);
+            String docId = (String) map.get("recommendedDocId");
+            double s = alpha1 * (61.0 / (60.0 + i + 1));
+            processBranch.accept(new Object[]{docId, s, RecommendationItem.builder()
+                .docId(docId)
+                .triggerId((String) map.get("reasonTriggerId"))
+                .reason(RecommendationReason.builder().type("DOWNLOADED").build())
+                .build()});
         }
 
-        // ── Layer 2: topic / class cold-start
-        if (pool.size() < poolSize && userId != null) {
-            try {
-                List<Map<String, Object>> recommendations =
-                        neo4jRepository.findColdStartRecommendationsByTopics(userId, poolSize);
-
-                for (Map<String, Object> recommendation : recommendations) {
-                    if (pool.size() >= poolSize) break;
-
-                    String docId = (String) recommendation.get("recommendedDocId");
-                    if (docId == null || pool.containsKey(docId)) continue;
-
-                    pool.put(docId, RecommendationItem.builder()
-                            .docId(docId)
-                            .triggerId((String) recommendation.get("reasonTriggerId"))
-                            .reason(RecommendationReason.builder()
-                                    .type((String) recommendation.get("reasonType"))
-                                    .build())
-                            .build());
-                }
-            } catch (Exception e) {
-                log.warn("[3-layer cascade] Layer 2 (cold-start) failed for user {}: {}", userId, e.getMessage());
-            }
+        // Branch 1.2: Semantic
+        for (int i = 0; i < semanticDocs.size(); i++) {
+            String docId = semanticDocs.get(i);
+            double s = alpha2 * (61.0 / (60.0 + i + 1));
+            processBranch.accept(new Object[]{docId, s, RecommendationItem.builder()
+                .docId(docId)
+                .reason(RecommendationReason.builder().type("SIMILAR").build())
+                .build()});
         }
 
-        // ── Layer 3: Trending fallback
-        if (pool.size() < poolSize) {
-            try {
-                int needed = poolSize - pool.size();
-                LocalDateTime since = LocalDateTime.now().minusDays(90);
-                Page<Document> trendingPage = documentRepository
-                        .findRecentDocumentsByRankingScore(since, PageRequest.of(0, needed));
-
-
-                for (Document doc : trendingPage.getContent()) {
-                    if (pool.size() >= poolSize) break;
-                    if (pool.containsKey(doc.getId())) continue;
-
-                    pool.put(doc.getId(), RecommendationItem.builder()
-                            .docId(doc.getId())
-                            // TRENDING items have no trigger entity — triggerId and title remain null.
-                            .reason(RecommendationReason.builder().type("TRENDING").build())
-                            .build());
-                }
-            } catch (Exception e) {
-                log.error("[3-layer cascade] Layer 3 (trending) failed: {}", e.getMessage());
-            }
+        // Branch 2.1: Active Class
+        for (int i = 0; i < classDocs.size(); i++) {
+            Map<String, Object> map = classDocs.get(i);
+            String docId = (String) map.get("recommendedDocId");
+            double s = alpha3 * (61.0 / (60.0 + i + 1));
+            processBranch.accept(new Object[]{docId, s, RecommendationItem.builder()
+                .docId(docId)
+                .triggerId((String) map.get("reasonTriggerId"))
+                .reason(RecommendationReason.builder().type("ACTIVE_CLASS").build())
+                .build()});
         }
 
-        List<RecommendationItem> items = new ArrayList<>(pool.values());
+        // Branch 2.2: Favorite Topic
+        for (int i = 0; i < favoriteTopicDocs.size(); i++) {
+            Document doc = favoriteTopicDocs.get(i);
+            String docId = doc.getId();
+            double s = alpha4 * (61.0 / (60.0 + i + 1));
+            processBranch.accept(new Object[]{docId, s, RecommendationItem.builder()
+                .docId(docId)
+                .triggerId(doc.getTopicId())
+                .reason(RecommendationReason.builder().type("FAVORITE_TOPIC").build())
+                .build()});
+        }
+
+        // Branch 2.3: University
+        for (int i = 0; i < universityDocs.size(); i++) {
+            Document doc = universityDocs.get(i);
+            String docId = doc.getId();
+            double s = alpha6 * (61.0 / (60.0 + i + 1));
+            processBranch.accept(new Object[]{docId, s, RecommendationItem.builder()
+                .docId(docId)
+                .reason(RecommendationReason.builder().type("SAME_UNIVERSITY").build())
+                .build()});
+        }
+
+        // Branch 3.1: Trending
+        for (int i = 0; i < trendingDocs.size(); i++) {
+            String docId = trendingDocs.get(i).getId();
+            double s = alpha5 * (61.0 / (60.0 + i + 1));
+            processBranch.accept(new Object[]{docId, s, RecommendationItem.builder()
+                .docId(docId)
+                .reason(RecommendationReason.builder().type("TRENDING").build())
+                .build()});
+        }
+
+        List<String> sortedIds = scores.entrySet().stream()
+                .sorted((a, b) -> Double.compare(b.getValue(), a.getValue()))
+                .map(Map.Entry::getKey)
+                .toList();
+
+        long endTime = System.currentTimeMillis();
+        log.info("[HYBRID PARALLEL] getForYouFeed executed in {} ms. Total unique items: {}", (endTime - startTime), sortedIds.size());
+
+        if (log.isDebugEnabled() && !sortedIds.isEmpty()) {
+            for (int i = 0; i < Math.min(3, sortedIds.size()); i++) {
+                String docId = sortedIds.get(i);
+                
+                int rank11 = -1;
+                for (int j=0; j<graphCf.size(); j++) if(docId.equals(graphCf.get(j).get("recommendedDocId"))) { rank11 = j+1; break; }
+                int rank12 = semanticDocs.indexOf(docId) >= 0 ? semanticDocs.indexOf(docId) + 1 : -1;
+                int rank21 = -1;
+                for (int j=0; j<classDocs.size(); j++) if(docId.equals(classDocs.get(j).get("recommendedDocId"))) { rank21 = j+1; break; }
+                int rank22 = -1;
+                for (int j=0; j<favoriteTopicDocs.size(); j++) if(docId.equals(favoriteTopicDocs.get(j).getId())) { rank22 = j+1; break; }
+                int rank23 = -1;
+                for (int j=0; j<universityDocs.size(); j++) if(docId.equals(universityDocs.get(j).getId())) { rank23 = j+1; break; }
+                int rank31 = -1;
+                for (int j=0; j<trendingDocs.size(); j++) if(docId.equals(trendingDocs.get(j).getId())) { rank31 = j+1; break; }
+
+                String debugStr = String.format("[DEBUG] DocID: %s | Rank_1.1: %s (S: %.2f) | Rank_1.2: %s (S: %.2f) | Rank_2.1: %s (S: %.2f) | Rank_2.2: %s (S: %.2f) | Rank_2.3: %s (S: %.2f) | Rank_3.1: %s (S: %.2f) | Final Score: %.2f",
+                    docId,
+                    rank11 > 0 ? String.valueOf(rank11) : "NULL", rank11 > 0 ? alpha1 * (61.0 / (60.0 + rank11)) : 0.0,
+                    rank12 > 0 ? String.valueOf(rank12) : "NULL", rank12 > 0 ? alpha2 * (61.0 / (60.0 + rank12)) : 0.0,
+                    rank21 > 0 ? String.valueOf(rank21) : "NULL", rank21 > 0 ? alpha3 * (61.0 / (60.0 + rank21)) : 0.0,
+                    rank22 > 0 ? String.valueOf(rank22) : "NULL", rank22 > 0 ? alpha4 * (61.0 / (60.0 + rank22)) : 0.0,
+                    rank23 > 0 ? String.valueOf(rank23) : "NULL", rank23 > 0 ? alpha6 * (61.0 / (60.0 + rank23)) : 0.0,
+                    rank31 > 0 ? String.valueOf(rank31) : "NULL", rank31 > 0 ? alpha5 * (61.0 / (60.0 + rank31)) : 0.0,
+                    scores.get(docId)
+                );
+                log.debug(debugStr);
+            }
+        }
 
         int start = (int) pageable.getOffset();
-        int end   = Math.min(start + pageable.getPageSize(), items.size());
+        int end   = Math.min(start + pageable.getPageSize(), sortedIds.size());
 
-        if (start >= items.size()) return new PageImpl<>(List.of(), pageable, items.size());
+        if (start >= sortedIds.size()) return new PageImpl<>(List.of(), pageable, sortedIds.size());
 
-        return new PageImpl<>(items.subList(start, end), pageable, items.size());
+        List<RecommendationItem> items = sortedIds.subList(start, end).stream()
+                .map(itemMap::get)
+                .toList();
+
+        return new PageImpl<>(items, pageable, sortedIds.size());
     }
 }

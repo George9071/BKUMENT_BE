@@ -108,7 +108,7 @@ public class DocumentService {
         // Ensure the stored file name always ends with .pdf for downstream consumers.
         String finalFileName =
                 originalFileName.toLowerCase().endsWith(".pdf") ? originalFileName : originalFileName + ".pdf";
-        ProcessResult processResult;
+        String previewUrl = null;
 
         try (InputStream inputStream = minioService.getFileInputStream(assetId)) {
             byte[] fileBytes = inputStream.readAllBytes();
@@ -127,27 +127,15 @@ public class DocumentService {
                 minioService.uploadFile(previewAssetId, is, os.size(), "image/png");
 
                 // Build the publicly accessible preview URL through the API gateway.
-                String previewUrl = gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()
+                previewUrl = gatewayProperties.getBaseUrl() + gatewayProperties.getApiPrefix()
                         + "/resource/download/asset/" + previewAssetId;
-
-                // Wrap the PDF bytes as a MultipartFile so the Feign client can send it as multipart/form-data.
-                ByteArrayInputStream multipartInputStream = new ByteArrayInputStream(fileBytes);
-                MultipartFile multipartFile = new StreamMultipartFile(
-                        "file", finalFileName, "application/pdf", fileSize, multipartInputStream);
-
-                // Fast AI call returns keywords + a short summary quickly (no embedding yet).
-                FastDocumentProcessResponse fastResult = aiClient.processDocumentFast(multipartFile);
-                processResult = new ProcessResult(fastResult, previewUrl);
             }
         } catch (Exception e) {
-            log.error("Error reading file or calling fast AI for asset {}", assetId, e);
+            log.error("Error reading file or creating preview for asset {}", assetId, e);
             throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
         }
 
-        if (processResult.fastResult == null)
-            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
-
-        // Persist the document with the fast-AI metadata.
+        // Persist the document.
         // Full content + vector embedding will be filled by the background async job.
         Document document = Document.builder()
                 .assetId(assetId)
@@ -157,11 +145,12 @@ public class DocumentService {
                 .documentType("application/pdf")
                 .visibility("PRIVATE")
                 .downloadable(false)
-                .previewImageUrl(processResult.previewUrl)
-                .keywords(processResult.fastResult.getKeywords())
-                .summary(processResult.fastResult.getSummary())
+                .previewImageUrl(previewUrl)
+                .keywords(Collections.emptyList())
+                .summary("")
                 .downloadCount(0)
                 .views(0L)
+                .deepAiStatus(vn.edu.hcmut.document.constant.AiAnalyzeStatus.PENDING)
                 .build();
 
         document = documentRepository.save(document);
@@ -178,19 +167,73 @@ public class DocumentService {
 
         return DocAnalyzeResponse.builder()
                 .docId(document.getId())
-                .keywords(processResult.fastResult.getKeywords())
-                .summary(processResult.fastResult.getSummary())
+                .keywords(document.getKeywords())
+                .summary(document.getSummary())
+                .deepAiStatus(document.getDeepAiStatus())
                 .build();
     }
 
-    /** Internal holder to pass both the fast-AI result and the preview URL out of the try-with-resources block. */
-    private static class ProcessResult {
-        FastDocumentProcessResponse fastResult;
-        String previewUrl;
+    public DocAnalyzeResponse fastAnalyzeDocument(String docId) {
+        Document document = documentRepository.findById(docId)
+                .orElseThrow(() -> new AppException(ErrorCode.DOCUMENT_NOT_FOUND));
 
-        public ProcessResult(FastDocumentProcessResponse fastResult, String previewUrl) {
-            this.fastResult = fastResult;
-            this.previewUrl = previewUrl;
+        // If Deep AI has already populated the summary, return it immediately to save API costs
+        if (document.getSummary() != null && !document.getSummary().isBlank()) {
+            log.info("[FAST-AI] Bypass API call, returning existing data for docId: {}", docId);
+            return DocAnalyzeResponse.builder()
+                    .docId(docId)
+                    .keywords(document.getKeywords())
+                    .summary(document.getSummary())
+                    .deepAiStatus(document.getDeepAiStatus())
+                    .build();
+        }
+
+        log.info("[FAST-AI] Calling Gemini for docId: {}", docId);
+        
+        try (InputStream inputStream = minioService.getFileInputStream(document.getAssetId())) {
+            StatObjectResponse stat = minioService.getFileMetadata(document.getAssetId());
+            long fileSize = stat.size();
+            String finalFileName = document.getTitle().toLowerCase().endsWith(".pdf") ? 
+                    document.getTitle() : document.getTitle() + ".pdf";
+
+            MultipartFile multipartFile = new StreamMultipartFile(
+                    "file", finalFileName, "application/pdf", fileSize, inputStream);
+
+            FastDocumentProcessResponse fastResult = aiClient.processDocumentFast(multipartFile);
+
+            if (fastResult != null) {
+                // Use the custom JPQL query to update only if not overwritten by deep AI
+                int updatedRows = documentRepository.updateFastAiResult(
+                        docId, 
+                        fastResult.getKeywords(), 
+                        fastResult.getSummary()
+                );
+
+                if (updatedRows > 0) {
+                    log.info("[FAST-AI] Successfully updated Fast AI results for docId: {}", docId);
+                    return DocAnalyzeResponse.builder()
+                            .docId(docId)
+                            .keywords(fastResult.getKeywords())
+                            .summary(fastResult.getSummary())
+                            .deepAiStatus(document.getDeepAiStatus())
+                            .build();
+                } else {
+                    log.info("[FAST-AI] Fast AI results discarded due to Deep AI already completed for docId: {}", docId);
+                    // Fetch the latest document to return the deep AI results
+                    Document latestDoc = documentRepository.findById(docId).orElse(document);
+                    return DocAnalyzeResponse.builder()
+                            .docId(docId)
+                            .keywords(latestDoc.getKeywords())
+                            .summary(latestDoc.getSummary())
+                            .deepAiStatus(latestDoc.getDeepAiStatus())
+                            .build();
+                }
+            } else {
+                throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
+            }
+        } catch (Exception e) {
+            log.error("[FAST-AI] Error calling fast AI for docId {}", docId, e);
+            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
         }
     }
 
@@ -411,6 +454,7 @@ public class DocumentService {
                 .downloadable(document.getDownloadable())
                 .previewImageUrl(document.getPreviewImageUrl())
                 .views(document.getViews())
+                .deepAiStatus(document.getDeepAiStatus())
                 .build();
     }
 
@@ -549,7 +593,7 @@ public class DocumentService {
 
     /**
      * Returns a paginated list of collaboratively recommended documents for a user, ranked by the Neo4j graph engine
-     * (shared classrooms, mutual downloads, social graph).
+     * (mutual downloads, social/follow graph, university peers).
      * * * *
      * Step 1: Candidates retrieval
      * Step 2: Consistency check
@@ -558,8 +602,8 @@ public class DocumentService {
      * Step 5: Mapping DTO
      * Returns object carrying three fields per result:
      *   "id"               — document ID
-     *   "reasonType"       — ENROLLED_CLASS | DOWNLOADED
-     *   "reasonTriggerId"  — ID of the class or trigger-document that caused the match
+     *   "reasonType"       — DOWNLOADED
+     *   "reasonTriggerId"  — ID of the trigger-document that caused the match
      *
      * @param userId   the authenticated user to generate recommendations for
      * @param pageable page number and size
@@ -853,6 +897,7 @@ public class DocumentService {
                 .createdAt(doc.getCreatedAt())
                 .summary(doc.getSummary())
                 .recommendationReason(reason)
+                .deepAiStatus(doc.getDeepAiStatus())
                 .build();
     }
 

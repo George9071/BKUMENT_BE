@@ -422,9 +422,36 @@ public class ClassRoomService {
     public PageResponse<ClassRoomResponse> getRecommendedClasses(int page, int size) {
         String profileId = securityUtils.getProfileId();
 
-        List<String> recommendedIds = graphSyncService.getRecommendedClassRoomIds(profileId, 50);
+        // 1. Fetch top 100 trending classes
+        Pageable top100Pageable = PageRequest.of(0, 100);
+        Page<ClassRoom> trendingPage = classRoomRepository.findTopTrendingClasses(top100Pageable);
+        List<String> trendingIds = trendingPage.getContent().stream()
+                .map(ClassRoom::getId)
+                .toList();
 
-        if (recommendedIds.isEmpty()) {
+        // 2. Fetch top 100 semantic/graph recommendations
+        List<String> recommendedIds = graphSyncService.getRecommendedClassRoomIds(profileId, 100);
+
+        // 3. Compute RRF Scores
+        Map<String, Double> rrfScores = new HashMap<>();
+        final int K = 60;
+
+        for (int i = 0; i < trendingIds.size(); i++) {
+            String id = trendingIds.get(i);
+            rrfScores.put(id, rrfScores.getOrDefault(id, 0.0) + 1.0 / (K + i + 1));
+        }
+
+        for (int j = 0; j < recommendedIds.size(); j++) {
+            String id = recommendedIds.get(j);
+            rrfScores.put(id, rrfScores.getOrDefault(id, 0.0) + 1.0 / (K + j + 1));
+        }
+
+        // 4. Sort unique IDs by RRF Score descending
+        List<String> hybridIds = new ArrayList<>(rrfScores.keySet());
+        hybridIds.sort((id1, id2) -> Double.compare(rrfScores.get(id2), rrfScores.get(id1)));
+
+        // Early return if empty
+        if (hybridIds.isEmpty()) {
             return PageResponse.<ClassRoomResponse>builder()
                     .currentPage(page)
                     .totalPages(0)
@@ -434,20 +461,23 @@ public class ClassRoomService {
                     .build();
         }
 
-        List<ClassRoom> classes = classRoomRepository.findAllById(recommendedIds);
+        // 5. In-memory pagination
+        int totalElements = hybridIds.size();
+        int from = Math.max(0, (page > 0 ? page - 1 : 0) * size);
+        int to = Math.min(from + size, totalElements);
+        List<String> pagedIds = (from < totalElements) ? hybridIds.subList(from, to) : new ArrayList<>();
+
+        // 6. Fetch entities and sort them to match pagedIds
+        List<ClassRoom> classes = classRoomRepository.findAllById(pagedIds);
         Map<String, ClassRoom> classMap = classes.stream()
                 .collect(Collectors.toMap(ClassRoom::getId, c -> c));
 
-        List<ClassRoom> sortedClasses = recommendedIds.stream()
+        List<ClassRoom> pagedClasses = pagedIds.stream()
                 .map(classMap::get)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
-        int totalElements = sortedClasses.size();
-        int from = Math.max(0, (page > 0 ? page - 1 : 0) * size);
-        int to = Math.min(from + size, totalElements);
-        List<ClassRoom> pagedClasses = (from < totalElements) ? sortedClasses.subList(from, to) : new ArrayList<>();
-
+        // 7. Resolve status, map to DTOs, populate enrollments
         Map<String, String> statusMap = statusResolver.resolveBatch(pagedClasses, profileId);
 
         List<ClassRoomResponse> responses = pagedClasses.stream()
