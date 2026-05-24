@@ -14,12 +14,12 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class TutorReviewRequest {
-    @NotBlank(message = "Tutor ID cannot be blank")
+public class ClassReviewRequest {
+    @NotBlank(message = "Class ID cannot be blank")
     @Pattern(
             regexp = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-            message = "Tutor ID must be a valid UUID")
-    String tutorId;
+            message = "Class ID must be a valid UUID")
+    String classId;
 
     String comment;
 

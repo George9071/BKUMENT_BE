@@ -108,6 +108,9 @@ public class RatingService {
 
         // Self-rating guard: resolve the owner and reject if the rater is the owner.
         String ownerId = getOwnerId(request.getResourceId());
+        if (ownerId == null) {
+            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
         if (userId.equals(ownerId)) {
             throw new AppException(ErrorCode.CANNOT_RATE_OWN_RESOURCE);
         }
@@ -127,30 +130,31 @@ public class RatingService {
             throw new AppException(ErrorCode.ALREADY_RATED);
         }
 
-        if (ownerId != null) {
-            long delta = getPointsForScore(request.getScore());
-            if (delta != 0) {
-                try {
-                    profileClient.updatePoints(ownerId, delta);
-                } catch (Exception e) {
-                    log.error("Failed to update points for owner={}, delta={}", ownerId, delta, e);
-                }
+        long delta = getPointsForScore(request.getScore());
+        if (delta != 0) {
+            try {
+                profileClient.updatePoints(ownerId, delta);
+            } catch (Exception e) {
+                log.error("Failed to update points for owner={}, delta={}", ownerId, delta, e);
             }
         }
 
         return toRatingResponse(rating);
     }
 
+    @Transactional(readOnly = true)
     public Page<RatingResponse> getRatingsByResource(String resourceId, Pageable pageable) {
         return ratingRepository.findByResourceId(resourceId, pageable).map(this::toRatingResponse);
     }
 
+    @Transactional(readOnly = true)
     public Double getAverageRating(String resourceId) {
         Double avg = ratingRepository.getAverageScoreByResourceId(resourceId);
         return avg != null ? avg : 0.0;
     }
 
     /** Aggregate stats consumed by document-service for the ranking score formula. */
+    @Transactional(readOnly = true)
     public RankingStatsResponse getRankingStats() {
         Double globalAvg = ratingRepository.getGlobalAverageScore();
         List<ResourceRatingStatsResponse> stats = ratingRepository.getResourceRatingStats();
@@ -164,6 +168,7 @@ public class RatingService {
     /**
      * Combined rating + comment engagement stats for admin dashboards.
      */
+    @Transactional(readOnly = true)
     public List<ResourceEngagementStatsResponse> getEngagementStats() {
         List<ResourceRatingStatsResponse> ratingStats = ratingRepository.getResourceRatingStats();
         List<Object[]> commentCounts = commentRepository.countCommentsGroupByResourceId();
@@ -200,6 +205,7 @@ public class RatingService {
      * Returns the user's rating for a resource.
      * @return Optional.of(rating) if the user has rated this resource, else Optional.empty()
      */
+    @Transactional(readOnly = true)
     public Optional<RatingResponse> getUserRatingForResource(String resourceId, String userId) {
         return ratingRepository
                 .findByResourceIdAndUserId(resourceId, userId)

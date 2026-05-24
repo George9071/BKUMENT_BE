@@ -5,10 +5,6 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,9 +14,8 @@ import lombok.experimental.FieldDefaults;
 import vn.edu.hcmut.social.dto.request.CommentRequest;
 import vn.edu.hcmut.social.dto.response.APIResponse;
 import vn.edu.hcmut.social.dto.response.CommentResponse;
-import vn.edu.hcmut.social.exception.AppException;
-import vn.edu.hcmut.social.exception.ErrorCode;
 import vn.edu.hcmut.social.service.CommentService;
+import vn.edu.hcmut.social.utils.SecurityUtils;
 
 @RestController
 @RequestMapping("/comments")
@@ -29,31 +24,11 @@ import vn.edu.hcmut.social.service.CommentService;
 @Tag(name = "Comment", description = "Comment APIs for resources")
 public class CommentController {
     CommentService commentService;
-
-    private String getProfileIdFromToken() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-
-        if (authentication instanceof JwtAuthenticationToken jwtAuth) {
-            Jwt jwt = jwtAuth.getToken();
-
-            String profileId = jwt.getClaimAsString("profile_id");
-            if (profileId == null || profileId.isBlank()) {
-                throw new AppException(ErrorCode.INVALID_TOKEN_CLAIMS);
-            }
-
-            return profileId;
-        }
-
-        throw new AppException(ErrorCode.UNAUTHENTICATED);
-    }
+    SecurityUtils securityUtils;
 
     @PostMapping
     public APIResponse<CommentResponse> createComment(@RequestBody @Valid CommentRequest request) {
-        String profileId = getProfileIdFromToken();
+        String profileId = securityUtils.getProfileId();
         return APIResponse.<CommentResponse>builder()
                 .result(commentService.createComment(request, profileId))
                 .message("Comment created successfully")
@@ -62,7 +37,7 @@ public class CommentController {
 
     @DeleteMapping("/{commentId}")
     public APIResponse<String> deleteComment(@PathVariable String commentId) {
-        String profileId = getProfileIdFromToken();
+        String profileId = securityUtils.getProfileId();
         commentService.deleteComment(commentId, profileId);
         return APIResponse.<String>builder()
                 .message("Comment deleted successfully")

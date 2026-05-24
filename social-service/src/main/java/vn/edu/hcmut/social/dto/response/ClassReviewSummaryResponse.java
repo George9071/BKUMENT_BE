@@ -10,8 +10,8 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class TutorReviewSummaryResponse {
-    String tutorId;
+public class ClassReviewSummaryResponse {
+    String classId;
     Double averageScore;
     Long totalReviews;
     Map<Integer, Long> ratingCounts;

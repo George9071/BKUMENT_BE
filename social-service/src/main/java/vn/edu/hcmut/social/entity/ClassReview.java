@@ -15,9 +15,9 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(
-        name = "user_review_tutor",
-        uniqueConstraints = {@UniqueConstraint(columnNames = {"user_id", "tutor_id"})})
-public class UserReviewTutor {
+        name = "class_review",
+        uniqueConstraints = {@UniqueConstraint(columnNames = {"user_id", "class_id"})})
+public class ClassReview {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     String id;
@@ -25,8 +25,8 @@ public class UserReviewTutor {
     @Column(name = "user_id")
     String userId;
 
-    @Column(name = "tutor_id")
-    String tutorId;
+    @Column(name = "class_id")
+    String classId;
 
     @Column(name = "comment", length = 1000)
     String comment;

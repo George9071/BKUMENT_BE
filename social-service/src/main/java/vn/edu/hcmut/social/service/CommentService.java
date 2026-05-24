@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -49,6 +50,9 @@ public class CommentService {
                     .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
 
             if (parent.getReplyId() != null) throw new AppException(ErrorCode.REPLY_DEPTH_EXCEEDED);
+            if (!Objects.equals(parent.getResourceId(), request.getResourceId())) {
+                throw new AppException(ErrorCode.INVALID_REPLY_TARGET);
+            }
         }
 
         Comment comment = Comment.builder()
@@ -87,19 +91,19 @@ public class CommentService {
     /**
      * Returns top-level comments for a resource, fully enriched in one pass.
      */
+    @Transactional(readOnly = true)
     public Page<CommentResponse> getParentCommentsByResource(String resourceId, Pageable pageable) {
         Page<Comment> page = commentRepository.findByResourceIdAndReplyIdIsNull(resourceId, pageable);
         return enrichPage(page);
     }
 
+    @Transactional(readOnly = true)
     public Page<CommentResponse> getChildComments(String replyId, Pageable pageable) {
         Page<Comment> page = commentRepository.findByReplyId(replyId, pageable);
         return enrichPage(page);
     }
 
     private Page<CommentResponse> enrichPage(Page<Comment> page) {
-        if (page.isEmpty()) return page.map(c -> null);
-
         List<Comment> comments = page.getContent();
 
         // Batch fetch profiles for all distinct authors on the page.
@@ -124,8 +128,13 @@ public class CommentService {
     private Map<String, ProfileResponse> getProfileMap(List<String> profileIds) {
         if (profileIds.isEmpty()) return Collections.emptyMap();
 
-        return profileClient.getProfiles(profileIds).stream()
-                .collect(Collectors.toMap(ProfileResponse::getId, Function.identity()));
+        try {
+            return profileClient.getProfiles(profileIds).stream()
+                    .collect(Collectors.toMap(ProfileResponse::getId, Function.identity()));
+        } catch (Exception e) {
+            log.warn("Failed to batch fetch {} comment author profiles: {}", profileIds.size(), e.getMessage());
+            return Collections.emptyMap();
+        }
     }
 
     private ProfileResponse getProfile(String profileId) {
