@@ -118,14 +118,12 @@ public class GraphSyncService {
 	/**
 	 * Returns up to 50 recommended documents for a user, each enriched with the reason it was recommended
 	 *     "id"             	— document ID
-	 *     "reasonType"     	— ENROLLED_CLASS | DOWNLOADED
-	 *     "reasonTriggerId" 	— ID of the classroom or trigger-document that caused the match
+	 *     "reasonType"     	— DOWNLOADED
+	 *     "reasonTriggerId" 	— ID of the trigger-document that caused the match
 	 * ===========================================================================================
-	 * Strategy 1 — Curriculum-based (score = 3, reasonType = ENROLLED_CLASS):
-	 *   Documents whose topics overlap with subjects covered by classrooms the user is enrolled in
-	 * * * *
-	 * Strategy 2 — Social collaborative filtering (score = 7, reasonType = DOWNLOADED):
-	 *   Documents downloaded by peers (same university OR mutual-download + social link)
+	 * Social collaborative filtering (score = 7, reasonType = DOWNLOADED):
+	 *   - Strategy A: University peers (documents downloaded by other students from the same university)
+	 *   - Strategy B: Social/mutual peers (documents downloaded by followed peers or users with mutual downloads)
 	 * * * *
 	 * Score accumulation
 	 * If a document appears in both strategies its scores are summed before the final ORDER BY
@@ -137,20 +135,6 @@ public class GraphSyncService {
     public List<Map<String, Object>> getCollaborativeRecommendations(String profileId) {
 		String query = """
 				CALL ($profileId) {
-                    // --- Strategy 1: Curriculum-based ---
-                    WITH $profileId AS pid
-                    MATCH (me:UserProfile {id: pid})
-                        -[:ENROLLED_IN]->(c:ClassRoom)
-                        -[:COVERS]->(t_current:Topic)
-                        -[:BELONGS_TO]->(s:Subject)
-                        <-[:BELONGS_TO]-(t_all:Topic)
-                        <-[:HAS_TOPIC]-(d:Document)
-                    WHERE NOT (me)-[:DOWNLOADED]->(d)
-                      AND (c.status IS NULL OR NOT c.status IN ['COMPLETED', 'CANCELLED'])
-                    RETURN d, 'ENROLLED_CLASS' AS rType, c.id AS rTriggerId, 3 AS score
- 
-                    UNION ALL
- 
                     // --- Strategy 2A: University peers ---
 					WITH $profileId AS pid
 					MATCH (me:UserProfile {id: pid})-[:STUDY_AT]->(:University)<-[:STUDY_AT]-(other:UserProfile)
@@ -170,10 +154,7 @@ public class GraphSyncService {
                     MATCH (other:UserProfile)
                     WHERE other.id <> pid
                     AND EXISTS { (me)-[:DOWNLOADED]->(:Document)<-[:DOWNLOADED]-(other) }
-                    AND (
-                        EXISTS { (me)-[:FOLLOW]->(other) } OR
-                        EXISTS { (me)-[:ENROLLED_IN]->(:ClassRoom)<-[:ENROLLED_IN]-(other) }
-                    )
+                    AND EXISTS { (me)-[:FOLLOW]->(other) }
                     WITH DISTINCT me, other
                     MATCH (me)-[:DOWNLOADED]->(triggerDoc:Document)<-[:DOWNLOADED]-(other)
                     MATCH (other)-[:DOWNLOADED]->(d:Document)

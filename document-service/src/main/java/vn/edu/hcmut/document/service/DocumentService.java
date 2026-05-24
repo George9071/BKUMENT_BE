@@ -549,7 +549,7 @@ public class DocumentService {
 
     /**
      * Returns a paginated list of collaboratively recommended documents for a user, ranked by the Neo4j graph engine
-     * (shared classrooms, mutual downloads, social graph).
+     * (mutual downloads, social/follow graph, university peers).
      * * * *
      * Step 1: Candidates retrieval
      * Step 2: Consistency check
@@ -558,8 +558,8 @@ public class DocumentService {
      * Step 5: Mapping DTO
      * Returns object carrying three fields per result:
      *   "id"               — document ID
-     *   "reasonType"       — ENROLLED_CLASS | DOWNLOADED
-     *   "reasonTriggerId"  — ID of the class or trigger-document that caused the match
+     *   "reasonType"       — DOWNLOADED
+     *   "reasonTriggerId"  — ID of the trigger-document that caused the match
      *
      * @param userId   the authenticated user to generate recommendations for
      * @param pageable page number and size
