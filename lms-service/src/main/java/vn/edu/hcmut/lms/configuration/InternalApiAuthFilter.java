@@ -46,9 +46,8 @@ public class InternalApiAuthFilter extends OncePerRequestFilter {
     }
 
     private static boolean isInternalPath(String path) {
-        return path.startsWith("/internal/")
-                || path.startsWith("/classes/internal/")
-                || path.startsWith("/subjects/topics/internal/");
+        return StringUtils.hasText(path)
+                && (path.equals("/internal") || path.startsWith("/internal/") || path.contains("/internal/"));
     }
 
     private static boolean constantTimeEquals(String provided, String expected) {

@@ -34,6 +34,8 @@ server:
     context-path: /communication
 
 app:
+  internal-api:
+    secret: ${INTERNAL_API_SECRET}
   services:
     identity:
       url: http://localhost:8080/identity

@@ -19,6 +19,7 @@ from app.services.open_router_service import OpenRouterService
 from app.services.mpnet_service import VectorService
 from app.services.unstructured_service import convert_pdf_to_text
 from app.services.workflow_service import DocumentWorkflowService
+from app.internal_auth import verify_internal_api_key
 
 router = APIRouter(prefix="/ai")
 logger = logging.getLogger("uvicorn.error")
@@ -32,6 +33,7 @@ def get_vector_service(request: Request):
 @router.post(
     "/internal/analyze-fast", 
     response_model=AnalysisResult,
+    dependencies=[Depends(verify_internal_api_key)],
 )
 async def quick_analyze(
     file: UploadFile = File(...),
@@ -65,6 +67,7 @@ async def quick_analyze(
 @router.post(
     "/internal/process-document", 
     response_model=DocumentProcessResponse,
+    dependencies=[Depends(verify_internal_api_key)],
 )
 async def endpoint_process_document(
     ai_service: Annotated[DocumentWorkflowService, Depends(get_ai_service)],

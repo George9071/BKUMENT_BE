@@ -55,6 +55,8 @@ app:
   services:
     profile: http://localhost:8081/profile
     social: http://localhost:8089/social
+  internal-api:
+    secret: ${INTERNAL_API_SECRET}
 
   trending:
     w1: 100.0

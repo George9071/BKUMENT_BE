@@ -8,3 +8,7 @@ spring:
 
 swagger:
   gateway-url: ${BACKEND_HOST}/api/v1/email
+
+app:
+  internal-api:
+    secret: ${INTERNAL_API_SECRET}

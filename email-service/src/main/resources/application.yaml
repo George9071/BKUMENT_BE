@@ -30,6 +30,10 @@ swagger:
   host-url: http://localhost:8084/email
   gateway-url: ${BACKEND_HOST}/api/v1/email
 
+app:
+  internal-api:
+    secret: ${INTERNAL_API_SECRET}
+
 #logging:
 #  level:
 #    vn.edu.hcmut.notification.repository.httpclient.EmailClient: DEBUG

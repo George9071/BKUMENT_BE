@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -16,12 +17,15 @@ public class InternalApiAuthFilter extends OncePerRequestFilter {
 
     private static final String HEADER = "X-Internal-Api-Key";
 
-    @Value("${app.internal-api.secret}")
-    private String secret;
+    private final String secret;
+
+    public InternalApiAuthFilter(@Value("${app.internal-api.secret}") String secret) {
+        this.secret = secret;
+    }
 
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/internal/");
+    protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
+        return !isInternalPath(request.getServletPath());
     }
 
     @Override
@@ -31,7 +35,7 @@ public class InternalApiAuthFilter extends OncePerRequestFilter {
             @NonNull FilterChain chain)
             throws ServletException, IOException {
         String provided = req.getHeader(HEADER);
-        if (provided == null || !isEquals(provided, secret)) {
+        if (!StringUtils.hasText(provided) || !isEquals(provided, secret)) {
             res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             res.setContentType("application/json");
             res.getWriter().write("{\"code\":401,\"message\":\"Internal API key invalid\"}");
@@ -40,8 +44,13 @@ public class InternalApiAuthFilter extends OncePerRequestFilter {
         chain.doFilter(req, res);
     }
 
+    private static boolean isInternalPath(String path) {
+        return StringUtils.hasText(path)
+                && (path.equals("/internal") || path.startsWith("/internal/") || path.contains("/internal/"));
+    }
+
     private static boolean isEquals(String a, String b) {
-        if (a.length() != b.length()) return false;
+        if (!StringUtils.hasText(b) || a.length() != b.length()) return false;
         int r = 0;
         for (int i = 0; i < a.length(); i++) r |= a.charAt(i) ^ b.charAt(i);
         return r == 0;

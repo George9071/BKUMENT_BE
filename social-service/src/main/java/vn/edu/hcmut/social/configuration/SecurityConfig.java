@@ -6,6 +6,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -19,9 +20,16 @@ public class SecurityConfig {
         "/ratings/internal/**", "/internal/**",
     };
 
+    private final InternalApiAuthFilter internalApiAuthFilter;
+
+    public SecurityConfig(InternalApiAuthFilter internalApiAuthFilter) {
+        this.internalApiAuthFilter = internalApiAuthFilter;
+    }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
+                .addFilterBefore(internalApiAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth.requestMatchers(SWAGGER_ENDPOINTS)
                         .permitAll()
                         .requestMatchers(PUBLIC_ENDPOINTS)

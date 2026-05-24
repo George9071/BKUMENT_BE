@@ -254,7 +254,10 @@ class VectorService:
             for row in rows
         ]
 
-        profile_client = ProfileClient(base_url=settings.PROFILE_SERVICE_URL) 
+        profile_client = ProfileClient(
+            base_url=settings.PROFILE_SERVICE_URL,
+            internal_api_secret=settings.INTERNAL_API_SECRET,
+        )
 
         async def fetch_and_map_profile(doc: dict) -> None:
             """

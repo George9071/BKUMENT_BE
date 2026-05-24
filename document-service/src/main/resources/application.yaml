@@ -76,6 +76,8 @@ app:
     profile: http://localhost:8081/profile
     social: http://localhost:8089/social
     lms: http://localhost:8082/lms
+  internal-api:
+    secret: ${INTERNAL_API_SECRET}
   ranking:
     weight-rating: 0.7
     weight-download: 0.3

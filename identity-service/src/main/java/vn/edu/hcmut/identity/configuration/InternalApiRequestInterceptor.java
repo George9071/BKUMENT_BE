@@ -15,8 +15,12 @@ public class InternalApiRequestInterceptor implements RequestInterceptor {
 
     @Override
     public void apply(RequestTemplate template) {
-        if (template.path().startsWith("/internal/")) {
+        if (InternalApiAuthFilter.isInternalPath(normalizePath(template.path()))) {
             template.header(InternalApiAuthFilter.HEADER, secret);
         }
+    }
+
+    private static String normalizePath(String path) {
+        return path == null ? "" : (path.startsWith("/") ? path : "/" + path);
     }
 }

@@ -1,4 +1,4 @@
-package vn.edu.hcmut.identity.configuration;
+package vn.edu.hcmut.blog.configuration;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -14,7 +14,6 @@ import java.io.IOException;
 
 @Component
 public class InternalApiAuthFilter extends OncePerRequestFilter {
-
     static final String HEADER = "X-Internal-Api-Key";
 
     private final String secret;
@@ -30,18 +29,20 @@ public class InternalApiAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(
-            @NonNull HttpServletRequest req,
-            @NonNull HttpServletResponse res,
+            @NonNull HttpServletRequest request,
+            @NonNull HttpServletResponse response,
             @NonNull FilterChain chain)
             throws ServletException, IOException {
-        String provided = req.getHeader(HEADER);
-        if (!StringUtils.hasText(provided) || !isEquals(provided, secret)) {
-            res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            res.setContentType("application/json");
-            res.getWriter().write("{\"code\":401,\"message\":\"Internal API key invalid\"}");
+
+        String provided = request.getHeader(HEADER);
+        if (!StringUtils.hasText(provided) || !constantTimeEquals(provided, secret)) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"code\":401,\"message\":\"Internal API key invalid\"}");
             return;
         }
-        chain.doFilter(req, res);
+
+        chain.doFilter(request, response);
     }
 
     static boolean isInternalPath(String path) {
@@ -49,10 +50,15 @@ public class InternalApiAuthFilter extends OncePerRequestFilter {
                 && (path.equals("/internal") || path.startsWith("/internal/") || path.contains("/internal/"));
     }
 
-    private static boolean isEquals(String a, String b) {
-        if (!StringUtils.hasText(b) || a.length() != b.length()) return false;
-        int r = 0;
-        for (int i = 0; i < a.length(); i++) r |= a.charAt(i) ^ b.charAt(i);
-        return r == 0;
+    private static boolean constantTimeEquals(String provided, String expected) {
+        if (!StringUtils.hasText(expected) || provided.length() != expected.length()) {
+            return false;
+        }
+
+        int result = 0;
+        for (int i = 0; i < provided.length(); i++) {
+            result |= provided.charAt(i) ^ expected.charAt(i);
+        }
+        return result == 0;
     }
 }

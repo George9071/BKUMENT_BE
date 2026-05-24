@@ -1,4 +1,4 @@
-package vn.edu.hcmut.lms.configuration;
+package vn.edu.hcmut.blog.configuration;
 
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
@@ -15,18 +15,12 @@ public class InternalApiRequestInterceptor implements RequestInterceptor {
 
     @Override
     public void apply(RequestTemplate template) {
-        if (isInternalPath(template.path())) {
+        if (InternalApiAuthFilter.isInternalPath(normalizePath(template.path()))) {
             template.header(InternalApiAuthFilter.HEADER, secret);
         }
     }
 
-    private static boolean isInternalPath(String path) {
-        if (path == null) {
-            return false;
-        }
-        String normalizedPath = path.startsWith("/") ? path : "/" + path;
-        return normalizedPath.equals("/internal")
-                || normalizedPath.startsWith("/internal/")
-                || normalizedPath.contains("/internal/");
+    private static String normalizePath(String path) {
+        return path == null ? "" : (path.startsWith("/") ? path : "/" + path);
     }
 }
