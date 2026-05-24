@@ -46,6 +46,9 @@ app:
     ai: http://ai-service:8087/ai
     profile: http://profile-service:8081/profile
     social: http://social-service:8089/social
+    lms: http://lms-service:8082/lms
+  internal-api:
+    secret: ${INTERNAL_API_SECRET}
   ranking:
     weight-download: 0.3
   hybrid:

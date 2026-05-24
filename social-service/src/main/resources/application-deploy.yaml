@@ -32,6 +32,8 @@ swagger:
   gateway-url: ${BACKEND_HOST}/api/v1/social
 
 app:
+  internal-api:
+    secret: ${INTERNAL_API_SECRET}
   services:
     profile: http://profile-service:8081/profile
     document: http://document-service:8086/document

@@ -22,10 +22,14 @@ spring:
       username: ${NEO4J_USERNAME:username}
       password: ${NEO4J_PASSWORD:password}
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      properties:
+        spring.json.trusted.packages: "vn.edu.hcmut.event"
+        spring.json.use.type.headers: true
 
 swagger:
   host-url: http://localhost:8082/lms
@@ -38,3 +42,5 @@ app:
   services:
     profile: http://localhost:8081/profile
     identity: http://localhost:8080/identity
+  internal-api:
+    secret: ${INTERNAL_API_SECRET}

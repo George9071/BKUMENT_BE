@@ -10,6 +10,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -27,9 +28,11 @@ public class SecurityConfig {
     };
 
     private final CustomJwtDecoder customJwtDecoder;
+    private final InternalApiAuthFilter internalApiAuthFilter;
 
-    public SecurityConfig(CustomJwtDecoder customJwtDecoder) {
+    public SecurityConfig(CustomJwtDecoder customJwtDecoder, InternalApiAuthFilter internalApiAuthFilter) {
         this.customJwtDecoder = customJwtDecoder;
+        this.internalApiAuthFilter = internalApiAuthFilter;
     }
 
     @Bean
@@ -37,6 +40,7 @@ public class SecurityConfig {
         httpSecurity
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
+                .addFilterBefore(internalApiAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(request -> request
                         // Allow OPTIONS, POST requests for preflight CORS checks
                         .requestMatchers(HttpMethod.OPTIONS, PUBLIC_ENDPOINTS)

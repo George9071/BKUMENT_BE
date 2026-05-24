@@ -7,7 +7,6 @@ import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.hcmut.lms.constant.ApplicationStatus;
 import vn.edu.hcmut.lms.dto.request.TutorRegistrationRequest;

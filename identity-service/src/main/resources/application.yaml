@@ -10,17 +10,22 @@ spring:
     username: ${POSTGRES_USERNAME}
     password: ${POSTGRES_PASSWORD}
     hikari:
-      maximum-pool-size: 5
-      minimum-idle: 2
+      maximum-pool-size: 10
+      minimum-idle: 4
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 5
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
 
 logging:
   level:
@@ -29,8 +34,8 @@ logging:
 
 jwt:
   signerKey: ${JWT_SIGNER_KEY}
-  valid-duration: 3600           #seconds -> 1 hour
-  refreshable-duration: 86400   #seconds -> 1 day
+  valid-duration: ${JWT_VALID_DURATION:3600}              #seconds -> 1 hour
+  refreshable-duration: ${JWT_REFRESHABLE_DURATION:86400} #seconds -> 1 day
 
 swagger:
   host-url: http://localhost:8080/identity
@@ -38,14 +43,13 @@ swagger:
 
 app:
   services:
-    profile: http://localhost:8081/profile
-    blog: http://localhost:8085/blog
-    document: http://localhost:8086/document
-    lms: http://localhost:8082/lms
-  base-url: http://localhost:8888
-  fe-url: http://localhost:3000
+    profile: ${PROFILE_SERVICE_URL:http://localhost:8081/profile}
+  base-url: ${APP_BASE_URL:http://localhost:8888}
+  fe-url: ${APP_FE_URL:http://localhost:3000}
+  internal-api:
+    secret: ${INTERNAL_API_SECRET} # generated, ≥ 32 random bytes, rotated periodically
 
-  init:
-    admin:
-      username: ${INIT_ADMIN_USERNAME}
-      password: ${INIT_ADMIN_PASSWORD}
+init:
+  admin:
+    username: ${INIT_ADMIN_USERNAME}
+    password: ${INIT_ADMIN_PASSWORD}

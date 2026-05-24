@@ -2,17 +2,21 @@ package vn.edu.hcmut.profile.exception;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import jakarta.validation.ConstraintViolation;
 
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import vn.edu.hcmut.profile.dto.response.APIResponse;
 
 /**
@@ -31,12 +35,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(value = Exception.class)
     ResponseEntity<APIResponse<?>> handlingRuntimeException(RuntimeException exception) {
         log.error("Exception: ", exception);
-        APIResponse<?> apiResponse = new APIResponse<>();
+        APIResponse<?> response = new APIResponse<>();
 
-        apiResponse.setCode(ErrorCode.UNCATEGORIZED_EXCEPTION.getCode());
-        apiResponse.setMessage(ErrorCode.UNCATEGORIZED_EXCEPTION.getMessage());
+        response.setCode(ErrorCode.UNCATEGORIZED_EXCEPTION.getCode());
+        response.setMessage(ErrorCode.UNCATEGORIZED_EXCEPTION.getMessage());
 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(apiResponse);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 
     /**
@@ -47,12 +51,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(value = AppException.class)
     ResponseEntity<APIResponse<?>> handlingAppException(AppException exception) {
         ErrorCode errorCode = exception.getErrorCode();
-        APIResponse<?> apiResponse = new APIResponse<>();
+        APIResponse<?> response = new APIResponse<>();
 
-        apiResponse.setCode(errorCode.getCode());
-        apiResponse.setMessage(errorCode.getMessage());
+        response.setCode(errorCode.getCode());
+        response.setMessage(errorCode.getMessage());
 
-        return ResponseEntity.status(errorCode.getStatusCode()).body(apiResponse);
+        return ResponseEntity.status(errorCode.getStatusCode()).body(response);
     }
 
     /**
@@ -62,13 +66,13 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(value = AccessDeniedException.class)
     ResponseEntity<APIResponse<?>> handlingAccessDeniedException(AccessDeniedException exception) {
+        log.warn("Access denied error intercepted: {}", exception.getMessage());
+
         ErrorCode errorCode = ErrorCode.ACCESS_DENIED;
 
-        return ResponseEntity.status(errorCode.getStatusCode())
-                .body(APIResponse.builder()
-                        .code(errorCode.getCode())
-                        .message(errorCode.getMessage())
-                        .build());
+        return ResponseEntity
+                .status(errorCode.getStatusCode())
+                .body(APIResponse.builder().code(errorCode.getCode()).message(errorCode.getMessage()).build());
     }
 
     /**
@@ -80,7 +84,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(value = MethodArgumentNotValidException.class)
     ResponseEntity<APIResponse<?>> handlingValidation(MethodArgumentNotValidException exception) {
         // Retrieve the validation message key (which should map to an ErrorCode enum name)
-        String enumKey = exception.getFieldError().getDefaultMessage();
+        String enumKey = Optional.ofNullable(exception.getFieldError())
+                .map(FieldError::getDefaultMessage)
+                .orElse(ErrorCode.UNCATEGORIZED_EXCEPTION.name());
 
         ErrorCode errorCode = ErrorCode.INVALID_KEY;
         Map<String, Object> attributes = null;
@@ -88,26 +94,56 @@ public class GlobalExceptionHandler {
         try {
             errorCode = ErrorCode.valueOf(enumKey);
 
-            // Extract constraint violation details to get dynamic attributes (e.g., @Size(min = 5))
-            var constraintViolation =
-                    exception.getBindingResult().getAllErrors().get(0).unwrap(ConstraintViolation.class);
+            if (!exception.getBindingResult().getAllErrors().isEmpty()) {
+                // Extract constraint violation details to get dynamic attributes (e.g., @Size(min = 5))
+                ConstraintViolation<?> constraintViolation = exception.getBindingResult()
+                        .getAllErrors().get(0)
+                        .unwrap(ConstraintViolation.class);
 
-            attributes = constraintViolation.getConstraintDescriptor().getAttributes();
-
-            log.info("Validation attributes extracted: {}", attributes);
-
+                attributes = constraintViolation.getConstraintDescriptor().getAttributes();
+                log.info("Validation attributes extracted: {}", attributes);
+            }
         } catch (IllegalArgumentException e) {
             log.warn("Validation error key '{}' does not match any ErrorCode enum", enumKey);
         }
 
-        APIResponse<?> apiResponse = new APIResponse<>();
-        apiResponse.setCode(errorCode.getCode());
-        apiResponse.setMessage(
+        APIResponse<?> body = new APIResponse<>();
+        body.setCode(errorCode.getCode());
+        body.setMessage(
                 Objects.nonNull(attributes)
                         ? mapAttribute(errorCode.getMessage(), attributes)
                         : errorCode.getMessage());
 
-        return ResponseEntity.badRequest().body(apiResponse);
+        return ResponseEntity.badRequest().body(body);
+    }
+
+    @ExceptionHandler(value = ConstraintViolationException.class)
+    public ResponseEntity<APIResponse<?>> handlingConstraintViolation(ConstraintViolationException ex) {
+        var violation = ex.getConstraintViolations().iterator().next();
+        String enumKey = violation.getMessage();
+
+        ErrorCode errorCode = ErrorCode.INVALID_KEY;
+        try {
+            errorCode = ErrorCode.valueOf(enumKey);
+        } catch (IllegalArgumentException e) {
+            log.warn("Validation key {} not found", enumKey);
+        }
+
+        APIResponse<?> response = new APIResponse<>();
+        response.setCode(errorCode.getCode());
+        response.setMessage(errorCode.getMessage());
+
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(value = MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<APIResponse<?>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        if (ex.getRequiredType() != null && ex.getRequiredType().isEnum()) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(APIResponse.builder().code(ErrorCode.INVALID_KEY.getCode()).message(ex.getMessage()).build());
+        }
+        return ResponseEntity.badRequest().build();
     }
 
     /**

@@ -1,5 +1,7 @@
 package vn.edu.hcmut.lms.dto.request;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -42,8 +44,8 @@ public class ClassRoomUpdateRequest {
     /**
      * Allowed transitions (enforced in service):
      *   ENROLLING → ONGOING | CANCELLED
-     *   ONGOING   → COMPLETED | CANCELLED
-     *   COMPLETED / CANCELLED → (no transition allowed)
+     *   ONGOING   -> FINISHED | CANCELLED
+     *   FINISHED / CANCELLED -> (no transition allowed)
      */
     ClassStatus status;
 
@@ -56,16 +58,20 @@ public class ClassRoomUpdateRequest {
      * When provided, replaces ALL existing schedules entirely.
      * If null, existing schedules are left unchanged.
      */
+    @Valid
     List<ScheduleRequest> schedules;
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ScheduleRequest {
+        @NotNull(message = "REQUIRED_FIELD")
         DayOfWeek dayOfWeek; // MONDAY, TUESDAY...
 
+        @NotNull(message = "REQUIRED_FIELD")
         LocalTime startTime; // 19:00:00
 
+        @NotNull(message = "REQUIRED_FIELD")
         LocalTime endTime;   // 21:00:00
     }
 }

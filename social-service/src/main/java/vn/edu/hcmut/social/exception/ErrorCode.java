@@ -18,7 +18,7 @@ public enum ErrorCode {
 
     ALREADY_RATED(              1100, "You have already rated this resource", HttpStatus.CONFLICT),
     REPLY_DEPTH_EXCEEDED(       1101, "Cannot reply to a reply — only one level of nesting is supported", HttpStatus.BAD_REQUEST),
-    TUTOR_REVIEW_NOT_FOUND(     1102, "Tutor review not found", HttpStatus.NOT_FOUND),
+    CLASS_REVIEW_NOT_FOUND(     1102, "Class review not found", HttpStatus.NOT_FOUND),
 
     CANNOT_RATE_OWN_RESOURCE(   1201, "You cannot rate your own resource", HttpStatus.BAD_REQUEST),
 
@@ -28,8 +28,13 @@ public enum ErrorCode {
     INVALID_REPORT_STATUS(      1304, "Invalid report status; must be PENDING, APPROVED, or REJECTED",HttpStatus.BAD_REQUEST),
     CANNOT_DEL_PROCESSED_REPORT(1305, "Cannot delete a report that has already been processed", HttpStatus.BAD_REQUEST),
 
-    CANNOT_REVIEW_SELF(         1401, "You cannot review yourself",                                          HttpStatus.BAD_REQUEST),
-    INVALID_REPORT_TYPE(        1402, "Invalid report type filter", HttpStatus.BAD_REQUEST);
+    CANNOT_REVIEW_OWN_CLASS(    1401, "You cannot review your own class", HttpStatus.BAD_REQUEST),
+    INVALID_REPORT_TYPE(        1402, "Invalid report type filter", HttpStatus.BAD_REQUEST),
+    CLASS_NOT_FOUND(            1403, "Class not found", HttpStatus.NOT_FOUND),
+    CLASS_REVIEW_REQUIRES_APPROVED_ENROLLMENT(
+            1404, "Only approved class members can review a class", HttpStatus.FORBIDDEN),
+    INVALID_CLASS_REVIEW_TARGET(1405, "Review class ID cannot be changed", HttpStatus.BAD_REQUEST),
+    INVALID_REPLY_TARGET(       1406, "Reply must target a comment on the same resource", HttpStatus.BAD_REQUEST);
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {
         this.code = code;

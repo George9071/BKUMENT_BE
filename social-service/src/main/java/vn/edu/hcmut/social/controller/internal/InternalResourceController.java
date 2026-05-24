@@ -7,12 +7,8 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.hcmut.social.dto.response.APIResponse;
-import vn.edu.hcmut.social.dto.response.ReportResponse;
 import vn.edu.hcmut.social.dto.response.ResourceCleanupResponse;
-import vn.edu.hcmut.social.service.ReportService;
 import vn.edu.hcmut.social.service.ResourceCleanupService;
-
-import java.util.List;
 
 @Slf4j
 @RestController
@@ -21,7 +17,6 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class InternalResourceController {
     ResourceCleanupService resourceCleanupService;
-    ReportService reportService;
 
     @DeleteMapping("/resources/{resourceId}")
     public APIResponse<ResourceCleanupResponse> deleteResourceSocialData(
@@ -36,9 +31,4 @@ public class InternalResourceController {
                 .result(result)
                 .build();
     }
-
-//    @PostMapping("/reports/by-targets")
-//    public List<ReportResponse> getReportsByTargetIds(@RequestBody List<String> targetIds) {
-//        return reportService.getReportsByTargetIds(targetIds);
-//    }
 }

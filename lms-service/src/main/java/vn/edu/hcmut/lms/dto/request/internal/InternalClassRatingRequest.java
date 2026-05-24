@@ -1,4 +1,4 @@
-package vn.edu.hcmut.social.dto.request.internal;
+package vn.edu.hcmut.lms.dto.request.internal;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class InternalTutorRatingRequest {
+public class InternalClassRatingRequest {
     Double averageRating;
-    Long ratingCount;
+    Integer ratingCount;
 }

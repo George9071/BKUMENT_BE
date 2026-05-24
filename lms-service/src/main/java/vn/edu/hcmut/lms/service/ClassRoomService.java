@@ -1,8 +1,6 @@
 package vn.edu.hcmut.lms.service;
 
-import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.safety.Safelist;
@@ -16,6 +14,7 @@ import vn.edu.hcmut.lms.constant.EnrollmentStatus;
 import vn.edu.hcmut.lms.constant.LearningFormat;
 import vn.edu.hcmut.lms.dto.request.ClassRoomCreationRequest;
 import vn.edu.hcmut.lms.dto.request.ClassRoomUpdateRequest;
+import vn.edu.hcmut.lms.dto.request.internal.InternalClassRatingRequest;
 import vn.edu.hcmut.lms.dto.response.ClassRoomResponse;
 import vn.edu.hcmut.lms.dto.response.PageResponse;
 import vn.edu.hcmut.lms.dto.response.TutorResponse;
@@ -40,6 +39,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class ClassRoomService {
+    private static final int MAX_SEARCH_RESULTS = 500;
+
     // --- Repositories ---
     private final ClassRoomRepository classRoomRepository;
     private final TopicRepository topicRepository;
@@ -56,6 +57,19 @@ public class ClassRoomService {
     private final GraphSyncService graphSyncService;
     private final ClassroomUserStatusResolver statusResolver;
     private final SecurityUtils securityUtils;
+
+    @Transactional
+    public void updateClassRating(String classId, InternalClassRatingRequest request) {
+        ClassRoom classRoom = classRoomRepository.findById(classId)
+                .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
+
+        classRoom.setAverageRating(request.getAverageRating() != null ? request.getAverageRating() : 0.0);
+        classRoom.setRatingCount(request.getRatingCount() != null ? Math.max(request.getRatingCount(), 0) : 0);
+
+        classRoomRepository.save(classRoom);
+        log.info("Updated class rating stats for id: {}, avg: {}, count: {}",
+                classId, classRoom.getAverageRating(), classRoom.getRatingCount());
+    }
 
     /**
      * Creates a new classroom with the authenticated user as the tutor.
@@ -76,10 +90,11 @@ public class ClassRoomService {
 
         assignTopicIfPresent(request.getTopicId(), null, classRoom);
 
-        validationService.validateBusySchedule(profileId, classRoom);
+        validationService.validateClassTiming(classRoom);
+        validateBusyScheduleIfActive(profileId, classRoom);
 
         classRoom = classRoomRepository.save(classRoom);
-        classRoomSyncService.synchronization(classRoom);
+        classRoomSyncService.syncClassRoom(classRoom);
 
         return classMapper.toResponse(classRoom);
     }
@@ -123,8 +138,11 @@ public class ClassRoomService {
 
         replaceSchedulesIfPresent(request.getSchedules(), classRoom);
 
+        validationService.validateClassTiming(classRoom);
+        validateBusyScheduleIfActive(profileId, classRoom);
+
         classRoom = classRoomRepository.save(classRoom);
-        classRoomSyncService.synchronization(classRoom);
+        classRoomSyncService.syncClassRoom(classRoom);
 
         return classMapper.toResponse(classRoom);
     }
@@ -141,8 +159,11 @@ public class ClassRoomService {
 
         assertOwner(classroom, profileId);
 
-        classRoomRepository.delete(classroom);
-        classRoomSyncService.remove(classId);
+        validateStatusTransition(classroom.getStatus(), ClassStatus.CANCELLED);
+        classroom.setStatus(ClassStatus.CANCELLED);
+
+        classRoomRepository.save(classroom);
+        classRoomSyncService.syncClassRoom(classroom);
     }
 
     /**
@@ -200,6 +221,7 @@ public class ClassRoomService {
      * Returns classrooms belonging to a specific tutor.
      * Resolves the calling user's relationship status for each classroom in batch.
      */
+    @Transactional(readOnly = true)
     public PageResponse<ClassRoomResponse> getClassesOfTutor(String tutorId, int page, int size) {
         Pageable pageable = toPageable(page, size);
         Page<ClassRoom> classes = classRoomRepository.findByTutorId(tutorId, pageable);
@@ -252,6 +274,7 @@ public class ClassRoomService {
      * A hard cap of MAX_SEARCH_RESULTS is applied to prevent OOM on large datasets.
      * Consider pushing the GROUP BY to the query layer when traffic grows.
      */
+    @Transactional(readOnly = true)
     public PageResponse<TutorSearchResponse> searchClassesGroupedByTutor(
             String subjectName,
             String topicName,
@@ -265,7 +288,8 @@ public class ClassRoomService {
         String keyword = VietnameseTextUtils.toLikePattern(userSearchKeyword);
 
         List<ClassRoom> matches =
-                classRoomRepository.searchAvailableClasses(subject, topic, format, keyword);
+                classRoomRepository.searchAvailableClasses(
+                        subject, topic, format, keyword, PageRequest.of(0, MAX_SEARCH_RESULTS));
 
         if (matches.isEmpty()) {
             return PageResponse.<TutorSearchResponse>builder()
@@ -320,7 +344,14 @@ public class ClassRoomService {
         }
     }
 
+    private void validateBusyScheduleIfActive(String profileId, ClassRoom classRoom) {
+        if (classRoom.getStatus() == ClassStatus.ENROLLING || classRoom.getStatus() == ClassStatus.ONGOING) {
+            validationService.validateBusySchedule(profileId, classRoom);
+        }
+    }
+
     private void assertOwner(ClassRoom classRoom, String profileId) {
+        assert classRoom.getTutor().getId() != null;
         if (!classRoom.getTutor().getId().equals(profileId)) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }

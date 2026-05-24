@@ -27,11 +27,11 @@ public class ApplicationInitConfig {
     PasswordEncoder passwordEncoder;
 
     @NonFinal
-    @Value("${app.init.admin.username}")
+    @Value("${init.admin.username}")
     String ADMIN_USERNAME;
 
     @NonFinal
-    @Value("${app.init.admin.password}")
+    @Value("${init.admin.password}")
     String ADMIN_PASSWORD;
 
     @Bean

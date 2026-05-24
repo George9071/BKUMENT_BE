@@ -7,6 +7,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -17,9 +18,11 @@ public class SecurityConfig {
     };
 
     private final CustomJwtDecoder customJwtDecoder;
+    private final InternalApiAuthFilter internalApiAuthFilter;
 
-    public SecurityConfig(CustomJwtDecoder customJwtDecoder) {
+    public SecurityConfig(CustomJwtDecoder customJwtDecoder, InternalApiAuthFilter internalApiAuthFilter) {
         this.customJwtDecoder = customJwtDecoder;
+        this.internalApiAuthFilter = internalApiAuthFilter;
     }
 
     @Bean
@@ -27,8 +30,11 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
+                .addFilterBefore(internalApiAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(customJwtDecoder)))
                 .authorizeHttpRequests(auth -> auth.requestMatchers(PUBLIC_ENDPOINTS)
+                        .permitAll()
+                        .requestMatchers("/internal/**")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/updateMetadata")
                         .authenticated()

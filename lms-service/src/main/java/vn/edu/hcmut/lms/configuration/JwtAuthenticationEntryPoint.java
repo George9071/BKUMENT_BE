@@ -3,9 +3,11 @@ package vn.edu.hcmut.lms.configuration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.stereotype.Component;
 import vn.edu.hcmut.lms.dto.response.APIResponse;
 import vn.edu.hcmut.lms.exception.ErrorCode;
 
@@ -16,9 +18,11 @@ import java.io.IOException;
  * This component intercepts requests that lack valid authentication credentials (e.g., missing or invalid JWT)
  * and returns a standardized JSON response instead of the default Spring Security behavior.
  */
+@Component
+@RequiredArgsConstructor
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     /**
      * Triggered automatically by Spring Security when an unauthenticated user attempts

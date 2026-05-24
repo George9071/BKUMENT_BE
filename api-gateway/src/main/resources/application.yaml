@@ -21,7 +21,7 @@ spring:
               uri: no://op
               order: -1
               predicates:
-                - Path=${app.api-prefix}/*/internal/**
+                - Path=${app.api-prefix}/*/internal/**,${app.api-prefix}/*/*/internal/**,${app.api-prefix}/*/*/*/internal/**
               filters:
                 - SetStatus=404
 

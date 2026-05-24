@@ -10,10 +10,10 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class TutorReviewResponse {
+public class ClassReviewResponse {
     String id;
     String userId;
-    String tutorId;
+    String classId;
     String comment;
     Double score;
     LocalDateTime createdAt;

@@ -31,6 +31,8 @@ app:
   services:
     profile: http://profile-service:8081/profile
     social: http://social-service:8089/social
+  internal-api:
+    secret: ${INTERNAL_API_SECRET}
 
   trending:
     w1: 100.0

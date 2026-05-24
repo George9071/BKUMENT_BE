@@ -8,11 +8,6 @@ import jakarta.validation.constraints.NotBlank;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,6 +23,7 @@ import vn.edu.hcmut.social.enums.ReportStatus;
 import vn.edu.hcmut.social.exception.AppException;
 import vn.edu.hcmut.social.exception.ErrorCode;
 import vn.edu.hcmut.social.service.ReportService;
+import vn.edu.hcmut.social.utils.SecurityUtils;
 
 @Slf4j
 @RestController
@@ -40,6 +36,7 @@ public class ReportController {
     static final int MAX_PAGE_SIZE = 50;
 
     ReportService reportService;
+    SecurityUtils securityUtils;
 
     @GetMapping("/blogs")
     // @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
@@ -47,7 +44,7 @@ public class ReportController {
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size) {
-        checkAdminRole();
+        securityUtils.requireAdminOrModerator();
         Pageable pageable = PageRequest.of(page, size);
         Page<ContentResponse> result = reportService.getReportedBlogs(status, pageable);
 
@@ -63,7 +60,7 @@ public class ReportController {
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size) {
-        checkAdminRole();
+        securityUtils.requireAdminOrModerator();
         Pageable pageable = PageRequest.of(page, size);
         Page<ContentResponse> result = reportService.getReportedDocuments(status, pageable);
 
@@ -76,7 +73,7 @@ public class ReportController {
 
     @PostMapping
     public APIResponse<ReportResponse> createReport(@RequestBody @Valid ReportRequest request) {
-        String reporterId = getProfileIdFromToken();
+        String reporterId = securityUtils.getProfileId();
         return APIResponse.<ReportResponse>builder()
                 .result(reportService.createReport(request, reporterId))
                 .message("Report created successfully")
@@ -88,6 +85,8 @@ public class ReportController {
     public APIResponse<ReportResponse> updateReportStatus(
             @PathVariable @NotBlank String reportId, @RequestParam String status) {
 
+        securityUtils.requireAdminOrModerator();
+
         ReportStatus newStatus;
         try {
             newStatus = ReportStatus.valueOf(status.toUpperCase());
@@ -98,7 +97,7 @@ public class ReportController {
             throw new AppException(ErrorCode.INVALID_REPORT_STATUS);
         }
 
-        String resolverId = getCurrentJwt().getSubject();
+        String resolverId = securityUtils.getAccountId();
         ReportResponse updated = reportService.updateReportStatus(reportId, newStatus, resolverId);
         log.info("Report {} {} by {}", reportId, newStatus, resolverId);
 
@@ -110,58 +109,11 @@ public class ReportController {
 
     @DeleteMapping("/{reportId}")
     public APIResponse<String> deleteReport(@PathVariable String reportId) {
-        checkAdminRole();
+        securityUtils.requireAdminOrModerator();
         reportService.deleteReport(reportId);
         return APIResponse.<String>builder()
                 .message("Report deleted successfully")
                 .build();
     }
 
-    private Jwt getCurrentJwt() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof Jwt jwt)) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-        return jwt;
-    }
-
-    private void checkAdminRole() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-
-        boolean isAuthorized = authentication.getAuthorities().stream()
-                .anyMatch(grantedAuthority -> {
-                    String auth = grantedAuthority.getAuthority();
-                    return auth.equals("ROLE_ADMIN") || auth.equals("ADMIN") || auth.equals("SCOPE_ADMIN")
-                            || auth.equals("ROLE_MODERATOR") || auth.equals("MODERATOR") || auth.equals("SCOPE_MODERATOR");
-                });
-
-        if (!isAuthorized) {
-            throw new AppException(ErrorCode.UNAUTHORIZED);
-        }
-    }
-
-    private String getProfileIdFromToken() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-
-        if (authentication instanceof JwtAuthenticationToken jwtAuth) {
-            Jwt jwt = jwtAuth.getToken();
-
-            String profileId = jwt.getClaimAsString("profile_id");
-            if (profileId == null || profileId.isBlank()) {
-                throw new AppException(ErrorCode.INVALID_TOKEN_CLAIMS);
-            }
-
-            return profileId;
-        }
-
-        throw new AppException(ErrorCode.UNAUTHENTICATED);
-    }
 }

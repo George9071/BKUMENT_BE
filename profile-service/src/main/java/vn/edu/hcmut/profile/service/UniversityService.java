@@ -41,7 +41,9 @@ public class UniversityService {
      * @return      A paginated response containing a list of UniversityResponse.
      */
     public PageResponse<UniversityResponse> searchUniversities(String query, int page, int size) {
-        Pageable pageable = PageRequest.of((page > 0) ? page - 1 : 0, size);
+        int safePage = normalizePage(page);
+        int safeSize = normalizeSize(size);
+        Pageable pageable = PageRequest.of(safePage - 1, safeSize);
         Page<University> universities;
 
         if (query == null || query.trim().isEmpty()) {
@@ -56,11 +58,19 @@ public class UniversityService {
                 .toList();
 
         return PageResponse.<UniversityResponse>builder()
-                .currentPage(page)
+                .currentPage(safePage)
                 .totalPages(universities.getTotalPages())
-                .pageSize(universities.getSize())
+                .pageSize(safeSize)
                 .totalElements(universities.getTotalElements())
                 .data(responses)
                 .build();
+    }
+
+    private int normalizePage(int page) {
+        return Math.max(page, 1);
+    }
+
+    private int normalizeSize(int size) {
+        return size > 0 ? size : 10;
     }
 }

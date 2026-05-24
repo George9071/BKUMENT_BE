@@ -64,7 +64,8 @@ public class ClassroomUserStatusResolver {
     }
 
     private boolean isOwner(ClassRoom classroom, String userId) {
-        return classroom.getTutor() != null &&
-                classroom.getTutor().getId().equals(userId);
+        if (classroom.getTutor() == null) return false;
+        assert classroom.getTutor().getId() != null;
+        return classroom.getTutor().getId().equals(userId);
     }
 }

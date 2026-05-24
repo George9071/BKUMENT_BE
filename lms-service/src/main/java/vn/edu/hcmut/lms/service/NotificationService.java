@@ -7,8 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.hcmut.lms.constant.EnrollmentStatus;
@@ -23,6 +21,7 @@ import vn.edu.hcmut.lms.mapper.NotificationMapper;
 import vn.edu.hcmut.lms.repository.ClassRoomRepository;
 import vn.edu.hcmut.lms.repository.EnrollmentRepository;
 import vn.edu.hcmut.lms.repository.NotificationRepository;
+import vn.edu.hcmut.lms.utils.SecurityUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,13 +36,14 @@ public class NotificationService {
     ClassRoomRepository classRoomRepository;
     EnrollmentRepository enrollmentRepository;
     NotificationMapper notificationMapper;
+    SecurityUtils securityUtils;
 
     /**
      * Create a new announcement for the class (Only tutors of the class can create one)
      */
     @Transactional(rollbackFor = Exception.class)
     public NotificationResponse createNotification(String classId, NotificationRequest request) {
-        String userId = getProfileIdFromToken();
+        String userId = securityUtils.getProfileId();
 
         ClassRoom classRoom = classRoomRepository.findById(classId)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
@@ -66,7 +66,7 @@ public class NotificationService {
      * Only tutor and members of the class can view it.
      */
     public PageResponse<NotificationResponse> getNotifications(String classId, int page, int size) {
-        String userId = getProfileIdFromToken();
+        String userId = securityUtils.getProfileId();
 
         ClassRoom classRoom = classRoomRepository.findById(classId)
                 .orElseThrow(() -> new AppException(ErrorCode.CLASS_NOT_FOUND));
@@ -99,8 +99,4 @@ public class NotificationService {
                 .build();
     }
 
-    private String getProfileIdFromToken() {
-        var jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        return jwt.getClaimAsString("profile_id");
-    }
 }

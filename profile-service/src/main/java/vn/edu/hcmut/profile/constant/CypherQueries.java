@@ -26,6 +26,14 @@ public final class CypherQueries {
 				COUNT { (u)-[:FOLLOW]->() } AS followingCount
 			""";
 
+    /* Params: $profileIds (List<String>) */
+    public static final String USER_BATCH_INTERESTS =
+            """
+			MATCH (u:UserProfile) WHERE u.id IN $profileIds
+			OPTIONAL MATCH (u)-[:INTERESTED_IN]->(t:Topic)
+			RETURN u.id AS id, collect(t.id) AS topicIds
+			""";
+
     /* Params: $profileId (String), $topicIds (List<String>) */
     public static final String USER_REPLACE_INTERESTS =
             """
@@ -43,8 +51,8 @@ public final class CypherQueries {
             """
 			MATCH (u:UserProfile {id: $profileId})
 			SET u.roles = CASE
-				WHEN $role IN u.roles THEN u.roles
-				ELSE u.roles + $role
+				WHEN $role IN coalesce(u.roles, []) THEN u.roles
+				ELSE coalesce(u.roles, []) + $role
 			END
 			""";
 

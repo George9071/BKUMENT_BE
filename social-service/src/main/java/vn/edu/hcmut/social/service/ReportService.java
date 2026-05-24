@@ -52,10 +52,12 @@ public class ReportService {
     EmailClient emailClient;
     private static final long POINTS_PENALTY = -50L;
 
+    @Transactional(readOnly = true)
     public Page<ContentResponse> getReportedBlogs(String status, Pageable pageable) {
         return getReportedContents(ReportType.BLOG, parseStatusOrNull(status), pageable);
     }
 
+    @Transactional(readOnly = true)
     public Page<ContentResponse> getReportedDocuments(String status, Pageable pageable) {
         return getReportedContents(ReportType.DOCUMENT, parseStatusOrNull(status), pageable);
     }
@@ -137,6 +139,7 @@ public class ReportService {
         return new PageImpl<>(rows, pageable, grouped.getTotalElements());
     }
 
+    @Transactional(readOnly = true)
     public List<ReportResponse> getReportsByTargetIds(List<String> targetIds) {
         if (targetIds == null || targetIds.isEmpty()) return Collections.emptyList();
 
@@ -204,6 +207,10 @@ public class ReportService {
      */
     @Transactional
     public ReportResponse updateReportStatus(String reportId, ReportStatus status, String resolverId) {
+        if (ReportStatus.PENDING.equals(status)) {
+            throw new AppException(ErrorCode.INVALID_REPORT_STATUS);
+        }
+
         Report report =
                 reportRepository.findById(reportId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
 
@@ -293,6 +300,10 @@ public class ReportService {
     public void deleteReport(String reportId) {
         Report report =
                 reportRepository.findById(reportId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+
+        if (!ReportStatus.PENDING.equals(report.getStatus())) {
+            throw new AppException(ErrorCode.CANNOT_DEL_PROCESSED_REPORT);
+        }
 
         report.setDeleted(true);
         reportRepository.save(report);

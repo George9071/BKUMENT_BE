@@ -11,6 +11,7 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.springframework.stereotype.Component;
 import vn.edu.hcmut.profile.dto.response.APIResponse;
 import vn.edu.hcmut.profile.exception.ErrorCode;
 
@@ -19,6 +20,7 @@ import vn.edu.hcmut.profile.exception.ErrorCode;
  * This component intercepts requests that lack valid authentication credentials (e.g., missing or invalid JWT)
  * and returns a standardized JSON response instead of the default Spring Security behavior.
  */
+@Component
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
     private final ObjectMapper objectMapper = new ObjectMapper();

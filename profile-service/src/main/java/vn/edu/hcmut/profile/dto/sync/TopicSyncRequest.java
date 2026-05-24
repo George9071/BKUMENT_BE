@@ -1,12 +1,18 @@
 package vn.edu.hcmut.profile.dto.sync;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
 import lombok.Data;
 
 @Data
 @Builder
 public class TopicSyncRequest {
+
+    @NotBlank
     String id;
+
     String name;
+
+    @NotBlank
     String subjectId;
 }

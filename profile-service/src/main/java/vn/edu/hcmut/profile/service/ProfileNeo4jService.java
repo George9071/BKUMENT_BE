@@ -13,9 +13,12 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import vn.edu.hcmut.profile.constant.CypherQueries;
 import vn.edu.hcmut.profile.dto.request.ProfileCreationRequest;
+import vn.edu.hcmut.profile.dto.request.ProfileUpdateRequest;
 import vn.edu.hcmut.profile.entity.jpa.University;
 import vn.edu.hcmut.profile.entity.neo4j.UniversityNode;
 import vn.edu.hcmut.profile.entity.neo4j.UserProfileNode;
+import vn.edu.hcmut.profile.entity.records.FollowCounts;
+import vn.edu.hcmut.profile.entity.records.ProfileFollowCountRow;
 import vn.edu.hcmut.profile.exception.AppException;
 import vn.edu.hcmut.profile.exception.ErrorCode;
 import vn.edu.hcmut.profile.repository.UserProfileNodeRepository;
@@ -25,40 +28,52 @@ import vn.edu.hcmut.profile.repository.UserProfileNodeRepository;
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class ProfileNeo4jService {
+
     UserProfileNodeRepository neo4jRepository;
     Neo4jClient neo4jClient;
 
-    @Transactional
+    @Transactional(transactionManager = "neo4jTransactionManager")
     public void createUserNode(String profileId, ProfileCreationRequest request, University university) {
-        UniversityNode uniNode = toUniversityNode(university);
 
-        UserProfileNode userNode = UserProfileNode.builder()
+        if (neo4jRepository.existsById(profileId)) {
+            log.info("User profile node with id {} already exists in Neo4j. Skipping creation.", profileId);
+            return;
+        }
+
+        UniversityNode uni = university != null ? toUniversityNode(university) : null;
+
+        UserProfileNode user = UserProfileNode.builder()
                 .id(profileId)
-                .fullName(request.getFirstName() + " " + request.getLastName())
-                .roles(List.of("STUDENT"))
-                .university(uniNode)
+                .fullName(fullName(request.getFirstName(), request.getLastName()))
+                .roles(List.of("USER"))
+                .university(uni)
                 .build();
 
         try {
-            neo4jRepository.save(userNode);
-            log.info("Created UserProfile node in Neo4j for profile {}", profileId);
+            neo4jRepository.save(user);
+            log.info("Successfully created user profile node in Neo4j for profile {}", profileId);
         } catch (Exception e) {
-            log.error("Error saving UserProfile node to Neo4j for profile {}", profileId, e);
+            log.error("Error saving user profile node to Neo4j during sync for profile {}", profileId, e);
             throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
         }
     }
 
-    @Transactional
-    public void updateUserUniversity(String profileId, University newUniversity) {
+    @Transactional(transactionManager = "neo4jTransactionManager")
+    public void updateUserNode(String profileId, ProfileUpdateRequest request, University newUniversity) {
         neo4jRepository.findById(profileId).ifPresent(node -> {
-            node.setUniversity(toUniversityNode(newUniversity));
+            if (request.getFirstName() != null || request.getLastName() != null) {
+                node.setFullName(fullName(request.getFirstName(), request.getLastName()));
+            }
+
+            if (newUniversity != null) node.setUniversity(toUniversityNode(newUniversity));
             node.setNotNew();
+
             neo4jRepository.save(node);
-            log.info("Updated university for profile {} in Neo4j", profileId);
+            log.info("Updated basic profile information for profile {} in Neo4j", profileId);
         });
     }
 
-    @Transactional
+    @Transactional(transactionManager = "neo4jTransactionManager")
     public void deleteUserNode(String profileId) {
         neo4jClient
                 .query(CypherQueries.USER_DELETE)
@@ -67,7 +82,7 @@ public class ProfileNeo4jService {
         log.info("Deleted UserProfile node {} and all relationships from Neo4j", profileId);
     }
 
-    @Transactional
+    @Transactional(transactionManager = "neo4jTransactionManager")
     public void addRole(String profileId, String role) {
         neo4jClient
                 .query(CypherQueries.USER_ADD_ROLE)
@@ -79,7 +94,7 @@ public class ProfileNeo4jService {
         log.info("Added role '{}' to profile '{}' via direct Cypher execution", role, profileId);
     }
 
-    @Transactional
+    @Transactional(transactionManager = "neo4jTransactionManager")
     public void removeRole(String profileId, String role) {
         UserProfileNode node =
                 neo4jRepository.findById(profileId).orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND));
@@ -92,7 +107,7 @@ public class ProfileNeo4jService {
         }
     }
 
-    @Transactional
+    @Transactional(transactionManager = "neo4jTransactionManager")
     public void updateTutorSubjects(String profileId, Set<String> subjectIds) {
         neo4jClient
                 .query(CypherQueries.TUTOR_REPLACE_SUBJECTS)
@@ -105,7 +120,7 @@ public class ProfileNeo4jService {
                 profileId);
     }
 
-    @Transactional
+    @Transactional(transactionManager = "neo4jTransactionManager")
     public void updateUserInterests(String profileId, List<String> topicIds) {
         neo4jClient
                 .query(CypherQueries.USER_REPLACE_INTERESTS)
@@ -131,38 +146,70 @@ public class ProfileNeo4jService {
                 .toList();
     }
 
-    public int countFollowers(String profileId) {
-        Integer count = neo4jRepository.countFollowers(profileId);
-        return count != null ? count : 0;
+    @Transactional(readOnly = true, transactionManager = "neo4jTransactionManager")
+    public Map<String, List<String>> getBatchUserInterests(List<String> profileIds) {
+        if (profileIds == null || profileIds.isEmpty()) return Collections.emptyMap();
+
+        return neo4jClient
+                .query(CypherQueries.USER_BATCH_INTERESTS)
+                .bind(profileIds)
+                .to("profileIds")
+                .fetchAs(UserInterestRow.class)
+                .mappedBy((typeSystem, record) -> new UserInterestRow(
+                        record.get("id").asString(),
+                        record.get("topicIds").asList(value -> value.isNull() ? null : value.asString())
+                                .stream()
+                                .filter(Objects::nonNull)
+                                .toList()))
+                .all()
+                .stream()
+                .collect(Collectors.toMap(
+                        UserInterestRow::profileId,
+                        UserInterestRow::topicIds,
+                        (first, second) -> first));
     }
 
-    public int countFollowing(String profileId) {
-        Integer count = neo4jRepository.countFollowing(profileId);
-        return count != null ? count : 0;
-    }
-
-    public Map<String, Map<String, Integer>> getBatchCounts(List<String> profileIds) {
+    @Transactional(readOnly = true, transactionManager = "neo4jTransactionManager")
+    public Map<String, FollowCounts> getBatchCounts(List<String> profileIds) {
         if (profileIds == null || profileIds.isEmpty()) return Collections.emptyMap();
 
         return neo4jClient
                 .query(CypherQueries.USER_BATCH_COUNTS)
                 .bind(profileIds)
                 .to("profileIds")
-                .fetchAs(Map.class)
-                .mappedBy((typeSystem, record) -> {
-                    Map<String, Integer> counts = new HashMap<>();
-                    counts.put("followerCount", record.get("followerCount").asInt());
-                    counts.put("followingCount", record.get("followingCount").asInt());
-
-                    Map<String, Object> result = new HashMap<>();
-                    result.put("id", record.get("id").asString());
-                    result.put("counts", counts);
-                    return result;
-                })
+                .fetchAs(ProfileFollowCountRow.class)
+                .mappedBy((typeSystem, record) -> new ProfileFollowCountRow(
+                        record.get("id").asString(),
+                        new FollowCounts(
+                                record.get("followerCount").asInt(),
+                                record.get("followingCount").asInt()
+                        )
+                ))
                 .all()
                 .stream()
                 .collect(Collectors.toMap(
-                        m -> (String) m.get("id"), m -> (Map<String, Integer>) m.get("counts"), (a, b) -> a));
+                        ProfileFollowCountRow::id,
+                        ProfileFollowCountRow::counts,
+                        (a, b) -> a
+                ));
+    }
+
+    @Transactional(transactionManager = "neo4jTransactionManager")
+    public void createFollowRelationship(String followerId, String followeeId) {
+        neo4jClient
+                .query(CypherQueries.FOLLOW_CREATE)
+                .bindAll(Map.of("followerId", followerId, "followeeId", followeeId))
+                .run();
+        log.info("Neo4j Sync: Profile {} followed Profile {}", followerId, followeeId);
+    }
+
+    @Transactional(transactionManager = "neo4jTransactionManager")
+    public void removeFollowRelationship(String followerId, String followeeId) {
+        neo4jClient
+                .query(CypherQueries.FOLLOW_DELETE)
+                .bindAll(Map.of("followerId", followerId, "followeeId", followeeId))
+                .run();
+        log.info("Neo4j Sync: Profile {} unfollowed Profile {}", followerId, followeeId);
     }
 
     private UniversityNode toUniversityNode(University university) {
@@ -172,4 +219,10 @@ public class ProfileNeo4jService {
                 .abbreviation(university.getAbbreviation())
                 .build();
     }
+
+    private String fullName(String firstName, String lastName) {
+        return ((firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "")).trim();
+    }
+
+    private record UserInterestRow(String profileId, List<String> topicIds) {}
 }

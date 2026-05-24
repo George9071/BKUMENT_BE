@@ -45,6 +45,8 @@ swagger:
   host-url: http://localhost:8089/social
 
 app:
+  internal-api:
+    secret: ${INTERNAL_API_SECRET}
   services:
     profile: http://localhost:8081/profile
     document: http://localhost:8086/document

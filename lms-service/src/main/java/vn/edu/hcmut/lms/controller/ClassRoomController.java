@@ -67,7 +67,7 @@ public class ClassRoomController {
     @PatchMapping("/{classId}")
     APIResponse<ClassRoomResponse> updateClass(
             @PathVariable String classId,
-            @RequestBody ClassRoomUpdateRequest request) {
+            @RequestBody @Valid ClassRoomUpdateRequest request) {
         return APIResponse.<ClassRoomResponse>builder()
                 .result(classRoomService.updateClass(classId, request))
                 .build();
@@ -163,7 +163,7 @@ public class ClassRoomController {
     }
 
     @Operation(summary = "Get top trending classes",
-            description = "Retrieve classrooms ranked by tutor rating and popularity.")
+            description = "Retrieve classrooms ranked by class rating and popularity.")
     @GetMapping("/trending")
     public APIResponse<PageResponse<ClassRoomResponse>> getTopTrendingClasses(
             @RequestParam(defaultValue = "1") int page,

@@ -17,6 +17,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -32,7 +33,7 @@ import vn.edu.hcmut.identity.converter.CustomJwtGrantedAuthoritiesConverter;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private static final String[] PUBLIC_ENDPOINTS = {"/auth/**", "/accounts/registration"};
+    private static final String[] PUBLIC_ENDPOINTS = { "/auth/**", "/accounts/registration" };
 
     private static final String[] PUBLIC_RESOURCES = {
         "/swagger-ui/**",
@@ -40,13 +41,20 @@ public class SecurityConfig {
         "/api-docs/**",
         "/swagger-ui.html",
         "/actuator/health",
-        "/internal/**" // internal microservice-to-microservice communication
+        /* "/internal/**" */
     };
 
     private final CustomJwtDecoder customJwtDecoder;
+    private final InternalApiAuthFilter internalApiAuthFilter;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
-    public SecurityConfig(CustomJwtDecoder customJwtDecoder) {
+    public SecurityConfig(
+            CustomJwtDecoder customJwtDecoder,
+            InternalApiAuthFilter internalApiAuthFilter,
+            JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint) {
         this.customJwtDecoder = customJwtDecoder;
+        this.internalApiAuthFilter = internalApiAuthFilter;
+        this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
     }
 
     @Bean
@@ -64,28 +72,28 @@ public class SecurityConfig {
                 // Disable CSRF as using stateless JWT authentication
                 .csrf(AbstractHttpConfigurer::disable)
 
+                .addFilterBefore(internalApiAuthFilter, UsernamePasswordAuthenticationFilter.class)
+
                 // Define authorization rules
                 .authorizeHttpRequests(request -> request
+                        // already gated by filter
+                        .requestMatchers("/internal/**").permitAll()
+
                         // Allow OPTIONS requests for preflight CORS checks and specific POST requests
-                        .requestMatchers(HttpMethod.OPTIONS, PUBLIC_ENDPOINTS)
-                        .permitAll()
-                        .requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS)
-                        .permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, PUBLIC_ENDPOINTS).permitAll()
+                        .requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS).permitAll()
 
                         // Allow swagger documentation, actuator health checks, and internal API calls
-                        .requestMatchers(PUBLIC_RESOURCES)
-                        .permitAll()
+                        .requestMatchers(PUBLIC_RESOURCES).permitAll()
 
-                        // All other endpoints require authentication
-                        .anyRequest()
-                        .authenticated())
+                        .anyRequest().authenticated())
 
                 // Configure OAuth2 Resource Server to use custom JWT decoder and converter
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
                                 jwt.decoder(customJwtDecoder).jwtAuthenticationConverter(jwtAuthenticationConverter()))
 
                         // Handle unauthenticated access exceptions with custom JSON response
-                        .authenticationEntryPoint(new JwtAuthenticationEntryPoint()));
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint));
 
         return httpSecurity.build();
     }

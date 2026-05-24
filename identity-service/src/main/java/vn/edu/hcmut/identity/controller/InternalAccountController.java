@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.*;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import vn.edu.hcmut.identity.constant.UserRole;
 import vn.edu.hcmut.identity.service.AccountService;
 
 @RestController
@@ -14,14 +15,13 @@ import vn.edu.hcmut.identity.service.AccountService;
 public class InternalAccountController {
     AccountService accountService;
 
-    @PostMapping("/{accountId}/roles/{roleName}")
-    public void addRole(@PathVariable("accountId") String accountId, @PathVariable("roleName") String role) {
+    @PostMapping("/{accountId}/roles/{role}")
+    public void addRole(@PathVariable String accountId, @PathVariable UserRole role) {
         accountService.addRoleToUser(accountId, role);
     }
 
-    @DeleteMapping("/{accountId}/roles/{roleName}")
-    public void removeRole(@PathVariable("accountId") String accountId, @PathVariable("roleName") String role) {
-
+    @DeleteMapping("/{accountId}/roles/{role}")
+    public void removeRole(@PathVariable("accountId") String accountId, @PathVariable UserRole role) {
         accountService.removeRole(accountId, role);
     }
 }

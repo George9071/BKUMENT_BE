@@ -10,10 +10,14 @@ import vn.edu.hcmut.identity.entity.Account;
 @Mapper(componentModel = "spring")
 public interface AccountMapper {
     @Mapping(target = "id", ignore = true)
+    @Mapping(target = "roles", ignore = true)
     Account toAccount(AccountCreationRequest request);
 
     AccountResponse toAccountResponse(Account account);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "password", ignore = true)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "roles", ignore = true)
     void updateAccount(@MappingTarget Account account, AccountUpdateRequest request);
 }

@@ -5,6 +5,7 @@ import java.text.ParseException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import com.nimbusds.jose.JOSEException;
@@ -22,6 +23,7 @@ import vn.edu.hcmut.identity.service.AuthenticationService;
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
+@Validated
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AuthenticationController {
 
@@ -35,20 +37,20 @@ public class AuthenticationController {
     }
 
     @PostMapping("/introspect")
-    APIResponse<IntrospectResponse> introspect(@RequestBody IntrospectRequest request) {
+    APIResponse<IntrospectResponse> introspect(@RequestBody @Valid IntrospectRequest request) {
         var result = authenticationService.introspect(request);
         return APIResponse.<IntrospectResponse>builder().result(result).build();
     }
 
     @PostMapping("/refresh")
-    APIResponse<AuthenticationResponse> authenticate(@RequestBody RefreshRequest request)
+    APIResponse<AuthenticationResponse> authenticate(@RequestBody @Valid RefreshRequest request)
             throws ParseException, JOSEException {
         var result = authenticationService.refreshToken(request);
         return APIResponse.<AuthenticationResponse>builder().result(result).build();
     }
 
     @PostMapping("/logout")
-    APIResponse<Void> logout(@RequestBody LogoutRequest request) {
+    APIResponse<Void> logout(@RequestBody @Valid LogoutRequest request) {
         authenticationService.logout(request);
         return APIResponse.<Void>builder().build();
     }

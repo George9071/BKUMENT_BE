@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE: int = 50 * 1024 * 1024
     
     PROFILE_SERVICE_URL: str
+    INTERNAL_API_SECRET: str
     
     OPENROUTER_API_KEY: str
     OPENROUTER_MODEL: str

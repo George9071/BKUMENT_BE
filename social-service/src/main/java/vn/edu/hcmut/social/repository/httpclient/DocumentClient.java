@@ -19,7 +19,7 @@ public interface DocumentClient {
     @DeleteMapping("/internal/documents/{id}")
     void delete(@PathVariable String id);
 
-    @PostMapping("internal/documents/metadata-batch")
+    @PostMapping("/internal/documents/metadata-batch")
     APIResponse<Map<String, ResourceContentSnapshot>> getDocumentMetadataBatch(
             @RequestBody List<String> documentIds);
 }

@@ -2,6 +2,9 @@ package vn.edu.hcmut.profile.controller;
 
 import java.util.List;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,6 +23,7 @@ import vn.edu.hcmut.profile.service.RecommendationService;
 
 @RestController
 @RequiredArgsConstructor
+@Validated
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Tag(name = "Profile management", description = "APIs for managing user profiles, searching, and graph relationships")
 public class ProfileController {
@@ -30,7 +34,9 @@ public class ProfileController {
     @GetMapping("/search")
     public APIResponse<PageResponse<ProfileResponse>> searchUsers(
             @RequestParam("keyword") String keyword,
+            @Min(value = 1, message = "Page number must be greater than 0")
             @RequestParam(defaultValue = "1") int page,
+            @Min(value = 1, message = "Page size must be greater than 0")
             @RequestParam(defaultValue = "10") int size) {
 
         return APIResponse.<PageResponse<ProfileResponse>>builder()
@@ -52,7 +58,7 @@ public class ProfileController {
             summary = "Update my profile",
             description = "Updates personal information of the currently authenticated user.")
     @PatchMapping("/my-profile")
-    APIResponse<ProfileResponse> updateMyProfile(@RequestBody ProfileUpdateRequest request) {
+    APIResponse<ProfileResponse> updateMyProfile(@Valid @RequestBody ProfileUpdateRequest request) {
         return APIResponse.<ProfileResponse>builder()
                 .result(profileService.updateProfile(request))
                 .build();

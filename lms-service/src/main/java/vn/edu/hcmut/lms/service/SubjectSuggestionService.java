@@ -61,6 +61,14 @@ public class SubjectSuggestionService {
     AdminActionLogService auditLog;
     SecurityUtils securityUtils;
 
+    private record ApprovalDetails(String finalId, String finalName, String parentSubjectId) {}
+
+    private record CreatedResource(
+            String id,
+            AdminActionType action,
+            String targetType,
+            Map<String, Object> snapshot) {}
+
     @Transactional(rollbackFor = Exception.class)
     public SubjectSuggestionResponse submitSuggestion(SubjectSuggestionRequest request) {
         String reporterId = securityUtils.getProfileId();
@@ -143,115 +151,20 @@ public class SubjectSuggestionService {
     public SubjectSuggestionResponse approveSuggestion(
             String suggestionId, SuggestionDecisionRequest request, String actorRole) {
 
-        if (request == null || request.getFinalId() == null || request.getFinalId().isBlank()) {
-            throw new AppException(ErrorCode.FINAL_ID_REQUIRED);
-        }
-        String finalId = normalizeId(request.getFinalId());
-
+        validateApprovalRequest(request);
         String actorId = securityUtils.getAccountId();
         SubjectSuggestion suggestion = lockPending(suggestionId);
+        ApprovalDetails details = resolveApprovalDetails(suggestion, request);
 
-        String finalName = (request.getFinalName() != null && !request.getFinalName().isBlank())
-                ? normalizeName(request.getFinalName())
-                : suggestion.getProposedName();
-
-        String parentSubjectId = suggestion.getParentSubjectId();
-        if (suggestion.getType() == SuggestionType.TOPIC
-                && request.getParentSubjectId() != null
-                && !request.getParentSubjectId().isBlank()) {
-            parentSubjectId = request.getParentSubjectId();
-        }
-
-        if (suggestion.getType() == SuggestionType.SUBJECT) {
-            if (subjectRepository.existsById(finalId)) {
-                throw new AppException(ErrorCode.SUBJECT_ID_ALREADY_EXISTS);
-            }
-            if (subjectExistsByName(finalName)) {
-                throw new AppException(ErrorCode.SUBJECT_ALREADY_EXISTS);
-            }
-        } else {
-            if (topicRepository.existsById(finalId)) {
-                throw new AppException(ErrorCode.TOPIC_ID_ALREADY_EXISTS);
-            }
-            if (topicExistsInSubject(parentSubjectId, finalName)) {
-                throw new AppException(ErrorCode.TOPIC_ALREADY_EXISTS);
-            }
-        }
+        validateApprovedResource(suggestion, details);
 
         Map<String, Object> before = snapshotSuggestion(suggestion);
+        CreatedResource created = createApprovedResource(suggestion, details);
 
-        String createdResourceId;
-        AdminActionType createAction;
-        String createTargetType;
-        Map<String, Object> createdSnapshot;
-
-        if (suggestion.getType() == SuggestionType.SUBJECT) {
-            Subject subject = subjectRepository.save(buildSubject(finalId, finalName));
-            createdResourceId = subject.getId();
-            createAction = AdminActionType.CREATE_SUBJECT;
-            createTargetType = "SUBJECT";
-            createdSnapshot = Map.of("id", subject.getId(), "name", subject.getName());
-
-            graphSyncService.syncSubjects(List.of(SubjectSyncRequest.builder()
-                    .id(subject.getId())
-                    .name(subject.getName())
-                    .build()));
-        } else {
-            // type = TOPIC
-            Subject parent = subjectRepository.findById(parentSubjectId)
-                    .orElseThrow(() -> new AppException(ErrorCode.SUBJECT_NOT_FOUND));
-
-            Topic topic = topicRepository.save(buildTopic(finalId, finalName, parent));
-            createdResourceId = topic.getId();
-            createAction = AdminActionType.CREATE_TOPIC;
-            createTargetType = "TOPIC";
-            createdSnapshot = Map.of(
-                    "id", topic.getId(),
-                    "name", topic.getName(),
-                    "subjectId", parent.getId());
-
-            graphSyncService.syncTopics(List.of(TopicSyncRequest.builder()
-                    .id(topic.getId())
-                    .name(topic.getName())
-                    .subjectId(parent.getId())
-                    .build()));
-        }
-
-        suggestion.setStatus(SuggestionStatus.APPROVED);
-        suggestion.setReviewerId(actorId);
-        suggestion.setReviewedAt(Instant.now());
-        suggestion.setCreatedResourceId(createdResourceId);
-        suggestion.setProposedName(finalName);
-        if (suggestion.getType() == SuggestionType.TOPIC) {
-            suggestion.setParentSubjectId(parentSubjectId);
-        }
-        suggestion = suggestionRepository.save(suggestion);
-
+        suggestion = markApproved(suggestion, actorId, details, created.id());
         Map<String, Object> after = snapshotSuggestion(suggestion);
 
-        String note = request.getNote();
-
-        auditLog.record(
-                actorId,
-                actorRole,
-                AdminActionType.APPROVE_SUGGESTION,
-                "SUGGESTION",
-                suggestion.getId(),
-                suggestion.getId(),
-                before,
-                after,
-                note);
-
-        auditLog.record(
-                actorId,
-                actorRole,
-                createAction,
-                createTargetType,
-                createdResourceId,
-                suggestion.getId(),
-                null,
-                createdSnapshot,
-                note);
+        recordApprovalAudit(actorId, actorRole, suggestion, before, after, created, request.getNote());
 
         return toResponse(suggestion);
     }
@@ -295,8 +208,148 @@ public class SubjectSuggestionService {
     }
 
     /* Private helpers */
+    private void validateApprovalRequest(SuggestionDecisionRequest request) {
+        if (request == null || request.getFinalId() == null || request.getFinalId().isBlank()) {
+            throw new AppException(ErrorCode.FINAL_ID_REQUIRED);
+        }
+    }
+
+    private ApprovalDetails resolveApprovalDetails(
+            SubjectSuggestion suggestion, SuggestionDecisionRequest request) {
+
+        String finalId = normalizeId(request.getFinalId());
+        String finalName = (request.getFinalName() != null && !request.getFinalName().isBlank())
+                ? normalizeName(request.getFinalName())
+                : suggestion.getProposedName();
+
+        String parentSubjectId = suggestion.getParentSubjectId();
+        if (suggestion.getType() == SuggestionType.TOPIC
+                && request.getParentSubjectId() != null
+                && !request.getParentSubjectId().isBlank()) {
+            parentSubjectId = normalizeId(request.getParentSubjectId());
+        }
+
+        return new ApprovalDetails(finalId, finalName, parentSubjectId);
+    }
+
+    private void validateApprovedResource(SubjectSuggestion suggestion, ApprovalDetails details) {
+        if (suggestion.getType() == SuggestionType.SUBJECT) {
+            if (subjectRepository.existsById(details.finalId())) {
+                throw new AppException(ErrorCode.SUBJECT_ID_ALREADY_EXISTS);
+            }
+            if (subjectExistsByName(details.finalName())) {
+                throw new AppException(ErrorCode.SUBJECT_ALREADY_EXISTS);
+            }
+            return;
+        }
+
+        if (details.parentSubjectId() == null || details.parentSubjectId().isBlank()) {
+            throw new AppException(ErrorCode.PARENT_SUBJECT_REQUIRED);
+        }
+        if (topicRepository.existsById(details.finalId())) {
+            throw new AppException(ErrorCode.TOPIC_ID_ALREADY_EXISTS);
+        }
+        if (topicExistsInSubject(details.parentSubjectId(), details.finalName())) {
+            throw new AppException(ErrorCode.TOPIC_ALREADY_EXISTS);
+        }
+    }
+
+    private CreatedResource createApprovedResource(
+            SubjectSuggestion suggestion, ApprovalDetails details) {
+
+        return suggestion.getType() == SuggestionType.SUBJECT
+                ? createApprovedSubject(details)
+                : createApprovedTopic(details);
+    }
+
+    private CreatedResource createApprovedSubject(ApprovalDetails details) {
+        Subject subject = subjectRepository.save(buildSubject(details.finalId(), details.finalName()));
+
+        graphSyncService.syncSubjects(List.of(SubjectSyncRequest.builder()
+                .id(subject.getId())
+                .name(subject.getName())
+                .build()));
+
+        return new CreatedResource(
+                subject.getId(),
+                AdminActionType.CREATE_SUBJECT,
+                "SUBJECT",
+                Map.of("id", subject.getId(), "name", subject.getName()));
+    }
+
+    private CreatedResource createApprovedTopic(ApprovalDetails details) {
+        Subject parent = subjectRepository.findById(details.parentSubjectId())
+                .orElseThrow(() -> new AppException(ErrorCode.SUBJECT_NOT_FOUND));
+
+        Topic topic = topicRepository.save(buildTopic(details.finalId(), details.finalName(), parent));
+
+        graphSyncService.syncTopics(List.of(TopicSyncRequest.builder()
+                .id(topic.getId())
+                .name(topic.getName())
+                .subjectId(parent.getId())
+                .build()));
+
+        return new CreatedResource(
+                topic.getId(),
+                AdminActionType.CREATE_TOPIC,
+                "TOPIC",
+                Map.of(
+                        "id", topic.getId(),
+                        "name", topic.getName(),
+                        "subjectId", parent.getId()));
+    }
+
+    private SubjectSuggestion markApproved(
+            SubjectSuggestion suggestion,
+            String actorId,
+            ApprovalDetails details,
+            String createdResourceId) {
+
+        suggestion.setStatus(SuggestionStatus.APPROVED);
+        suggestion.setReviewerId(actorId);
+        suggestion.setReviewedAt(Instant.now());
+        suggestion.setCreatedResourceId(createdResourceId);
+        suggestion.setProposedName(details.finalName());
+        if (suggestion.getType() == SuggestionType.TOPIC) {
+            suggestion.setParentSubjectId(details.parentSubjectId());
+        }
+        return suggestionRepository.save(suggestion);
+    }
+
+    private void recordApprovalAudit(
+            String actorId,
+            String actorRole,
+            SubjectSuggestion suggestion,
+            Map<String, Object> before,
+            Map<String, Object> after,
+            CreatedResource created,
+            String note) {
+
+        auditLog.record(
+                actorId,
+                actorRole,
+                AdminActionType.APPROVE_SUGGESTION,
+                "SUGGESTION",
+                suggestion.getId(),
+                suggestion.getId(),
+                before,
+                after,
+                note);
+
+        auditLog.record(
+                actorId,
+                actorRole,
+                created.action(),
+                created.targetType(),
+                created.id(),
+                suggestion.getId(),
+                null,
+                created.snapshot(),
+                note);
+    }
+
     private SubjectSuggestion lockPending(String suggestionId) {
-        SubjectSuggestion suggestion = suggestionRepository.findById(suggestionId)
+        SubjectSuggestion suggestion = suggestionRepository.findByIdForUpdate(suggestionId)
                 .orElseThrow(() -> new AppException(ErrorCode.SUGGESTION_NOT_FOUND));
 
         if (suggestion.getStatus() != SuggestionStatus.PENDING) {
@@ -325,6 +378,10 @@ public class SubjectSuggestionService {
 
     private boolean topicExistsInSubject(String subjectId, String topicName) {
         // Topics-per-subject thường ít. List ra rồi so sánh.
+        if (subjectId == null || subjectId.isBlank()) {
+            return false;
+        }
+
         return topicRepository
                 .findBySubjectIdIn(List.of(subjectId))
                 .stream()

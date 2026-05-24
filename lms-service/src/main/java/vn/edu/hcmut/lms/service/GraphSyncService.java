@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.data.neo4j.core.Neo4jClient;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
@@ -22,45 +21,6 @@ import vn.edu.hcmut.lms.dto.sync.TopicSyncRequest;
 public class GraphSyncService {
 
     private final Neo4jClient neo4jClient;
-
-    @Async("graphExecutor")
-    public void handleEnrollmentEvent(String profileId, String classroomId, String topicId) {
-        try {
-            if (topicId != null) {
-                String query = """
-                    MERGE (u:UserProfile {id: $profileId})
-                    MERGE (c:ClassRoom {id: $classroomId})
-                    MERGE (t:Topic {id: $topicId})
-                    MERGE (u)-[r:ENROLLED_IN]->(c)
-                        ON CREATE SET r.enrolledAt = datetime()
-                    MERGE (c)-[:COVERS]->(t)
-                    """;
-                neo4jClient.query(query)
-                        .bindAll(Map.of(
-                                "profileId",   profileId,
-                                "classroomId", classroomId,
-                                "topicId",     topicId))
-                        .run();
-            } else {
-                String query = """
-                    MERGE (u:UserProfile {id: $profileId})
-                    MERGE (c:ClassRoom {id: $classroomId})
-                    MERGE (u)-[r:ENROLLED_IN]->(c)
-                        ON CREATE SET r.enrolledAt = datetime()
-                    """;
-                neo4jClient.query(query)
-                        .bindAll(Map.of(
-                                "profileId",   profileId,
-                                "classroomId", classroomId))
-                        .run();
-            }
-            log.info("Neo4j: User {} enrolled in Class {} (topicId={})",
-                    profileId, classroomId, topicId);
-        } catch (Exception e) {
-            log.error("Neo4j sync failed for enrollment event. " +
-                    "User: {}, Class: {}, Topic: {}", profileId, classroomId, topicId, e);
-        }
-    }
 
     /**
      * Creates an ENROLLED_IN relationship between a student and a classroom.
@@ -143,13 +103,15 @@ public class GraphSyncService {
             MERGE (c)-[:COVERS]->(t)
             """;
 
+        Map<String, Object> params = new HashMap<>();
+        params.put("id", request.getId());
+        params.put("name", request.getName() != null ? request.getName() : "");
+        params.put("status", request.getStatus() != null ? request.getStatus() : "");
+        params.put("format", request.getFormat() != null ? request.getFormat() : "");
+        params.put("topicId", request.getTopicId());
+
         neo4jClient.query(query)
-                .bindAll(Map.of(
-                        "id",      request.getId(),
-                        "name",    request.getName()   != null ? request.getName()   : "",
-                        "status",  request.getStatus() != null ? request.getStatus() : "",
-                        "format",  request.getFormat() != null ? request.getFormat() : "",
-                        "topicId", request.getTopicId()))
+                .bindAll(params)
                 .run();
         log.info("Neo4j: Synced classroom {}.", request.getId());
     }

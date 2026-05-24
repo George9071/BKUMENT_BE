@@ -43,6 +43,14 @@ public class ClassRoom {
     @Enumerated(EnumType.STRING)
     ClassStatus status;
 
+    @Builder.Default
+    @Column(name = "average_rating")
+    Double averageRating = 0.0;
+
+    @Builder.Default
+    @Column(name = "rating_count")
+    Integer ratingCount = 0;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tutor_id", nullable = false)
     Tutor tutor;

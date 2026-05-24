@@ -11,6 +11,8 @@ ssh:
     enabled: false
 
 app:
+  internal-api:
+    secret: ${INTERNAL_API_SECRET}
   services:
     identity:
       url: http://identity-service:8080/identity

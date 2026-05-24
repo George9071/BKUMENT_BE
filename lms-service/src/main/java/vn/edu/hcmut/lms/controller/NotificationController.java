@@ -13,8 +13,6 @@ import vn.edu.hcmut.lms.dto.response.NotificationResponse;
 import vn.edu.hcmut.lms.dto.response.PageResponse;
 import vn.edu.hcmut.lms.service.NotificationService;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/notifications")
 @RequiredArgsConstructor

@@ -27,7 +27,7 @@ public class SyncService {
      * Bulk upserts Subject nodes into Neo4j.
      * MERGE — idempotent, safe to run multiple times.
      */
-    @Transactional
+    @Transactional(transactionManager = "neo4jTransactionManager")
     public void syncSubjects(List<SubjectSyncRequest> subjects) {
         if (subjects == null || subjects.isEmpty()) {
             log.info("No subjects to sync.");
@@ -49,10 +49,10 @@ public class SyncService {
     }
 
     /**
-     * Bulk upserts Topic nodes and BELONGS_TO → Subject relationships.
-     * Subjects must exist before calling this — call syncSubjects() first.
+     * Bulk upserts Topic nodes and BELONGS_TO -> Subject relationships.
+     * Subjects must exist before calling this - call syncSubjects() first.
      */
-    @Transactional
+    @Transactional(transactionManager = "neo4jTransactionManager")
     public void syncTopics(List<TopicSyncRequest> topics) {
         if (topics == null || topics.isEmpty()) {
             log.info("No topics to sync.");
@@ -74,7 +74,7 @@ public class SyncService {
         log.info("Synced {} topics with BELONGS_TO to Neo4j.", topics.size());
     }
 
-    @Transactional
+    @Transactional(transactionManager = "neo4jTransactionManager")
     public void syncMetadata(List<SubjectSyncRequest> subjects, List<TopicSyncRequest> topics) {
         syncSubjects(subjects);
         syncTopics(topics);
