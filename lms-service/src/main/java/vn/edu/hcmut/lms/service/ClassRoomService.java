@@ -28,6 +28,7 @@ import vn.edu.hcmut.lms.repository.ClassRoomRepository;
 import vn.edu.hcmut.lms.repository.EnrollmentRepository;
 import vn.edu.hcmut.lms.repository.TopicRepository;
 import vn.edu.hcmut.lms.repository.TutorRepository;
+import vn.edu.hcmut.lms.repository.projection.TutorRatingAggregate;
 import vn.edu.hcmut.lms.utils.ClassroomUserStatusResolver;
 import vn.edu.hcmut.lms.utils.SecurityUtils;
 import vn.edu.hcmut.lms.utils.VietnameseTextUtils;
@@ -67,6 +68,8 @@ public class ClassRoomService {
         classRoom.setRatingCount(request.getRatingCount() != null ? Math.max(request.getRatingCount(), 0) : 0);
 
         classRoomRepository.save(classRoom);
+        refreshTutorRating(classRoom.getTutor().getId());
+
         log.info("Updated class rating stats for id: {}, avg: {}, count: {}",
                 classId, classRoom.getAverageRating(), classRoom.getRatingCount());
     }
@@ -359,7 +362,10 @@ public class ClassRoomService {
 
     private List<TutorSearchResponse> groupByTutor(List<ClassRoom> classRooms) {
         Map<String, List<ClassRoom>> grouped = classRooms.stream()
-                .collect(Collectors.groupingBy(c -> c.getTutor().getId()));
+                .collect(Collectors.groupingBy(
+                        c -> c.getTutor().getId(),
+                        LinkedHashMap::new,
+                        Collectors.toList()));
 
         return grouped.values().stream()
                 .map(classes -> {
@@ -446,9 +452,16 @@ public class ClassRoomService {
             rrfScores.put(id, rrfScores.getOrDefault(id, 0.0) + 1.0 / (K + j + 1));
         }
 
-        // 4. Sort unique IDs by RRF Score descending
+        Map<String, ClassRoom> hybridClassMap = classRoomRepository.findAllById(rrfScores.keySet()).stream()
+                .collect(Collectors.toMap(ClassRoom::getId, c -> c));
+
+        // 4. Sort unique IDs by RRF Score descending, then deterministic class/tutor quality tie-breakers.
         List<String> hybridIds = new ArrayList<>(rrfScores.keySet());
-        hybridIds.sort((id1, id2) -> Double.compare(rrfScores.get(id2), rrfScores.get(id1)));
+        hybridIds.sort((id1, id2) -> {
+            int byRrf = Double.compare(rrfScores.get(id2), rrfScores.get(id1));
+            if (byRrf != 0) return byRrf;
+            return compareClassRankingTieBreakers(hybridClassMap.get(id1), hybridClassMap.get(id2));
+        });
 
         // Early return if empty
         if (hybridIds.isEmpty()) {
@@ -467,13 +480,9 @@ public class ClassRoomService {
         int to = Math.min(from + size, totalElements);
         List<String> pagedIds = (from < totalElements) ? hybridIds.subList(from, to) : new ArrayList<>();
 
-        // 6. Fetch entities and sort them to match pagedIds
-        List<ClassRoom> classes = classRoomRepository.findAllById(pagedIds);
-        Map<String, ClassRoom> classMap = classes.stream()
-                .collect(Collectors.toMap(ClassRoom::getId, c -> c));
-
+        // 6. Resolve entities in the sorted order
         List<ClassRoom> pagedClasses = pagedIds.stream()
-                .map(classMap::get)
+                .map(hybridClassMap::get)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
@@ -502,6 +511,72 @@ public class ClassRoomService {
     private String sanitizeHtml(String html) {
         if (html == null) return null;
         return Jsoup.clean(html, Safelist.relaxed());
+    }
+
+    private void refreshTutorRating(String tutorId) {
+        Tutor tutor = tutorRepository.findById(tutorId)
+                .orElseThrow(() -> new AppException(ErrorCode.TUTOR_NOT_FOUND));
+
+        TutorRatingAggregate aggregate = classRoomRepository.getTutorRatingAggregate(tutorId);
+        long ratingCount = aggregate != null && aggregate.getRatingCount() != null
+                ? aggregate.getRatingCount() : 0L;
+        double weightedRatingSum = aggregate != null && aggregate.getWeightedRatingSum() != null
+                ? aggregate.getWeightedRatingSum() : 0.0;
+
+        tutor.setRatingCount(toRatingCount(ratingCount));
+        tutor.setAverageRating(ratingCount > 0 ? weightedRatingSum / ratingCount : 0.0);
+
+        tutorRepository.save(tutor);
+        log.info("Refreshed tutor rating stats for id: {}, avg: {}, count: {}",
+                tutorId, tutor.getAverageRating(), tutor.getRatingCount());
+    }
+
+    private int compareClassRankingTieBreakers(ClassRoom left, ClassRoom right) {
+        if (left == null && right == null) return 0;
+        if (left == null) return 1;
+        if (right == null) return -1;
+
+        int byClassRating = Double.compare(ratingOf(right), ratingOf(left));
+        if (byClassRating != 0) return byClassRating;
+
+        int byTutorRating = Double.compare(tutorRatingOf(right), tutorRatingOf(left));
+        if (byTutorRating != 0) return byTutorRating;
+
+        int byClassRatingCount = Integer.compare(ratingCountOf(right), ratingCountOf(left));
+        if (byClassRatingCount != 0) return byClassRatingCount;
+
+        int byTutorRatingCount = Integer.compare(tutorRatingCountOf(right), tutorRatingCountOf(left));
+        if (byTutorRatingCount != 0) return byTutorRatingCount;
+
+        return nullSafeName(left).compareToIgnoreCase(nullSafeName(right));
+    }
+
+    private double ratingOf(ClassRoom classRoom) {
+        return classRoom.getAverageRating() != null ? classRoom.getAverageRating() : 0.0;
+    }
+
+    private int ratingCountOf(ClassRoom classRoom) {
+        return classRoom.getRatingCount() != null ? classRoom.getRatingCount() : 0;
+    }
+
+    private double tutorRatingOf(ClassRoom classRoom) {
+        Tutor tutor = classRoom.getTutor();
+        if (tutor == null || tutor.getAverageRating() == null) return 0.0;
+        return tutor.getAverageRating();
+    }
+
+    private int tutorRatingCountOf(ClassRoom classRoom) {
+        Tutor tutor = classRoom.getTutor();
+        if (tutor == null || tutor.getRatingCount() == null) return 0;
+        return tutor.getRatingCount();
+    }
+
+    private String nullSafeName(ClassRoom classRoom) {
+        return classRoom.getName() != null ? classRoom.getName() : "";
+    }
+
+    private int toRatingCount(long count) {
+        return count > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) count;
     }
 
     private Pageable toPageable(int page, int size) {

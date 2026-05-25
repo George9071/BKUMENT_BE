@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import vn.edu.hcmut.lms.constant.ClassStatus;
 import vn.edu.hcmut.lms.constant.LearningFormat;
 import vn.edu.hcmut.lms.entity.ClassRoom;
+import vn.edu.hcmut.lms.repository.projection.TutorRatingAggregate;
 
 import java.util.List;
 import java.util.Optional;
@@ -56,7 +57,11 @@ public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
             "(:format IS NULL OR c.format = :format) AND " +
             "(:keyword IS NULL OR LOWER(FUNCTION('unaccent', c.name)) LIKE :keyword OR LOWER(FUNCTION('unaccent', tu.name)) LIKE :keyword OR LOWER(FUNCTION('unaccent', c.description)) LIKE :keyword) AND " +
             "c.status = vn.edu.hcmut.lms.constant.ClassStatus.ENROLLING " +
-            "ORDER BY COALESCE(c.averageRating, 0) DESC, c.name ASC")
+            "ORDER BY COALESCE(c.averageRating, 0.0) DESC, " +
+            "COALESCE(tu.averageRating, 0.0) DESC, " +
+            "COALESCE(c.ratingCount, 0) DESC, " +
+            "COALESCE(tu.ratingCount, 0) DESC, " +
+            "c.name ASC")
     List<ClassRoom> searchAvailableClasses(
             @Param("subjectName") String subjectName,
             @Param("topicName") String topicName,
@@ -83,7 +88,12 @@ public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
             GROUP BY class_id
         ) e ON c.id = e.class_id
         WHERE c.status IN ('ENROLLING', 'ONGOING')
-        ORDER BY (COALESCE(c.average_rating, 0) * 10 + COALESCE(e.enroll_count, 0)) DESC
+        ORDER BY COALESCE(c.average_rating, 0) DESC,
+                 COALESCE(t.average_rating, 0) DESC,
+                 COALESCE(c.rating_count, 0) DESC,
+                 COALESCE(t.rating_count, 0) DESC,
+                 COALESCE(e.enroll_count, 0) DESC,
+                 c.name ASC
     """, 
     countQuery = """
         SELECT count(*) FROM class_room c\s
@@ -91,4 +101,14 @@ public interface ClassRoomRepository extends JpaRepository<ClassRoom, String> {
     """,
     nativeQuery = true)
     Page<ClassRoom> findTopTrendingClasses(Pageable pageable);
+
+    @Query("""
+            SELECT COALESCE(SUM(COALESCE(c.averageRating, 0.0) * COALESCE(c.ratingCount, 0)), 0.0)
+                        AS weightedRatingSum,
+                   COALESCE(SUM(COALESCE(c.ratingCount, 0)), 0)
+                        AS ratingCount
+            FROM ClassRoom c
+            WHERE c.tutor.id = :tutorId
+            """)
+    TutorRatingAggregate getTutorRatingAggregate(@Param("tutorId") String tutorId);
 }
