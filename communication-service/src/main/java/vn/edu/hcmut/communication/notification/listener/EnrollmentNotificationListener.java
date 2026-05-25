@@ -35,7 +35,10 @@ public class EnrollmentNotificationListener {
     ObjectMapper objectMapper;
     NotificationMapper notificationMapper;
 
-    @KafkaListener(topics = "enrollment-events", groupId = "communication-enrollment-group")
+    @KafkaListener(
+            topics = "enrollment-events",
+            groupId = "communication-enrollment-group",
+            properties = "spring.json.value.default.type=vn.edu.hcmut.communication.notification.event.EnrollmentNotificationEvent")
     public void handleEnrollmentEvent(EnrollmentNotificationEvent event) {
         log.info("Received: action={}, class={}", event.getAction(), event.getClassId());
 

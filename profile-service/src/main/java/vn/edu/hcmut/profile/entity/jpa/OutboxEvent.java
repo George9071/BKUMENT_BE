@@ -19,7 +19,10 @@ public class OutboxEvent {
     String aggregateType; // "PROFILE"
     String aggregateId;   // ProfileID
     String eventType;     // "PROFILE_CREATED", "PROFILE_DELETED"
+
+    @Column(columnDefinition = "TEXT")
     String payload;
+
     boolean processed;
     LocalDateTime createdAt;
 }

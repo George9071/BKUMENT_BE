@@ -34,7 +34,10 @@ public class FollowNotificationListener {
     ObjectMapper objectMapper;
     NotificationMapper notificationMapper;
 
-    @KafkaListener(topics = "follow-events", groupId = "communication-follow-group")
+    @KafkaListener(
+            topics = "follow-events",
+            groupId = "communication-follow-group",
+            properties = "spring.json.value.default.type=vn.edu.hcmut.communication.notification.event.FollowNotificationEvent")
     public void handleFollowEvent(FollowNotificationEvent event) {
         log.info("Received follow event: {} followed {}", event.getFollowerId(), event.getFolloweeId());
 

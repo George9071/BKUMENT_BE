@@ -6,8 +6,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
+import vn.edu.hcmut.event.FollowNotificationEvent;
 import vn.edu.hcmut.profile.dto.request.ProfileCreationRequest;
 import vn.edu.hcmut.profile.dto.request.ProfileUpdateRequest;
 import vn.edu.hcmut.profile.entity.jpa.University;
@@ -16,6 +18,7 @@ import vn.edu.hcmut.profile.service.ProfileNeo4jService;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Component
 @RequiredArgsConstructor
@@ -24,8 +27,12 @@ public class ProfileSynchronizeConsumer {
     private final ProfileNeo4jService profileNeo4jService;
     private final UniversityRepository universityRepository;
     private final ObjectMapper objectMapper;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    @KafkaListener(topics = "profile-synchronize-event", groupId = "profile-neo4j-sync")
+    @KafkaListener(
+            topics = "profile-synchronize-event",
+            groupId = "profile-neo4j-sync",
+            properties = "spring.json.value.default.type=java.lang.String")
     public void consumeProfileEvents(ConsumerRecord<String, String> record, Acknowledgment ack) {
         String profileId = record.key();
         String payload = record.value();
@@ -76,13 +83,19 @@ public class ProfileSynchronizeConsumer {
 
                     String followerId = followData.get("followerId");
                     String followeeId = followData.get("followeeId");
+                    String followerName = followData.getOrDefault("followerName", followerId);
 
                     profileNeo4jService.createFollowRelationship(followerId, followeeId);
 
-                    // TODO
-                    // send a Kafka message to the 'follow-events' topic to have the
-                    // Notification Service send a notification that "{follower name} has started following you".
-                    // kafkaTemplate.send("follow-events", event);
+                    FollowNotificationEvent event = FollowNotificationEvent.builder()
+                            .followerId(followerId)
+                            .followerName(followerName)
+                            .followeeId(followeeId)
+                            .action(followData.getOrDefault("action", "FOLLOWED"))
+                            .build();
+
+                    kafkaTemplate.send("follow-events", followeeId, event).get(10, TimeUnit.SECONDS);
+                    log.info("Published follow notification event from {} to {}", followerId, followeeId);
                     break;
 
                 case "USER_UNFOLLOWED":

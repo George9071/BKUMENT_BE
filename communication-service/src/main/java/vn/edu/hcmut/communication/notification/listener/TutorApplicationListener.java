@@ -34,7 +34,10 @@ public class TutorApplicationListener {
     ObjectMapper objectMapper;
     NotificationMapper notificationMapper;
 
-    @KafkaListener(topics = "tutor-events", groupId = "communication-tutor-group")
+    @KafkaListener(
+            topics = "tutor-events",
+            groupId = "communication-tutor-group",
+            properties = "spring.json.value.default.type=vn.edu.hcmut.communication.notification.event.TutorApplicationEvent")
     public void handleApplicationEvent(TutorApplicationEvent event) {
         log.info("Received tutor application event: profile={}, action={}", event.getProfileId(), event.getAction());
 
